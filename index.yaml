@@ -7,3 +7,11 @@ components:
       downloadUrl: https://raw.githubusercontent.com/dream-sports-labs/odin-components/chore/index.yaml/example-0.0.1.tar.gz
       version: 0.0.1
       latest: true
+  application:
+    - description: application component
+      name: application
+      flavours:
+        - local_kubernetes
+      downloadUrl: https://raw.githubusercontent.com/dream-sports-labs/odin-components/chore/index.yaml/application-0.0.1.tar.gz
+      version: 0.0.1
+      latest: true
