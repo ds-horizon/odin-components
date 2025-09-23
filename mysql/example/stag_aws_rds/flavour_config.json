@@ -1,0 +1,16 @@
+{
+    "engineVersion": "3.04.2",
+    "writer": {
+        "instanceType": "db.t3.medium"
+    },
+    "readers": [
+        {
+            "instanceType": "db.t3.medium",
+            "instanceCount": 1
+        }
+    ],
+    "credentials": {
+        "manageMasterUserPassword": true,
+        "masterUsername": "admin"
+    }
+}

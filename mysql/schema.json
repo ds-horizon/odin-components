@@ -1,0 +1,38 @@
+{
+  "title": "Schema valid for across all flavours",
+  "properties": {
+    "version": {
+      "description": "MySQL version to be created",
+      "type": "string",
+      "enum": [
+        "8.0"
+      ]
+    },
+    "discovery": {
+      "type": "object",
+      "description": "Discovery config for the MySQL cluster",
+      "properties": {
+        "reader": {
+          "description": "The private discovery endpoint for the reader",
+          "type": "string",
+          "pattern": "^[^A-Z]*$"
+        },
+        "writer": {
+          "description": "The private discovery endpoint for the writer",
+          "type": "string",
+          "pattern": "^[^A-Z]*$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "reader",
+        "writer"
+      ]
+    }
+  },
+  "required": [
+    "version",
+    "discovery"
+  ],
+  "additionalProperties": false
+}

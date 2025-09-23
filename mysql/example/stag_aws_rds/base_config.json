@@ -1,0 +1,7 @@
+{
+    "version": "8.0",
+    "discovery": {
+        "reader": "${COMPONENT}-${ENV}-reader.dream11-stag.local",
+        "writer": "${COMPONENT}-${ENV}-writer.dream11-stag.local"
+    }
+}

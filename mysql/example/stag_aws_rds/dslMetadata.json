@@ -1,0 +1,11 @@
+{
+    "flavour": "aws_rds",
+    "stage": "${STAGE}",
+    "config": {
+        "operationName": "${OPERATION_NAME}"
+    },
+    "stateConfig": {
+      "provider": "S3",
+      "uri": "https://components-state-odin-dsl.s3.amazonaws.com/aws_rds/${ENV}/${COMPONENT}"
+    }
+}

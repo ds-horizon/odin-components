@@ -1,0 +1,779 @@
+{
+  "title": "aws_rds provisioning configuration",
+  "type": "object",
+  "properties": {
+    "engineVersion": {
+      "type": "string",
+      "description": "Aurora MySQL engine version, e.g. 3.04.2"
+    },
+    "dbName": {
+      "type": "string",
+      "description": "Initial database name",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z][A-Za-z0-9_]*$"
+    },
+    "port": {
+      "type": "integer",
+      "default": 3306,
+      "minimum": 1150,
+      "maximum": 65535
+    },
+    "storageType": {
+      "type": "string",
+      "enum": [
+        "aurora",
+        "aurora-iopt1"
+      ],
+      "default": "aurora",
+      "description": "Storage type for rds cluster"
+    },
+    "backupRetentionPeriod": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 35
+    },
+    "preferredBackupWindow": {
+      "type": "string",
+      "description": "UTC, hh24:mi-hh24:mi, 30-min granularity",
+      "pattern": "^\\d{2}:\\d{2}-\\d{2}:\\d{2}$"
+    },
+    "preferredMaintenanceWindow": {
+      "type": "string",
+      "description": "UTC, hh24:mi-hh24:mi",
+      "pattern": "^\\d{2}:\\d{2}-\\d{2}:\\d{2}$"
+    },
+    "copyTagsToSnapshot": {
+      "type": "boolean",
+      "default": true
+    },
+    "deletionProtection": {
+      "type": "boolean",
+      "default": true
+    },
+    "encryptionAtRest": {
+      "type": "boolean",
+      "default": true,
+      "description": "Controls cluster storage encryption"
+    },
+    "kmsKeyId": {
+      "type": "string",
+      "description": "KMS key to use when encryptionAtRest = true (optional; default RDS KMS key is used if omitted)",
+      "pattern": "^arn:(aws|aws-cn|aws-us-gov):kms:[a-z0-9-]+:\\d{12}:key\\/[0-9a-fA-F-]{36}$"
+    },
+    "enableIAMDatabaseAuthentication": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable IAM DB authentication for the cluster"
+    },
+    "enableCloudwatchLogsExports": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "error",
+          "general",
+          "slowquery",
+          "instance",
+          "iam-db-auth-error",
+          "audit"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "snapshotIdentifier": {
+      "type": "string",
+      "description": "Restore from snapshot"
+    },
+    "replicationSourceIdentifier": {
+      "type": "string",
+      "description": "Aurora replica source cluster ARN/ID"
+    },
+    "sourceRegion": {
+      "type": "string",
+      "description": "Source region (used to assist cross-Region replica creation)",
+      "pattern": "^[a-z]{2}-[a-z]+-\\d$"
+    },
+    "globalClusterIdentifier": {
+      "type": "string",
+      "description": "Join/create Global Database"
+    },
+    "serverlessV2ScalingConfiguration": {
+      "type": "object",
+      "properties": {
+        "minCapacity": {
+          "type": "number",
+          "minimum": 0.5
+        },
+        "maxCapacity": {
+          "type": "number",
+          "minimum": 0.5
+        }
+      },
+      "required": [
+        "minCapacity",
+        "maxCapacity"
+      ],
+      "additionalProperties": false
+    },
+    "backtrackWindow": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Aurora Backtrack window in seconds (if supported by engine version)"
+    },
+    "credentials": {
+      "type": "object",
+      "description": "Choose static username/password OR Secrets Manager–managed",
+      "properties": {
+        "masterUsername": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16
+        },
+        "masterUserPassword": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        },
+        "masterUserSecretKmsKeyId": {
+          "type": "string",
+          "pattern": "^arn:(aws|aws-cn|aws-us-gov):kms:[a-z0-9-]+:\\d{12}:key\\/[0-9a-fA-F-]{36}$"
+        },
+        "manageMasterUserPassword": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "masterUsername"
+      ],
+      "oneOf": [
+        {
+          "required": [
+            "masterUserPassword"
+          ]
+        },
+        {
+          "required": [
+            "masterUserSecretKmsKeyId"
+          ]
+        },
+        {
+          "required": [
+            "manageMasterUserPassword"
+          ],
+          "properties": {
+            "manageMasterUserPassword": {
+              "const": true
+            }
+          }
+        }
+      ],
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "masterUserPassword"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "masterUserSecretKmsKeyId"
+                  ]
+                },
+                {
+                  "properties": {
+                    "manageMasterUserPassword": {
+                      "const": true
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "masterUserSecretKmsKeyId"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "masterUserPassword"
+                  ]
+                },
+                {
+                  "properties": {
+                    "manageMasterUserPassword": {
+                      "const": true
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "manageMasterUserPassword": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "masterUserPassword"
+                  ]
+                },
+                {
+                  "required": [
+                    "masterUserSecretKmsKeyId"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "clusterParameterGroupName": {
+      "type": "string",
+      "description": "Use an existing cluster parameter group"
+    },
+    "clusterParameterGroupConfig": {
+      "type": "object",
+      "description": "Inline cluster parameter overrides (Aurora MySQL)",
+      "properties": {
+        "binlogFormat": {
+          "type": "string",
+          "enum": [
+            "ROW",
+            "OFF"
+          ]
+        },
+        "innodbPrintAllDeadlocks": {
+          "type": "string"
+        },
+        "awsDefaultLambdaRole": {
+          "type": "string"
+        },
+        "awsDefaultS3Role": {
+          "type": "string"
+        },
+        "awsDefaultLogsRole": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "deletion": {
+      "type": "object",
+      "description": "Preferences used when deleting this cluster",
+      "properties": {
+        "skipFinalSnapshot": {
+          "type": "boolean",
+          "default": true,
+          "description": "If false, a final snapshot is required on delete"
+        },
+        "finalSnapshotIdentifier": {
+          "type": "string",
+          "description": "Name for the final DB cluster snapshot when deleting"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "skipFinalSnapshot": {
+                "const": false
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "finalSnapshotIdentifier"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "skipFinalSnapshot": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "finalSnapshotIdentifier"
+              ]
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "tags": {
+      "type": "object",
+      "description": "Tags for rds cluster as per AWS",
+      "patternProperties": {
+        "^(?!aws:).+": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "writer": {
+      "type": "object",
+      "description": "Writer DB instance (compute node)",
+      "properties": {
+        "instanceType": {
+          "type": "string",
+          "description": "e.g., db.r6g.large or db.serverless",
+          "pattern": "^(db\\.(?:[trm][0-9][a-z]?\\.(?:micro|small|medium|large|xlarge|\\d+x?large))|db\\.serverless)$"
+        },
+        "availabilityZone": {
+          "type": "string",
+          "pattern": "^[a-z]{2}-[a-z]+-\\d[a-z]?$"
+        },
+        "publiclyAccessible": {
+          "type": "boolean",
+          "default": false
+        },
+        "autoMinorVersionUpgrade": {
+          "type": "boolean",
+          "default": true
+        },
+        "deletionProtection": {
+          "type": "boolean",
+          "default": true
+        },
+        "enablePerformanceInsights": {
+          "type": "boolean",
+          "default": false
+        },
+        "performanceInsightsKmsKeyId": {
+          "type": "string",
+          "pattern": "^arn:(aws|aws-cn|aws-us-gov):kms:[a-z0-9-]+:\\d{12}:key\\/[0-9a-fA-F-]{36}$"
+        },
+        "performanceInsightsRetentionPeriod": {
+          "type": "integer",
+          "enum": [
+            7,
+            731
+          ]
+        },
+        "enhancedMonitoring": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "interval": {
+              "type": "integer",
+              "enum": [
+                1,
+                5,
+                10,
+                15,
+                30,
+                60
+              ],
+              "default": 60
+            },
+            "monitoringRoleArn": {
+              "type": "string",
+              "pattern": "^arn:(aws|aws-cn|aws-us-gov):iam::\\d{12}:role\\/.+"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "enabled": {
+                    "const": true
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "interval",
+                  "monitoringRoleArn"
+                ]
+              }
+            }
+          ],
+          "additionalProperties": false
+        },
+        "instanceParameterGroupName": {
+          "type": "string"
+        },
+        "instanceParameterGroupConfig": {
+          "type": "object",
+          "description": "Inline instance parameters (Aurora MySQL)",
+          "properties": {
+            "interactiveTimeout": {
+              "type": "integer"
+            },
+            "waitTimeout": {
+              "type": "integer"
+            },
+            "lockWaitTimeout": {
+              "type": "integer"
+            },
+            "longQueryTime": {
+              "type": "integer"
+            },
+            "maxAllowedPacket": {
+              "type": "integer"
+            },
+            "slowQueryLog": {
+              "type": "integer"
+            },
+            "tmpTableSize": {
+              "type": "integer"
+            },
+            "maxHeapTableSize": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        },
+        "networkType": {
+          "type": "string",
+          "enum": [
+            "IPV4",
+            "DUAL"
+          ],
+          "default": "IPV4"
+        }
+      },
+      "required": [
+        "instanceType"
+      ],
+      "allOf": [
+        {
+          "not": {
+            "allOf": [
+              {
+                "required": [
+                  "instanceParameterGroupName"
+                ]
+              },
+              {
+                "required": [
+                  "instanceParameterGroupConfig"
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "readers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "instanceType": {
+            "type": "string",
+            "description": "e.g., db.r6g.large or db.serverless",
+            "pattern": "^(db\\.(?:[trm][0-9][a-z]?\\.(?:micro|small|medium|large|xlarge|\\d+x?large))|db\\.serverless)$"
+          },
+          "instanceCount": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "promotionTier": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 15
+          },
+          "availabilityZone": {
+            "type": "string",
+            "pattern": "^[a-z]{2}-[a-z]+-\\d[a-z]?$"
+          },
+          "publiclyAccessible": {
+            "type": "boolean",
+            "default": false
+          },
+          "autoMinorVersionUpgrade": {
+            "type": "boolean",
+            "default": true
+          },
+          "deletionProtection": {
+            "type": "boolean",
+            "default": true
+          },
+          "enablePerformanceInsights": {
+            "type": "boolean",
+            "default": false
+          },
+          "performanceInsightsKmsKeyId": {
+            "type": "string",
+            "pattern": "^arn:(aws|aws-cn|aws-us-gov):kms:[a-z0-9-]+:\\d{12}:key\\/[0-9a-fA-F-]{36}$"
+          },
+          "performanceInsightsRetentionPeriod": {
+            "type": "integer",
+            "enum": [
+              7,
+              731
+            ]
+          },
+          "enhancedMonitoring": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "default": false
+              },
+              "interval": {
+                "type": "integer",
+                "enum": [
+                  1,
+                  5,
+                  10,
+                  15,
+                  30,
+                  60
+                ],
+                "default": 60
+              },
+              "monitoringRoleArn": {
+                "type": "string",
+                "pattern": "^arn:(aws|aws-cn|aws-us-gov):iam::\\d{12}:role\\/.+"
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "enabled": {
+                      "const": true
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "interval",
+                    "monitoringRoleArn"
+                  ]
+                }
+              }
+            ],
+            "additionalProperties": false
+          },
+          "instanceParameterGroupName": {
+            "type": "string"
+          },
+          "instanceParameterGroupConfig": {
+            "type": "object",
+            "properties": {
+              "interactiveTimeout": {
+                "type": "integer"
+              },
+              "waitTimeout": {
+                "type": "integer"
+              },
+              "lockWaitTimeout": {
+                "type": "integer"
+              },
+              "longQueryTime": {
+                "type": "integer"
+              },
+              "maxAllowedPacket": {
+                "type": "integer"
+              },
+              "slowQueryLog": {
+                "type": "integer"
+              },
+              "tmpTableSize": {
+                "type": "integer"
+              },
+              "maxHeapTableSize": {
+                "type": "integer"
+              }
+            },
+            "additionalProperties": false
+          },
+          "networkType": {
+            "type": "string",
+            "enum": [
+              "IPV4",
+              "DUAL"
+            ],
+            "default": "IPV4"
+          }
+        },
+        "required": [
+          "instanceType",
+          "instanceCount"
+        ],
+        "allOf": [
+          {
+            "not": {
+              "allOf": [
+                {
+                  "required": [
+                    "instanceParameterGroupName"
+                  ]
+                },
+                {
+                  "required": [
+                    "instanceParameterGroupConfig"
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "engineVersion",
+    "writer"
+  ],
+  "allOf": [
+    {
+      "not": {
+        "allOf": [
+          {
+            "required": [
+              "clusterParameterGroupName"
+            ]
+          },
+          {
+            "required": [
+              "clusterParameterGroupConfig"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "snapshotIdentifier"
+              ]
+            },
+            {
+              "required": [
+                "replicationSourceIdentifier"
+              ]
+            }
+          ]
+        }
+      },
+      "then": {
+        "required": [
+          "credentials"
+        ]
+      }
+    },
+    {
+      "if": {
+        "anyOf": [
+          {
+            "required": [
+              "snapshotIdentifier"
+            ]
+          },
+          {
+            "required": [
+              "replicationSourceIdentifier"
+            ]
+          }
+        ]
+      },
+      "then": {
+        "not": {
+          "required": [
+            "credentials"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "sourceRegion"
+        ]
+      },
+      "then": {
+        "required": [
+          "replicationSourceIdentifier"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "writer": {
+            "properties": {
+              "instanceType": {
+                "const": "db.serverless"
+              }
+            },
+            "required": [
+              "instanceType"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "serverlessV2ScalingConfiguration"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "readers": {
+            "type": "array",
+            "contains": {
+              "properties": {
+                "instanceType": {
+                  "const": "db.serverless"
+                }
+              },
+              "required": [
+                "instanceType"
+              ]
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "serverlessV2ScalingConfiguration"
+        ]
+      }
+    }
+  ],
+  "additionalProperties": false
+}
