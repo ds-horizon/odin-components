@@ -21,6 +21,21 @@ public class UndeployService {
     this.stateCorrectionService.correctState();
 
     List<Callable<Void>> tasks = new ArrayList<>();
+
+    tasks.addAll(deleteReaderInstancesAndWaitTaks());
+    tasks.addAll(deleteWriterInstanceAndWaitTaks());
+
+    ApplicationUtil.runOnExecutorService(tasks);
+
+    deleteClusterAndWait();
+
+    deleteParameterGroups();
+
+    log.info("MySQL cluster undeployment completed successfully");
+  }
+
+  private List<Callable<Void>> deleteReaderInstancesAndWaitTaks() {
+    List<Callable<Void>> tasks = new ArrayList<>();
     if (Application.getState().getReaderInstanceIdentifiers() != null
         && !Application.getState().getReaderInstanceIdentifiers().isEmpty()) {
       List<Map.Entry<String, String>> readerInstancesToDelete =
@@ -38,6 +53,11 @@ public class UndeployService {
             });
       }
     }
+    return tasks;
+  }
+
+  private List<Callable<Void>> deleteWriterInstanceAndWaitTaks() {
+    List<Callable<Void>> tasks = new ArrayList<>();
     if (Application.getState().getWriterInstanceIdentifier() != null) {
       rdsClient.deleteDBInstance(
           Application.getState().getWriterInstanceIdentifier(),
@@ -50,8 +70,10 @@ public class UndeployService {
             return null;
           });
     }
-    ApplicationUtil.runOnExecutorService(tasks);
+    return tasks;
+  }
 
+  private void deleteClusterAndWait() {
     if (Application.getState().getClusterIdentifier() != null) {
       rdsClient.deleteDBCluster(
           Application.getState().getClusterIdentifier(),
@@ -61,7 +83,9 @@ public class UndeployService {
       Application.getState().setWriterEndpoint(null);
       Application.getState().setReaderEndpoint(null);
     }
+  }
 
+  private void deleteParameterGroups() {
     if (Application.getState().getClusterParameterGroupName() != null) {
       rdsClient.deleteDBClusterParameterGroup(
           Application.getState().getClusterParameterGroupName());
@@ -84,6 +108,5 @@ public class UndeployService {
         Application.getState().getReaderInstanceParameterGroupNames().remove(key);
       }
     }
-    log.info("MySQL cluster undeployment completed successfully");
   }
 }
