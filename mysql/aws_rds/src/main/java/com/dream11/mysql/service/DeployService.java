@@ -59,7 +59,7 @@ public class DeployService {
     if (clusterParameterGroupName == null) {
       clusterParameterGroupName =
           ApplicationUtil.joinByDash(name, Constants.ClusterParameterGroupSuffix, randomId);
-      rdsClient.createClusterParameterGroup(clusterParameterGroupName, tags, deployConfig);
+      rdsClient.createDBClusterParameterGroup(clusterParameterGroupName, tags, deployConfig);
       Application.getState().setClusterParameterGroupName(clusterParameterGroupName);
     }
 
@@ -87,7 +87,7 @@ public class DeployService {
     if (writerInstanceParameterGroupName == null) {
       writerInstanceParameterGroupName =
           ApplicationUtil.joinByDash(name, Constants.WriterInstanceParameterGroupSuffix, randomId);
-      rdsClient.createInstanceParameterGroup(
+      rdsClient.createDBInstanceParameterGroup(
           writerInstanceParameterGroupName,
           deployConfig.getVersion(),
           tags,
@@ -137,7 +137,7 @@ public class DeployService {
           instanceParameterGroupName =
               ApplicationUtil.joinByDash(
                   name, Constants.ReaderInstanceParameterGroupSuffix, parameterGroupKey, randomId);
-          rdsClient.createInstanceParameterGroup(
+          rdsClient.createDBInstanceParameterGroup(
               instanceParameterGroupName,
               deployConfig.getVersion(),
               tags,

@@ -342,7 +342,7 @@ public class RDSClient {
                 builder -> builder.dbInstanceIdentifier(instanceIdentifier)));
   }
 
-  public void createClusterParameterGroup(
+  public void createDBClusterParameterGroup(
       String clusterParameterGroupName, Map<String, String> tags, DeployConfig deployConfig) {
     log.info("Creating cluster parameter group: {}", clusterParameterGroupName);
     CreateDbClusterParameterGroupRequest request =
@@ -356,12 +356,12 @@ public class RDSClient {
     rdsClient.createDBClusterParameterGroup(request);
 
     if (deployConfig.getClusterParameterGroupConfig() != null) {
-      configureClusterParameters(
+      configureDBClusterParameters(
           clusterParameterGroupName, deployConfig.getClusterParameterGroupConfig());
     }
   }
 
-  private void configureClusterParameters(
+  private void configureDBClusterParameters(
       String clusterParameterGroupName, ClusterParameterGroupConfig config) {
     log.info("Configuring cluster parameters for parameter group: {}", clusterParameterGroupName);
     List<Parameter> parameters = new ArrayList<>();
@@ -429,7 +429,7 @@ public class RDSClient {
     }
   }
 
-  public void createInstanceParameterGroup(
+  public void createDBInstanceParameterGroup(
       String instanceParameterGroupName,
       String version,
       Map<String, String> tags,
@@ -445,11 +445,11 @@ public class RDSClient {
 
     rdsClient.createDBParameterGroup(request);
     if (config != null) {
-      configureInstanceParameters(instanceParameterGroupName, config);
+      configureDBInstanceParameters(instanceParameterGroupName, config);
     }
   }
 
-  private void configureInstanceParameters(
+  private void configureDBInstanceParameters(
       String instanceParameterGroupName, InstanceParameterGroupConfig config) {
     log.info("Configuring instance parameters for parameter group: {}", instanceParameterGroupName);
 
