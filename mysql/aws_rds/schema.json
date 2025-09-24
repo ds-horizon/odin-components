@@ -278,7 +278,7 @@
       },
       "additionalProperties": false
     },
-    "deletion": {
+    "deletionConfig": {
       "type": "object",
       "description": "Preferences used when deleting this cluster",
       "properties": {

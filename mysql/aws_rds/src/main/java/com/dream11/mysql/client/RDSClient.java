@@ -2,17 +2,19 @@ package com.dream11.mysql.client;
 
 import com.dream11.mysql.config.metadata.aws.RDSData;
 import com.dream11.mysql.config.user.ClusterParameterGroupConfig;
+import com.dream11.mysql.config.user.DeletionConfig;
 import com.dream11.mysql.config.user.DeployConfig;
 import com.dream11.mysql.config.user.InstanceConfig;
 import com.dream11.mysql.config.user.InstanceParameterGroupConfig;
+import com.dream11.mysql.constant.Constants;
 import com.dream11.mysql.error.ApplicationError;
 import com.dream11.mysql.exception.GenericApplicationException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
-import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.rds.RdsClient;
@@ -37,7 +39,6 @@ public class RDSClient {
     this.rdsClient =
         RdsClient.builder()
             .region(Region.of(region))
-            .credentialsProvider(DefaultCredentialsProvider.create())
             .overrideConfiguration(
                 overrideConfig ->
                     overrideConfig
@@ -53,146 +54,152 @@ public class RDSClient {
       Map<String, String> tags,
       DeployConfig deployConfig,
       RDSData rdsData) {
-    boolean isRestoreFromSnapshot = deployConfig.getSnapshotIdentifier() != null;
-
-    if (isRestoreFromSnapshot) {
-      log.info(
-          "Restoring MySQL cluster {} from snapshot: {}",
+    if (deployConfig.getSnapshotIdentifier() != null) {
+      return restoreDBClusterFromSnapshot(
           clusterIdentifier,
-          deployConfig.getSnapshotIdentifier());
-      RestoreDbClusterFromSnapshotRequest.Builder restoreBuilder =
-          RestoreDbClusterFromSnapshotRequest.builder()
-              .snapshotIdentifier(deployConfig.getSnapshotIdentifier());
-
-      applyCommonConfiguration(
-          clusterId -> restoreBuilder.dbClusterIdentifier(clusterId),
-          engine -> restoreBuilder.engine(engine),
-          engineVersion -> restoreBuilder.engineVersion(engineVersion),
-          clusterParamGroupName ->
-              restoreBuilder.dbClusterParameterGroupName(clusterParamGroupName),
-          subnetGroupName -> restoreBuilder.dbSubnetGroupName(subnetGroupName),
-          securityGroupIds -> restoreBuilder.vpcSecurityGroupIds(securityGroupIds),
-          tagList -> restoreBuilder.tags(tagList),
-          port -> restoreBuilder.port(port),
-          storageType -> restoreBuilder.storageType(storageType),
-          copyTags -> restoreBuilder.copyTagsToSnapshot(copyTags),
-          deletionProtection -> restoreBuilder.deletionProtection(deletionProtection),
-          iamAuth -> restoreBuilder.enableIAMDatabaseAuthentication(iamAuth),
-          kmsKeyId -> restoreBuilder.kmsKeyId(kmsKeyId),
-          logsExports -> restoreBuilder.enableCloudwatchLogsExports(logsExports),
-          scaling -> restoreBuilder.serverlessV2ScalingConfiguration(scaling),
-          backtrack -> restoreBuilder.backtrackWindow(backtrack),
-          clusterIdentifier,
-          clusterParameterGroupName,
+          deployConfig.getSnapshotIdentifier(),
           tags,
           deployConfig,
+          clusterParameterGroupName,
           rdsData);
-
-      RestoreDbClusterFromSnapshotRequest request = restoreBuilder.build();
-
-      DBCluster cluster = rdsClient.restoreDBClusterFromSnapshot(request).dbCluster();
-      return List.of(cluster.endpoint(), cluster.readerEndpoint());
     } else {
-      log.info("Creating MySQL cluster: {}", clusterIdentifier);
-      CreateDbClusterRequest.Builder createBuilder = CreateDbClusterRequest.builder();
-
-      applyCommonConfiguration(
-          clusterId -> createBuilder.dbClusterIdentifier(clusterId),
-          engine -> createBuilder.engine(engine),
-          engineVersion -> createBuilder.engineVersion(engineVersion),
-          clusterParamGroupName -> createBuilder.dbClusterParameterGroupName(clusterParamGroupName),
-          subnetGroupName -> createBuilder.dbSubnetGroupName(subnetGroupName),
-          securityGroupIds -> createBuilder.vpcSecurityGroupIds(securityGroupIds),
-          tagList -> createBuilder.tags(tagList),
-          port -> createBuilder.port(port),
-          storageType -> createBuilder.storageType(storageType),
-          copyTags -> createBuilder.copyTagsToSnapshot(copyTags),
-          deletionProtection -> createBuilder.deletionProtection(deletionProtection),
-          iamAuth -> createBuilder.enableIAMDatabaseAuthentication(iamAuth),
-          kmsKeyId -> createBuilder.kmsKeyId(kmsKeyId),
-          logsExports -> createBuilder.enableCloudwatchLogsExports(logsExports),
-          scaling -> createBuilder.serverlessV2ScalingConfiguration(scaling),
-          backtrack -> createBuilder.backtrackWindow(backtrack),
-          clusterIdentifier,
-          clusterParameterGroupName,
-          tags,
-          deployConfig,
-          rdsData);
-
-      if (deployConfig.getCredentials() != null) {
-        createBuilder.masterUsername(deployConfig.getCredentials().getMasterUsername());
-
-        if (deployConfig.getCredentials().getMasterUserPassword() != null) {
-          createBuilder.masterUserPassword(deployConfig.getCredentials().getMasterUserPassword());
-        } else if (deployConfig.getCredentials().getMasterUserSecretKmsKeyId() != null) {
-          createBuilder.masterUserSecretKmsKeyId(
-              deployConfig.getCredentials().getMasterUserSecretKmsKeyId());
-        } else if (deployConfig.getCredentials().getManageMasterUserPassword() == true) {
-          createBuilder.manageMasterUserPassword(
-              deployConfig.getCredentials().getManageMasterUserPassword());
-        } else {
-          throw new GenericApplicationException(ApplicationError.INVALID_CREDENTIALS);
-        }
-      }
-
-      if (deployConfig.getDbName() != null) {
-        createBuilder.databaseName(deployConfig.getDbName());
-      }
-
-      if (deployConfig.getBackupRetentionPeriod() != null) {
-        createBuilder.backupRetentionPeriod(deployConfig.getBackupRetentionPeriod());
-      }
-
-      if (deployConfig.getPreferredBackupWindow() != null) {
-        createBuilder.preferredBackupWindow(deployConfig.getPreferredBackupWindow());
-      }
-
-      if (deployConfig.getPreferredMaintenanceWindow() != null) {
-        createBuilder.preferredMaintenanceWindow(deployConfig.getPreferredMaintenanceWindow());
-      }
-
-      if (deployConfig.getEncryptionAtRest() != null) {
-        createBuilder.storageEncrypted(deployConfig.getEncryptionAtRest());
-      }
-
-      if (deployConfig.getReplicationSourceIdentifier() != null) {
-        createBuilder.replicationSourceIdentifier(deployConfig.getReplicationSourceIdentifier());
-
-        if (deployConfig.getSourceRegion() != null) {
-          createBuilder.sourceRegion(deployConfig.getSourceRegion());
-        }
-      }
-
-      if (deployConfig.getGlobalClusterIdentifier() != null) {
-        createBuilder.globalClusterIdentifier(deployConfig.getGlobalClusterIdentifier());
-      }
-
-      CreateDbClusterRequest request = createBuilder.build();
-
-      DBCluster cluster = rdsClient.createDBCluster(request).dbCluster();
-      return List.of(cluster.endpoint(), cluster.readerEndpoint());
+      return createDBClusterFromScratch(
+          clusterIdentifier, clusterParameterGroupName, tags, deployConfig, rdsData);
     }
   }
 
+  private List<String> restoreDBClusterFromSnapshot(
+      String clusterIdentifier,
+      String snapshotIdentifier,
+      Map<String, String> tags,
+      DeployConfig deployConfig,
+      String clusterParameterGroupName,
+      RDSData rdsData) {
+    log.info(
+        "Restoring MySQL cluster {} from snapshot: {}",
+        clusterIdentifier,
+        deployConfig.getSnapshotIdentifier());
+    RestoreDbClusterFromSnapshotRequest.Builder restoreBuilder =
+        RestoreDbClusterFromSnapshotRequest.builder()
+            .snapshotIdentifier(deployConfig.getSnapshotIdentifier());
+
+    applyCommonConfiguration(
+        restoreBuilder::dbClusterIdentifier,
+        restoreBuilder::engine,
+        restoreBuilder::engineVersion,
+        restoreBuilder::dbClusterParameterGroupName,
+        restoreBuilder::dbSubnetGroupName,
+        restoreBuilder::vpcSecurityGroupIds,
+        restoreBuilder::tags,
+        restoreBuilder::port,
+        restoreBuilder::storageType,
+        restoreBuilder::copyTagsToSnapshot,
+        restoreBuilder::deletionProtection,
+        restoreBuilder::enableIAMDatabaseAuthentication,
+        restoreBuilder::kmsKeyId,
+        restoreBuilder::enableCloudwatchLogsExports,
+        restoreBuilder::serverlessV2ScalingConfiguration,
+        restoreBuilder::backtrackWindow,
+        clusterIdentifier,
+        clusterParameterGroupName,
+        tags,
+        deployConfig,
+        rdsData);
+
+    RestoreDbClusterFromSnapshotRequest request = restoreBuilder.build();
+
+    DBCluster cluster = rdsClient.restoreDBClusterFromSnapshot(request).dbCluster();
+    return List.of(cluster.endpoint(), cluster.readerEndpoint());
+  }
+
+  private List<String> createDBClusterFromScratch(
+      String clusterIdentifier,
+      String clusterParameterGroupName,
+      Map<String, String> tags,
+      DeployConfig deployConfig,
+      RDSData rdsData) {
+    log.info("Creating MySQL cluster: {}", clusterIdentifier);
+    CreateDbClusterRequest.Builder createBuilder = CreateDbClusterRequest.builder();
+
+    applyCommonConfiguration(
+        createBuilder::dbClusterIdentifier,
+        createBuilder::engine,
+        createBuilder::engineVersion,
+        createBuilder::dbClusterParameterGroupName,
+        createBuilder::dbSubnetGroupName,
+        createBuilder::vpcSecurityGroupIds,
+        createBuilder::tags,
+        createBuilder::port,
+        createBuilder::storageType,
+        createBuilder::copyTagsToSnapshot,
+        createBuilder::deletionProtection,
+        createBuilder::enableIAMDatabaseAuthentication,
+        createBuilder::kmsKeyId,
+        createBuilder::enableCloudwatchLogsExports,
+        createBuilder::serverlessV2ScalingConfiguration,
+        createBuilder::backtrackWindow,
+        clusterIdentifier,
+        clusterParameterGroupName,
+        tags,
+        deployConfig,
+        rdsData);
+
+    if (deployConfig.getCredentials() != null) {
+      createBuilder.masterUsername(deployConfig.getCredentials().getMasterUsername());
+      if (deployConfig.getCredentials().getMasterUserPassword() != null) {
+        createBuilder.masterUserPassword(deployConfig.getCredentials().getMasterUserPassword());
+      } else if (deployConfig.getCredentials().getMasterUserSecretKmsKeyId() != null) {
+        createBuilder.masterUserSecretKmsKeyId(
+            deployConfig.getCredentials().getMasterUserSecretKmsKeyId());
+      } else if (deployConfig.getCredentials().getManageMasterUserPassword()) {
+        createBuilder.manageMasterUserPassword(true);
+      } else {
+        throw new GenericApplicationException(ApplicationError.INVALID_CREDENTIALS);
+      }
+    }
+
+    setIfNotNull(createBuilder::databaseName, deployConfig.getDbName());
+
+    setIfNotNull(createBuilder::backupRetentionPeriod, deployConfig.getBackupRetentionPeriod());
+
+    setIfNotNull(createBuilder::preferredBackupWindow, deployConfig.getPreferredBackupWindow());
+
+    setIfNotNull(
+        createBuilder::preferredMaintenanceWindow, deployConfig.getPreferredMaintenanceWindow());
+
+    setIfNotNull(createBuilder::storageEncrypted, deployConfig.getEncryptionAtRest());
+
+    setIfNotNull(
+        createBuilder::replicationSourceIdentifier, deployConfig.getReplicationSourceIdentifier());
+
+    setIfNotNull(createBuilder::sourceRegion, deployConfig.getSourceRegion());
+
+    setIfNotNull(createBuilder::globalClusterIdentifier, deployConfig.getGlobalClusterIdentifier());
+
+    CreateDbClusterRequest request = createBuilder.build();
+
+    DBCluster cluster = rdsClient.createDBCluster(request).dbCluster();
+    return List.of(cluster.endpoint(), cluster.readerEndpoint());
+  }
+
   private void applyCommonConfiguration(
-      java.util.function.Consumer<String> clusterIdentifierSetter,
-      java.util.function.Consumer<String> engineSetter,
-      java.util.function.Consumer<String> engineVersionSetter,
-      java.util.function.Consumer<String> clusterParameterGroupNameSetter,
-      java.util.function.Consumer<String> subnetGroupNameSetter,
-      java.util.function.Consumer<java.util.List<String>> securityGroupIdsSetter,
-      java.util.function.Consumer<java.util.List<Tag>> tagsSetter,
-      java.util.function.Consumer<Integer> portSetter,
-      java.util.function.Consumer<String> storageTypeSetter,
-      java.util.function.Consumer<Boolean> copyTagsSetter,
-      java.util.function.Consumer<Boolean> deletionProtectionSetter,
-      java.util.function.Consumer<Boolean> iamAuthSetter,
-      java.util.function.Consumer<String> kmsKeyIdSetter,
-      java.util.function.Consumer<java.util.List<String>> logsExportsSetter,
-      java.util.function.Consumer<
-              software.amazon.awssdk.services.rds.model.ServerlessV2ScalingConfiguration>
+      Consumer<String> clusterIdentifierSetter,
+      Consumer<String> engineSetter,
+      Consumer<String> engineVersionSetter,
+      Consumer<String> clusterParameterGroupNameSetter,
+      Consumer<String> subnetGroupNameSetter,
+      Consumer<List<String>> securityGroupIdsSetter,
+      Consumer<List<Tag>> tagsSetter,
+      Consumer<Integer> portSetter,
+      Consumer<String> storageTypeSetter,
+      Consumer<Boolean> copyTagsSetter,
+      Consumer<Boolean> deletionProtectionSetter,
+      Consumer<Boolean> iamAuthSetter,
+      Consumer<String> kmsKeyIdSetter,
+      Consumer<List<String>> logsExportsSetter,
+      Consumer<software.amazon.awssdk.services.rds.model.ServerlessV2ScalingConfiguration>
           scalingSetter,
-      java.util.function.Consumer<Long> backtrackSetter,
+      Consumer<Long> backtrackSetter,
       String clusterIdentifier,
       String clusterParameterGroupName,
       Map<String, String> tags,
@@ -200,7 +207,7 @@ public class RDSClient {
       RDSData rdsData) {
 
     clusterIdentifierSetter.accept(clusterIdentifier);
-    engineSetter.accept("aurora-mysql");
+    engineSetter.accept(Constants.ENGINE_TYPE);
     engineVersionSetter.accept(
         deployConfig.getVersion() + ".mysql_aurora." + deployConfig.getEngineVersion());
     clusterParameterGroupNameSetter.accept(clusterParameterGroupName);
@@ -208,33 +215,21 @@ public class RDSClient {
     securityGroupIdsSetter.accept(rdsData.getSecurityGroups());
     tagsSetter.accept(convertMapToTags(tags));
 
-    if (deployConfig.getPort() != null) {
-      portSetter.accept(deployConfig.getPort());
-    }
+    setIfNotNull(portSetter, deployConfig.getPort());
 
-    if (deployConfig.getStorageType() != null) {
-      storageTypeSetter.accept(deployConfig.getStorageType());
-    }
+    setIfNotNull(storageTypeSetter, deployConfig.getStorageType());
 
-    if (deployConfig.getCopyTagsToSnapshot() != null) {
-      copyTagsSetter.accept(deployConfig.getCopyTagsToSnapshot());
-    }
+    setIfNotNull(copyTagsSetter, deployConfig.getCopyTagsToSnapshot());
 
-    if (deployConfig.getDeletionProtection() != null) {
-      deletionProtectionSetter.accept(deployConfig.getDeletionProtection());
-    }
+    setIfNotNull(deletionProtectionSetter, deployConfig.getDeletionProtection());
 
-    if (deployConfig.getEnableIAMDatabaseAuthentication() != null) {
-      iamAuthSetter.accept(deployConfig.getEnableIAMDatabaseAuthentication());
-    }
+    setIfNotNull(iamAuthSetter, deployConfig.getEnableIAMDatabaseAuthentication());
 
-    if (deployConfig.getKmsKeyId() != null) {
-      kmsKeyIdSetter.accept(deployConfig.getKmsKeyId());
-    }
+    setIfNotNull(kmsKeyIdSetter, deployConfig.getKmsKeyId());
 
-    if (deployConfig.getEnableCloudwatchLogsExports() != null) {
-      logsExportsSetter.accept(deployConfig.getEnableCloudwatchLogsExports());
-    }
+    setIfNotNull(logsExportsSetter, deployConfig.getEnableCloudwatchLogsExports());
+
+    setIfNotNull(backtrackSetter, deployConfig.getBacktrackWindow());
 
     if (deployConfig.getServerlessV2ScalingConfiguration() != null) {
       scalingSetter.accept(
@@ -242,10 +237,6 @@ public class RDSClient {
               .minCapacity(deployConfig.getServerlessV2ScalingConfiguration().getMinCapacity())
               .maxCapacity(deployConfig.getServerlessV2ScalingConfiguration().getMaxCapacity())
               .build());
-    }
-
-    if (deployConfig.getBacktrackWindow() != null) {
-      backtrackSetter.accept(deployConfig.getBacktrackWindow());
     }
   }
 
@@ -262,40 +253,30 @@ public class RDSClient {
             .dbClusterIdentifier(clusterIdentifier)
             .dbInstanceClass(instanceConfig.getInstanceType())
             .dbParameterGroupName(instanceParameterGroupName)
-            .engine("aurora-mysql")
+            .engine(Constants.ENGINE_TYPE)
             .tags(convertMapToTags(tags));
 
-    if (instanceConfig.getPubliclyAccessible() != null) {
-      requestBuilder.publiclyAccessible(instanceConfig.getPubliclyAccessible());
-    }
+    setIfNotNull(requestBuilder::publiclyAccessible, instanceConfig.getPubliclyAccessible());
 
-    if (instanceConfig.getAutoMinorVersionUpgrade() != null) {
-      requestBuilder.autoMinorVersionUpgrade(instanceConfig.getAutoMinorVersionUpgrade());
-    }
+    setIfNotNull(
+        requestBuilder::autoMinorVersionUpgrade, instanceConfig.getAutoMinorVersionUpgrade());
 
-    if (instanceConfig.getDeletionProtection() != null) {
-      requestBuilder.deletionProtection(instanceConfig.getDeletionProtection());
-    }
+    setIfNotNull(requestBuilder::deletionProtection, instanceConfig.getDeletionProtection());
 
-    if (instanceConfig.getEnablePerformanceInsights() != null) {
-      requestBuilder.enablePerformanceInsights(instanceConfig.getEnablePerformanceInsights());
-    }
+    setIfNotNull(
+        requestBuilder::enablePerformanceInsights, instanceConfig.getEnablePerformanceInsights());
 
-    if (instanceConfig.getAvailabilityZone() != null) {
-      requestBuilder.availabilityZone(instanceConfig.getAvailabilityZone());
-    }
+    setIfNotNull(requestBuilder::availabilityZone, instanceConfig.getAvailabilityZone());
 
-    if (instanceConfig.getPerformanceInsightsKmsKeyId() != null) {
-      requestBuilder.performanceInsightsKMSKeyId(instanceConfig.getPerformanceInsightsKmsKeyId());
-    }
+    setIfNotNull(
+        requestBuilder::performanceInsightsKMSKeyId,
+        instanceConfig.getPerformanceInsightsKmsKeyId());
 
-    if (instanceConfig.getPerformanceInsightsRetentionPeriod() != null) {
-      requestBuilder.performanceInsightsRetentionPeriod(
-          instanceConfig.getPerformanceInsightsRetentionPeriod());
-    }
+    setIfNotNull(
+        requestBuilder::performanceInsightsRetentionPeriod,
+        instanceConfig.getPerformanceInsightsRetentionPeriod());
 
-    if (instanceConfig.getEnhancedMonitoring() != null
-        && instanceConfig.getEnhancedMonitoring().getEnabled()) {
+    if (instanceConfig.getEnhancedMonitoring().getEnabled()) {
       requestBuilder
           .monitoringInterval(instanceConfig.getEnhancedMonitoring().getInterval())
           .monitoringRoleArn(instanceConfig.getEnhancedMonitoring().getMonitoringRoleArn());
@@ -305,62 +286,60 @@ public class RDSClient {
     rdsClient.createDBInstance(request);
   }
 
-  public void waitUntilDBClusterAvailable(String clusterIdentifier) {
+  private void performWait(
+      String identifier, String type, String waitType, Consumer<RdsWaiter> waitAction) {
     try (RdsWaiter waiter =
         RdsWaiter.builder()
             .client(rdsClient)
             .overrideConfiguration(config -> config.maxAttempts(60))
             .build()) {
-      log.info("Waiting for DB cluster {} to become available...", clusterIdentifier);
-      waiter.waitUntilDBClusterAvailable(builder -> builder.dbClusterIdentifier(clusterIdentifier));
+      log.info("Waiting for DB {} {} to be {}", type, identifier, waitType);
+      waitAction.accept(waiter);
+      log.info("DB {} {} is now {}", type, identifier, waitType);
     } catch (Exception e) {
       throw new GenericApplicationException(
-          ApplicationError.CLUSTER_AVAILABLE_TIMEOUT, clusterIdentifier);
+          ApplicationError.DB_WAIT_TIMEOUT, type, identifier, waitType);
     }
+  }
+
+  public void waitUntilDBClusterAvailable(String clusterIdentifier) {
+    performWait(
+        clusterIdentifier,
+        "cluster",
+        "available",
+        waiter ->
+            waiter.waitUntilDBClusterAvailable(
+                builder -> builder.dbClusterIdentifier(clusterIdentifier)));
   }
 
   public void waitUntilDBInstanceAvailable(String instanceIdentifier) {
-    try (RdsWaiter waiter =
-        RdsWaiter.builder()
-            .client(rdsClient)
-            .overrideConfiguration(config -> config.maxAttempts(60))
-            .build()) {
-      log.info("Waiting for DB instance {} to become available...", instanceIdentifier);
-      waiter.waitUntilDBInstanceAvailable(
-          builder -> builder.dbInstanceIdentifier(instanceIdentifier));
-    } catch (Exception e) {
-      throw new GenericApplicationException(
-          ApplicationError.INSTANCE_AVAILABLE_TIMEOUT, instanceIdentifier);
-    }
+    performWait(
+        instanceIdentifier,
+        "instance",
+        "available",
+        waiter ->
+            waiter.waitUntilDBInstanceAvailable(
+                builder -> builder.dbInstanceIdentifier(instanceIdentifier)));
   }
 
   public void waitUntilDBClusterDeleted(String clusterIdentifier) {
-    try (RdsWaiter waiter =
-        RdsWaiter.builder()
-            .client(rdsClient)
-            .overrideConfiguration(config -> config.maxAttempts(60))
-            .build()) {
-      log.info("Waiting for DB cluster {} to be deleted...", clusterIdentifier);
-      waiter.waitUntilDBClusterDeleted(builder -> builder.dbClusterIdentifier(clusterIdentifier));
-    } catch (Exception e) {
-      throw new GenericApplicationException(
-          ApplicationError.CLUSTER_DELETE_TIMEOUT, clusterIdentifier);
-    }
+    performWait(
+        clusterIdentifier,
+        "cluster",
+        "deleted",
+        waiter ->
+            waiter.waitUntilDBClusterDeleted(
+                builder -> builder.dbClusterIdentifier(clusterIdentifier)));
   }
 
   public void waitUntilDBInstanceDeleted(String instanceIdentifier) {
-    try (RdsWaiter waiter =
-        RdsWaiter.builder()
-            .client(rdsClient)
-            .overrideConfiguration(config -> config.maxAttempts(60))
-            .build()) {
-      log.info("Waiting for DB instance {} to be deleted...", instanceIdentifier);
-      waiter.waitUntilDBInstanceDeleted(
-          builder -> builder.dbInstanceIdentifier(instanceIdentifier));
-    } catch (Exception e) {
-      throw new GenericApplicationException(
-          ApplicationError.INSTANCE_DELETE_TIMEOUT, instanceIdentifier);
-    }
+    performWait(
+        instanceIdentifier,
+        "instance",
+        "deleted",
+        waiter ->
+            waiter.waitUntilDBInstanceDeleted(
+                builder -> builder.dbInstanceIdentifier(instanceIdentifier)));
   }
 
   public void createClusterParameterGroup(
@@ -369,7 +348,7 @@ public class RDSClient {
     CreateDbClusterParameterGroupRequest request =
         CreateDbClusterParameterGroupRequest.builder()
             .dbClusterParameterGroupName(clusterParameterGroupName)
-            .dbParameterGroupFamily("aurora-mysql" + deployConfig.getVersion())
+            .dbParameterGroupFamily(Constants.ENGINE_TYPE + deployConfig.getVersion())
             .description(clusterParameterGroupName)
             .tags(convertMapToTags(tags))
             .build();
@@ -459,7 +438,7 @@ public class RDSClient {
     CreateDbParameterGroupRequest request =
         CreateDbParameterGroupRequest.builder()
             .dbParameterGroupName(instanceParameterGroupName)
-            .dbParameterGroupFamily("aurora-mysql" + version)
+            .dbParameterGroupFamily(Constants.ENGINE_TYPE + version)
             .description(instanceParameterGroupName)
             .tags(convertMapToTags(tags))
             .build();
@@ -618,14 +597,30 @@ public class RDSClient {
                     instanceParameterGroupName));
   }
 
-  public void deleteDBCluster(String clusterIdentifier) {
+  public void deleteDBCluster(String clusterIdentifier, DeletionConfig deletionConfig) {
     this.rdsClient.deleteDBCluster(
-        request -> request.dbClusterIdentifier(clusterIdentifier).skipFinalSnapshot(true));
+        request -> {
+          request.dbClusterIdentifier(clusterIdentifier);
+          if (!deletionConfig.getSkipFinalSnapshot()) {
+            request.skipFinalSnapshot(false);
+            request.finalDBSnapshotIdentifier(deletionConfig.getFinalSnapshotIdentifier());
+          } else {
+            request.skipFinalSnapshot(true);
+          }
+        });
   }
 
-  public void deleteDBInstance(String instanceIdentifier) {
+  public void deleteDBInstance(String instanceIdentifier, DeletionConfig deletionConfig) {
     this.rdsClient.deleteDBInstance(
-        request -> request.dbInstanceIdentifier(instanceIdentifier).skipFinalSnapshot(true));
+        request -> {
+          request.dbInstanceIdentifier(instanceIdentifier);
+          if (!deletionConfig.getSkipFinalSnapshot()) {
+            request.skipFinalSnapshot(false);
+            request.finalDBSnapshotIdentifier(deletionConfig.getFinalSnapshotIdentifier());
+          } else {
+            request.skipFinalSnapshot(true);
+          }
+        });
   }
 
   public void deleteDBClusterParameterGroup(String clusterParameterGroupName) {
@@ -648,5 +643,11 @@ public class RDSClient {
       tags.add(Tag.builder().key(entry.getKey()).value(entry.getValue()).build());
     }
     return tags;
+  }
+
+  private <T> void setIfNotNull(Consumer<T> setter, T value) {
+    if (value != null) {
+      setter.accept(value);
+    }
   }
 }

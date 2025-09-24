@@ -11,7 +11,6 @@ import lombok.RequiredArgsConstructor;
 public enum Operations {
   DEPLOY("deploy"),
   UNDEPLOY("undeploy"),
-  /* Add operation */
 
   REDEPLOY("redeploy");
   final String value;

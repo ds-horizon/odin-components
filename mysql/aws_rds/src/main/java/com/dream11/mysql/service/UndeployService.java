@@ -28,7 +28,8 @@ public class UndeployService {
       for (Map.Entry<String, String> entry : readerInstancesToDelete) {
         String readerInstanceIdentifier = entry.getValue();
         String key = entry.getKey();
-        rdsClient.deleteDBInstance(readerInstanceIdentifier);
+        rdsClient.deleteDBInstance(
+            readerInstanceIdentifier, Application.getState().getDeployConfig().getDeletionConfig());
         tasks.add(
             () -> {
               rdsClient.waitUntilDBInstanceDeleted(readerInstanceIdentifier);
@@ -38,7 +39,9 @@ public class UndeployService {
       }
     }
     if (Application.getState().getWriterInstanceIdentifier() != null) {
-      rdsClient.deleteDBInstance(Application.getState().getWriterInstanceIdentifier());
+      rdsClient.deleteDBInstance(
+          Application.getState().getWriterInstanceIdentifier(),
+          Application.getState().getDeployConfig().getDeletionConfig());
       tasks.add(
           () -> {
             rdsClient.waitUntilDBInstanceDeleted(
@@ -50,7 +53,9 @@ public class UndeployService {
     ApplicationUtil.runOnExecutorService(tasks);
 
     if (Application.getState().getClusterIdentifier() != null) {
-      rdsClient.deleteDBCluster(Application.getState().getClusterIdentifier());
+      rdsClient.deleteDBCluster(
+          Application.getState().getClusterIdentifier(),
+          Application.getState().getDeployConfig().getDeletionConfig());
       rdsClient.waitUntilDBClusterDeleted(Application.getState().getClusterIdentifier());
       Application.getState().setClusterIdentifier(null);
       Application.getState().setWriterEndpoint(null);
