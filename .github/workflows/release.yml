@@ -10,14 +10,67 @@ jobs:
       contents: read
       pull-requests: read
     runs-on: ubuntu-latest
+
+    env:
+        version_path: .version
     steps:
       - uses: actions/checkout@v4  
       - name: Get changed files
         id: cf
         uses: tj-actions/changed-files@v47
+        with:
+            files: |
+              [^/]+/version.json
 
-      - name: Show all changed files
+      - name: components with changed version files
+        id: changed_components
         run: |
           for f in ${{ steps.cf.outputs.all_changed_files }}; do
-            echo "$f"
+            echo changed_components=$(cut -f1 -d'/' <<< "$f") >> $GITHUB_OUTPUT
           done
+          echo "done"
+
+      - name: check if version is changed
+        id: version_changed
+        run: |
+          VERSION_CHANGED=false
+          for f in ${{ steps.changed_components.outputs.changed_components}}; do
+            echo $f
+          done
+        
+        
+      - name: Detect version change (PR)
+        id: component_version
+        run: |     
+            changed=()
+            for f in ${{ steps.cf.outputs.all_changed_files }}; do
+                old=$(git show "${{ github.event.pull_request.base.sha }}:${f}" | jq -r "$version_path")
+                new=$(jq -r "$version_path" "$f")
+
+                echo "old=$old" >> "$GITHUB_OUTPUT"
+                echo "new=$new" >> "$GITHUB_OUTPUT"
+
+                if [ "$old" != "$new" ]; then
+                    changed+=("$(cut -f1 -d'/' <<< "$f")")
+                fi
+            done
+
+            echo "changed=${changed[*]}" >> "$GITHUB_OUTPUT"
+
+      - name: Output changed components
+        run: |
+          for f in ${{ steps.component_version.outputs.changed }}; do
+            echo "Component with version change: $f"
+          done
+
+    #   - name: Determine if component files changed
+    #     id: check_changes
+    #     run: |
+    #         COMPONENT_CHANGED=false
+    #         for file in ${{ steps.cf.outputs.all_changed_files }}; do
+    #             if [[ "$file" == components/* ]]; then
+    #             COMPONENT_CHANGED=true
+    #             break
+    #             fi
+    #         done
+    #         echo "component_changed=$COMPONENT_CHANGED" >> $GITHUB_OUTPUT
