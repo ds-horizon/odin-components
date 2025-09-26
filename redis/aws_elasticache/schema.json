@@ -44,7 +44,7 @@
     "replicationGroupId": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9\\-]{0,39}$",
-      "description": "Unique identifier for the replication group. Must be 1-40 alphanumeric characters or hyphens, begin with a letter, and contain no spaces or uppercase letters. This becomes the AWS resource name. **Required by AWS API**."
+      "description": "AWS resource identifier for the ElastiCache replication group. Becomes the permanent cluster identifier visible in AWS console and CLI. Cannot be changed after creation. Must be 1-40 alphanumeric characters or hyphens, start with a letter, no spaces or uppercase. Choose descriptive names following your naming convention (e.g., 'prod-cache-users'). **Required by AWS API**."
     },
     "replicationGroupDescription": {
       "type": "string",
@@ -55,14 +55,14 @@
     "cacheNodeType": {
       "type": "string",
       "pattern": "^cache\\.[a-z0-9]+\\.(micro|small|medium|large|xlarge|[0-9]+xlarge)$",
-      "description": "The AWS instance type for the Redis nodes (e.g., `cache.t3.micro`). This is the primary driver of performance and cost, and must be chosen carefully based on your workload and budget. **Default: `cache.t4g.micro`** (smallest ARM-based general-purpose instance for cost efficiency).",
+      "description": "AWS EC2 instance type determining compute, memory, and network capacity for each Redis node. Primary driver of both performance and cost. T-series for variable workloads, M-series for general purpose, R-series for memory-intensive. ARM instances (ending in 'g') offer 20-40% better price-performance. **Default: `cache.t4g.micro`** (1 vCPU, 0.5GB RAM, suitable for dev/test). **Production:** Start with cache.m7g.large (2 vCPU, 6.38GB); use R-series for large datasets; monitor CPU/memory to right-size.",
       "default": "cache.t4g.micro"
     },
     "numNodeGroups": {
       "type": "number",
       "minimum": 1,
       "maximum": 500,
-      "description": "The number of shards for a Redis Cluster. Only applicable if `clusterModeEnabled` is true. Valid range: 1-500. **Default: `1`** (single shard).",
+      "description": "Number of shards (node groups) in Redis Cluster mode. Each shard handles a subset of the keyspace for horizontal scaling. Only applies when `clusterModeEnabled: true`. Increasing shards improves write throughput and data capacity linearly but increases cost and complexity. Valid range: 1-500. **Default: `1`** (single shard). **Production:** Start with 3-5 shards for high availability; scale based on write throughput needs (each shard handles ~25K writes/sec).",
       "default": 1
     },
     "replicasPerNodeGroup": {
@@ -87,7 +87,7 @@
     },
     "parameterGroupName": {
       "type": "string",
-      "description": "The name of the AWS ElastiCache Parameter Group to apply. If not specified, the AWS default parameter group for the selected `redisVersion` will be used."
+      "description": "ElastiCache parameter group name containing Redis configuration settings. Controls advanced Redis parameters not exposed as direct properties. AWS provides defaults: `default.redis7` for Redis 7.x, `default.redis6.x` for 6.x, append `.cluster.on` for cluster mode. Create custom groups for fine-tuning. **Default:** AWS selects based on Redis version and cluster mode. **Production:** Create custom parameter groups for workload-specific tuning (timeout, maxmemory-policy, etc.)."
     },
     "automaticFailoverEnabled": {
       "type": "boolean",
@@ -101,12 +101,12 @@
     },
     "transitEncryptionEnabled": {
       "type": "boolean",
-      "description": "Enables TLS to encrypt data in transit between clients and the Redis server. Enable for production workloads handling sensitive data. Note: may impact performance. **Default: `false`** (disabled to simplify client configuration for development/testing).",
+      "description": "Enables TLS encryption for data in transit between clients and Redis nodes. Requires Redis 3.2.6+. Clients must support TLS and use port 6379 with `--tls` flag. Adds 10-20% latency overhead but essential for security. **Default: `false`** (disabled to simplify development setup). **Production:** Enable for any sensitive data, compliance requirements (HIPAA, PCI), or cross-AZ traffic.",
       "default": false
     },
     "atRestEncryptionEnabled": {
       "type": "boolean",
-      "description": "Enables encryption of data stored on disk (backups and swap files). Enable for production workloads with compliance requirements. **Default: `false`** (disabled to minimize cost and complexity for development/testing).",
+      "description": "Encrypts data at rest including disk-based backups, swap files, and AOF/RDB persistence files. Uses AWS-managed or customer-managed KMS keys. No performance impact but slight cost increase. Cannot be disabled after enabling. **Default: `false`** (disabled for development simplicity). **Production:** Enable for compliance (HIPAA, PCI-DSS, SOC) or sensitive data; use customer-managed KMS keys for key rotation control.",
       "default": false
     },
     "snapshotRetentionLimit": {
@@ -134,12 +134,12 @@
     "snapshotWindow": {
       "type": "string",
       "pattern": "^[0-9]{2}:[0-9]{2}-[0-9]{2}:[0-9]{2}$",
-      "description": "Daily UTC time range for automated backups. Format: `HH:MM-HH:MM` (e.g., `03:00-05:00`). Minimum 60-minute window. Required when `snapshotRetentionLimit > 0`. If not specified and snapshots are enabled, AWS assigns a window. **Production:** Set during low-traffic hours."
+      "description": "Daily UTC time window for creating automated backups. Backups may impact performance during this window. Format: `HH:MM-HH:MM` in 24-hour UTC (e.g., `03:00-05:00`). Must be at least 60 minutes. Required when `snapshotRetentionLimit > 0`. AWS auto-assigns if not specified. **Production:** Schedule during lowest traffic period; monitor latency spikes during backup window; consider 02:00-04:00 UTC for US workloads."
     },
     "notificationTopicArn": {
       "type": "string",
       "pattern": "^arn:aws:sns:[a-z0-9\\-]+:[0-9]+:[a-zA-Z0-9\\-_]+$",
-      "description": "SNS topic ARN for ElastiCache events (failovers, node replacements, scaling, maintenance). **Production:** Essential for operational visibility. Create dedicated SNS topics per environment and integrate with your alerting system."
+      "description": "Amazon SNS topic ARN for receiving ElastiCache event notifications including failovers, node replacements, scaling events, maintenance, and backup completions. SNS topic owner must match cluster owner account. Enables proactive incident response. **Production:** Critical for operational visibility; create environment-specific topics; integrate with PagerDuty/Slack/email; filter events by severity."
     },
     "autoMinorVersionUpgrade": {
       "type": "boolean",
@@ -190,12 +190,12 @@
     "ipDiscovery": {
       "type": "string",
       "enum": ["ipv4", "ipv6"],
-      "description": "IP version for cluster discovery. Requires Redis 6.2+. **Default: `'ipv4'`**. Use `'ipv6'` only if your infrastructure requires it and clients support it.",
+      "description": "IP protocol version for node discovery endpoints. IPv6 requires Redis 6.2-7.1 (Redis OSS) or 7.2+ (Valkey) on Nitro instances. Affects how clients resolve node addresses. Choose based on VPC configuration and client support. **Default: `'ipv4'`** (universal compatibility). **Production:** Use IPv6 only with full stack IPv6 support; test client library compatibility first.",
       "default": "ipv4"
     },
     "userGroupIds": {
       "type": "array",
-      "description": "List of user group IDs for RBAC (Redis 6.0+). Each group defines users and their permissions. Only works when authentication is enabled. **Production:** Create groups like 'readonly', 'admin', 'app-specific' with appropriate ACL rules.",
+      "description": "User group IDs for Redis ACL-based access control (RBAC). Requires Redis 6.0+ and authentication enabled. Each group contains users with specific command/key permissions defined via ACL rules. Enables fine-grained security beyond simple AUTH. **Default: `[]`** (no RBAC, uses AUTH only). **Production:** Implement least-privilege access with groups: 'read-only' for analytics, 'write-only' for producers, 'admin' for operations; regularly audit permissions.",
       "items": {
         "type": "string"
       },
