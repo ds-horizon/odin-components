@@ -9,13 +9,8 @@ This repository contains the source code for various Odin components - productio
 ```
 odin-components/
 ├── component-schema-guiding-principles.md  # Essential reading for contributors
-├── project-context.md                      # Project overview and philosophy
-└── redis/                                  # Redis component implementation
-    ├── schema.json                         # Component definition
-    ├── defaults.json                       # Default values
-    └── aws_elasticache/                    # AWS ElastiCache flavour
-        ├── schema.json
-        └── defaults.json
+└── component/                              # Component implementation
+    └── flavour/                            # Component's flavour implementation
 ```
 
 ## For Component Developers
