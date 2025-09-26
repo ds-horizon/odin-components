@@ -1,4 +1,4 @@
-name: component release
+name: main release
 
 on:
   workflow_dispatch:
