@@ -1,76 +1,218 @@
-name: component release
+name: main release
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      component:
+        description: "Component to release (leave empty to check all)"
+        required: true
+        default: "test-component-1"
 
 jobs:
   changed:
     permissions:
-      contents: read
+      contents: write
       pull-requests: read
     runs-on: ubuntu-latest
 
     env:
-        version_path: .version
-    steps:
-      - uses: actions/checkout@v4  
-      - name: Get changed files
-        id: cf
-        uses: tj-actions/changed-files@v47
-        with:
-            files: |
-              [^/]+/version.json
+      version_path: .version
+      BASE_REF: release-workflow
+      VERSION_FILE: version.json
+      COMPONENT: ${{ github.event.inputs.component }}
+      OWNER: dream-sports-labs
+      REPO: odin-components
+      GITHUB_TOKEN: ${{ github.token }}
+      INDEX_BRANCH: test_gh_pages
+      INDEX_FILE: index.yaml
 
-      - name: components with changed version files
-        id: changed_components
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect version change
+        id: component_version
         run: |
-          for f in ${{ steps.cf.outputs.all_changed_files }}; do
-            echo changed_components=$(cut -f1 -d'/' <<< "$f") >> $GITHUB_OUTPUT
-          done
+          file="${{env.COMPONENT}}/${{env.VERSION_FILE}}"
+
+          # checking if version.json is present or not
+          if [[ ! -f "$file" ]]; then
+              echo "File '$file' not found in working tree."
+              {
+              echo "changed=false"
+              echo "reason=missing_current_file"
+              } >> "$GITHUB_OUTPUT"
+              exit 1
+          fi
+
+          old_json=$(git show "${{env.BASE_REF}}:$file" 2>/dev/null || true)
+          if [[ -z "$old_json" ]]; then
+              old=""
+          else
+              old=$(printf '%s' "$old_json" | jq -r "$version_path")
+          fi
+          new=$(jq -r "$version_path" "$file")
+
+          echo "old=$old" >> "$GITHUB_OUTPUT"
+          echo "new=$new" >> "$GITHUB_OUTPUT"
+
+          echo "changed=$([ "$old" != "$new" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
           echo "done"
 
-      - name: check if version is changed
-        id: version_changed
+      # - name: version changed
+      #   id: version_changed
+      #   run: |
+      #     if [ -z "${{ steps.component_version.outputs.changed }}" ]; then
+      #         echo "No version change detected."
+      #         exit 0
+      #     else
+      #         echo "Version change detected for component: ${{ steps.component_version.outputs.changed }}"
+      #     fi
+
+      - name: Check if release exists (REST API)
+        id: check_release_api
+        env:
+          TAG: "${{env.COMPONENT}}-${{ steps.component_version.outputs.new}}"
+
+        if: steps.component_version.outputs.changed == 'true'
         run: |
-          VERSION_CHANGED=false
-          for f in ${{ steps.changed_components.outputs.changed_components}}; do
-            echo $f
-          done
-        
-        
-      - name: Detect version change (PR)
-        id: component_version
-        run: |     
-            changed=()
-            for f in ${{ steps.cf.outputs.all_changed_files }}; do
-                old=$(git show "${{ github.event.pull_request.base.sha }}:${f}" | jq -r "$version_path")
-                new=$(jq -r "$version_path" "$f")
+          set -euo pipefail
 
-                echo "old=$old" >> "$GITHUB_OUTPUT"
-                echo "new=$new" >> "$GITHUB_OUTPUT"
+          url="https://api.github.com/repos/${OWNER}/${REPO}/releases/tags/${TAG}"
+          code=$(curl -sS -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "$url")
 
-                if [ "$old" != "$new" ]; then
-                    changed+=("$(cut -f1 -d'/' <<< "$f")")
-                fi
-            done
+          if [[ "$code" == "200" ]]; then
+            echo "release_exists=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$code" == "404" ]]; then
+            echo "release_exists=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Unexpected status: $code"
+            exit 1
+          fi
 
-            echo "changed=${changed[*]}" >> "$GITHUB_OUTPUT"
+      - name: Create tar file of component
+        id: pack
+        shell: bash
+        if: steps.component_version.outputs.changed == 'true' && steps.check_release_api.outputs.release_exists == 'false'
 
-      - name: Output changed components
+        env:
+          TAG: "${{env.COMPONENT}}-${{ steps.component_version.outputs.new}}"
         run: |
-          for f in ${{ steps.component_version.outputs.changed }}; do
-            echo "Component with version change: $f"
-          done
+          set -euo pipefail
 
-    #   - name: Determine if component files changed
-    #     id: check_changes
-    #     run: |
-    #         COMPONENT_CHANGED=false
-    #         for file in ${{ steps.cf.outputs.all_changed_files }}; do
-    #             if [[ "$file" == components/* ]]; then
-    #             COMPONENT_CHANGED=true
-    #             break
-    #             fi
-    #         done
-    #         echo "component_changed=$COMPONENT_CHANGED" >> $GITHUB_OUTPUT
+          # Asset name: <foldername>-<tag>.tar.gz
+          folder_name="${{env.COMPONENT}}"
+          asset_name="$TAG.tar.gz"
+
+          mkdir -p dist
+          # Use -C to avoid nesting parent paths inside the tarball.
+          tar -czvf "dist/${asset_name}" -C "${{env.COMPONENT}}" .
+
+          echo "asset_path=dist/${asset_name}" >> "$GITHUB_OUTPUT"
+          echo "asset_name=${asset_name}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        if: steps.component_version.outputs.changed == 'true' && steps.check_release_api.outputs.release_exists == 'false' && steps.pack.outputs.asset_path != ''
+        id: create_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: "${{env.COMPONENT}}-${{ steps.component_version.outputs.new}}"
+          name: "${{env.COMPONENT}}-${{ steps.component_version.outputs.new}}"
+          files: |
+            ${{ steps.pack.outputs.asset_path }}
+
+      - name: check release created
+        id: check_release_created
+        env:
+          TAG: "${{env.COMPONENT}}-${{ steps.component_version.outputs.new}}"
+        if : steps.check_release_api.outputs.release_exists == 'false' && steps.component_version.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+
+          url="https://api.github.com/repos/${OWNER}/${REPO}/releases/tags/${TAG}"
+          code=$(curl -sS -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "$url")
+
+          if [[ "$code" == "200" ]]; then
+            echo "release_created=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$code" == "404" ]]; then
+            echo "release_created=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Unexpected status: $code"
+            exit 1
+          fi
+      
+      
+      - name: Checkout target branch into subdir
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.INDEX_BRANCH }}
+          fetch-depth: 0
+          
+
+      - name: check and update index file
+        id : check_branch_and_file
+        if : steps.check_release_api.outputs.release_exists == 'false' && steps.component_version.outputs.changed == 'true' && steps.check_release_created.outputs.release_created == 'true'
+        run: |
+          set -euo pipefail
+
+          # Fail early if the branch itself doesn't exist
+          if ! git rev-parse --verify --quiet "origin/${{env.INDEX_BRANCH}}^{commit}" >/dev/null; then
+            echo "branch_exists=false" >> "$GITHUB_OUTPUT"
+            echo "file_exists=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "branch_exists=true" >> "$GITHUB_OUTPUT"
+            if [[ -f "${{env.INDEX_FILE}}" ]]; then
+              echo "file_exists=true"  >> "$GITHUB_OUTPUT"
+            else
+              echo "file_exists=false" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Commit & push
+        env:
+          GITHUB_USERNAME: SohithKumarPavuluri
+          GITHUB_EMAIL: sohith.pavuluri.dream11.com
+        
+        if : ${{steps.check_branch_and_file.outputs.branch_exists}} == "true"
+        run : |
+          set -euo pipefail
+
+          git config user.name  ${{env.GITHUB_USERNAME}}
+          git config user.email ${{env.GITHUB_EMAIL}}
+
+          if [[ "${{steps.check_branch_and_file.outputs.file_exists}}" == "false" ]]; then
+            touch "${{env.INDEX_FILE}}"
+            yq -i '.entries = ({})' "${{env.INDEX_FILE}}"
+            yq -i '.entries."${{env.COMPONENT}}" = ({})' "${{env.INDEX_FILE}}"
+            yq -i '.entries."${{env.COMPONENT}}".name = (${{env.COMPONENT}})' "${{env.INDEX_FILE}}"
+            echo "creating file"
+          else 
+            echo "not creating file"
+          fi
+          
+          yq -i '.entries."${{env.COMPONENT}}".versions = ("${{steps.component_version.outputs.new}}")' "${{env.INDEX_FILE}}"
+          yq -i '.entries."${{env.COMPONENT}}".url = ("${{ fromJSON(steps.create_release.outputs.assets)[0].browser_download_url }}")' "${{env.INDEX_FILE}}"
+
+          git add "${{env.INDEX_FILE}}"
+
+          if ! git diff --cached --quiet -- "${{env.INDEX_FILE}}"; then
+            # git config user.name  ${{env.GITHUB_USERNAME}}
+            # git config user.email ${{env.GITHUB_EMAIL}}
+            # git add -A
+            git commit -m "chore: update ${{env.INDEX_FILE}} via workflow"
+            git push origin HEAD:${{ env.INDEX_BRANCH }}
+            echo "Changes committed and pushed."
+          else
+            echo "No changes to commit."
+          fi
