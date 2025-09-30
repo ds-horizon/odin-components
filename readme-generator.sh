@@ -19,6 +19,9 @@ while IFS= read -r schema_file; do
   if [[ -f "${template_file}" ]]; then
     echo "Generating ${schema_dir}/README.md"
     json-schema-docs -schema "${schema_file}" -template "${template_file}" > "${schema_dir}/README.md"
+  else
+    echo -e "\033[0;31mERROR: Found ${schema_file} but missing ${template_file}\033[0m"
+    exit 1
   fi
 done < <(find . -name "schema.json" -type f -not -path "*/.*/*")
 
