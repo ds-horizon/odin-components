@@ -1,0 +1,99 @@
+{
+  "namespace": "redis",
+  "deploymentMode": "sentinel",
+  "replicaCount": 1,
+  "master": {
+    "resources": {
+      "requests": {
+        "cpu": "500m",
+        "memory": "1Gi"
+      },
+      "limits": {
+        "cpu": "1000m",
+        "memory": "2Gi"
+      }
+    }
+  },
+  "replica": {
+    "resources": {
+      "requests": {
+        "cpu": "500m",
+        "memory": "1Gi"
+      },
+      "limits": {
+        "cpu": "1000m",
+        "memory": "2Gi"
+      }
+    }
+  },
+  "persistence": {
+    "enabled": true,
+    "storageClass": "gp3",
+    "size": "10Gi",
+    "rdb": {
+      "enabled": true
+    },
+    "aof": {
+      "enabled": false
+    }
+  },
+  "sentinel": {
+    "enabled": true,
+    "replicas": 3,
+    "quorum": 2,
+    "resources": {
+      "requests": {
+        "cpu": "100m",
+        "memory": "128Mi"
+      },
+      "limits": {
+        "cpu": "200m",
+        "memory": "256Mi"
+      }
+    }
+  },
+  "antiAffinity": "soft",
+  "topologySpreadConstraints": [],
+  "metrics": {
+    "enabled": true,
+    "serviceMonitor": {
+      "enabled": false,
+      "interval": "30s",
+      "namespace": "monitoring"
+    }
+  },
+  "backup": {
+    "enabled": false,
+    "schedule": "0 2 * * *",
+    "s3Region": "us-east-1",
+    "retention": 7
+  },
+  "service": {
+    "type": "ClusterIP",
+    "annotations": {}
+  },
+  "networkPolicy": {
+    "enabled": false,
+    "allowedNamespaces": []
+  },
+  "updateStrategy": {
+    "type": "RollingUpdate",
+    "rollingUpdate": {
+      "maxUnavailable": 1
+    }
+  },
+  "podDisruptionBudget": {
+    "enabled": true,
+    "minAvailable": 1
+  },
+  "serviceAccount": "default",
+  "nodeSelector": {},
+  "tolerations": [],
+  "priorityClassName": "",
+  "securityContext": {
+    "runAsNonRoot": true,
+    "runAsUser": 1000,
+    "fsGroup": 1000
+  },
+  "additionalConfig": {}
+}
