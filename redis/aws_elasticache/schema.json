@@ -1,0 +1,195 @@
+{
+  "title": "AWS ElastiCache for Redis Flavour Configuration",
+  "type": "object",
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "automaticFailoverEnabled": { "const": true }
+        }
+      },
+      "then": {
+        "properties": {
+          "replicasPerNodeGroup": { "minimum": 1 }
+        },
+        "errorMessage": "automaticFailoverEnabled requires at least 1 replica (replicasPerNodeGroup must be >= 1)"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "multiAzEnabled": { "const": true }
+        }
+      },
+      "then": {
+        "properties": {
+          "automaticFailoverEnabled": { "const": true }
+        },
+        "errorMessage": "multiAzEnabled requires automaticFailoverEnabled to be true"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "snapshotRetentionLimit": { "minimum": 1 }
+        }
+      },
+      "then": {
+        "required": ["snapshotWindow"],
+        "errorMessage": "snapshotWindow is required when snapshotRetentionLimit is greater than 0"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "numNodeGroups": { "minimum": 2 }
+        }
+      },
+      "then": {
+        "properties": {
+          "clusterModeEnabled": { "const": true }
+        },
+        "errorMessage": "numNodeGroups can only be greater than 1 when clusterModeEnabled is true"
+      }
+    }
+  ],
+  "properties": {
+    "replicationGroupDescription": {
+      "type": "string",
+      "maxLength": 255,
+      "description": "Human-readable description of the replication group. Used for AWS resource management and documentation. **Default: `'ElastiCache Redis replication group'`**.",
+      "default": "ElastiCache Redis replication group"
+    },
+    "cacheNodeType": {
+      "type": "string",
+      "pattern": "^cache\\.[a-z0-9]+\\.(micro|small|medium|large|xlarge|[0-9]+xlarge)$",
+      "description": "AWS EC2 instance type determining compute, memory, and network capacity for each Redis node. Primary driver of both performance and cost. T-series for variable workloads, M-series for general purpose, R-series for memory-intensive. ARM instances (ending in 'g') offer 20-40% better price-performance. **Default: `cache.t4g.micro`** (1 vCPU, 0.5GB RAM, suitable for dev/test). **Production:** Start with cache.m7g.large (2 vCPU, 6.38GB); use R-series for large datasets; monitor CPU/memory to right-size.",
+      "default": "cache.t4g.micro"
+    },
+    "numNodeGroups": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 500,
+      "description": "Number of shards (node groups) in Redis Cluster mode. Each shard handles a subset of the keyspace for horizontal scaling. Only applies when `clusterModeEnabled: true`. Increasing shards improves write throughput and data capacity linearly but increases cost and complexity. Valid range: 1-500. **Default: `1`** (single shard). **Production:** Start with 3-5 shards for high availability; scale based on write throughput needs (each shard handles ~25K writes/sec).",
+      "default": 1
+    },
+    "replicasPerNodeGroup": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 5,
+      "description": "The number of read replicas per shard. Replicas enable high availability and read scaling but increase costs. Valid range: 0-5. Set to 1 or more for production workloads. **Default: `0`** (no replicas, minimizing cost for development/testing).",
+      "default": 0
+    },
+    "cacheSubnetGroupName": {
+      "type": "string",
+      "description": "The name of the ElastiCache Subnet Group, which defines the VPC and subnets for the cluster. This is fundamental for placing Redis within your private network. **Note:** If provided, this will override any cacheSubnetGroupName supplied through COMPONENT_METADATA for backward compatibility."
+    },
+    "securityGroupIds": {
+      "type": "array",
+      "description": "A list of VPC Security Group IDs that act as a virtual firewall for the cluster. This is a critical security setting that controls network access to your Redis nodes. **Note:** If provided, this will override any securityGroupIds supplied through COMPONENT_METADATA for backward compatibility.",
+      "items": {
+        "type": "string",
+        "pattern": "^sg-[a-f0-9]+$"
+      },
+      "minItems": 1
+    },
+    "cacheParameterGroupName": {
+      "type": "string",
+      "description": "The name of the parameter group to associate with this replication group. If omitted, the default cache parameter group for the specified engine is used. For Redis 3.2.4+, use `default.redis3.2` (cluster mode disabled) or `default.redis3.2.cluster.on` (cluster mode enabled). Custom parameter groups enable fine-tuning of Redis settings like maxmemory-policy, eviction behaviors, etc. **Default:** AWS selects based on Redis version and cluster mode. **Production:** Create custom parameter groups for workload-specific tuning."
+    },
+    "automaticFailoverEnabled": {
+      "type": "boolean",
+      "description": "Specifies whether a read-only replica is automatically promoted to read/write primary if the existing primary fails. AutomaticFailoverEnabled must be enabled for Redis (cluster mode enabled) replication groups. Requires at least one replica. **Default: `false`** (disabled to minimize complexity and cost for development/testing). **Production:** Enable for high availability.",
+      "default": false
+    },
+    "multiAzEnabled": {
+      "type": "boolean",
+      "description": "If `true`, spreads replicas across multiple Availability Zones for resilience against AZ failures. Enable for production workloads. **Default: `false`** (single AZ to minimize cost for development/testing).",
+      "default": false
+    },
+    "transitEncryptionEnabled": {
+      "type": "boolean",
+      "description": "Enables TLS encryption for data in transit between clients and Redis nodes. Requires Redis 3.2.6+. Clients must support TLS and use port 6379 with `--tls` flag. Adds 10-20% latency overhead but essential for security. **Default: `false`** (disabled to simplify development setup). **Production:** Enable for any sensitive data, compliance requirements (HIPAA, PCI), or cross-AZ traffic.",
+      "default": false
+    },
+    "atRestEncryptionEnabled": {
+      "type": "boolean",
+      "description": "Encrypts data at rest including disk-based backups, swap files, and AOF/RDB persistence files. Uses AWS-managed or customer-managed KMS keys. No performance impact but slight cost increase. Cannot be disabled after enabling. **Default: `false`** (disabled for development simplicity). **Production:** Enable for compliance (HIPAA, PCI-DSS, SOC) or sensitive data; use customer-managed KMS keys for key rotation control.",
+      "default": false
+    },
+    "snapshotRetentionLimit": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 35,
+      "description": "The number of days to retain automatic backups. Backups incur storage costs. Valid range: 0-35 days. Set to 7-30 for production workloads. **Default: `0`** (no backups, minimizing storage costs for development/testing).",
+      "default": 0
+    },
+    "preferredMaintenanceWindow": {
+      "type": "string",
+      "pattern": "^(mon|tue|wed|thu|fri|sat|sun):[0-9]{2}:[0-9]{2}-(mon|tue|wed|thu|fri|sat|sun):[0-9]{2}:[0-9]{2}$",
+      "description": "The weekly time range (in UTC) for system maintenance. Format: `ddd:hh:mm-ddd:hh:mm` (e.g., `sun:04:00-sun:05:00`). Minimum window is 60 minutes. If not specified, AWS will assign one."
+    },
+    "tags": {
+      "type": "object",
+      "description": "A key-value map of AWS tags to apply to all created resources for cost tracking, automation, and organization. **Default: `{}`** (no tags).",
+      "default": {}
+    },
+    "snapshotWindow": {
+      "type": "string",
+      "pattern": "^[0-9]{2}:[0-9]{2}-[0-9]{2}:[0-9]{2}$",
+      "description": "Daily UTC time window for creating automated backups. Backups may impact performance during this window. Format: `HH:MM-HH:MM` in 24-hour UTC (e.g., `03:00-05:00`). Must be at least 60 minutes. Required when `snapshotRetentionLimit > 0`. AWS auto-assigns if not specified. **Production:** Schedule during lowest traffic period; monitor latency spikes during backup window; consider 02:00-04:00 UTC for US workloads."
+    },
+    "notificationTopicArn": {
+      "type": "string",
+      "pattern": "^arn:aws:sns:[a-z0-9\\-]+:[0-9]+:[a-zA-Z0-9\\-_]+$",
+      "description": "Amazon SNS topic ARN for receiving ElastiCache event notifications including failovers, node replacements, scaling events, maintenance, and backup completions. SNS topic owner must match cluster owner account. Enables proactive incident response. **Production:** Critical for operational visibility; create environment-specific topics; integrate with PagerDuty/Slack/email; filter events by severity."
+    },
+    "autoMinorVersionUpgrade": {
+      "type": "boolean",
+      "description": "Automatically apply minor Redis version upgrades during maintenance windows for security patches and bug fixes. **Default: `true`** (recommended for security). Set `false` only with strict version control requirements.",
+      "default": true
+    },
+    "logDeliveryConfigurations": {
+      "type": "array",
+      "description": "Log shipping configuration for slow-log and engine-log. Each object must specify `logType` (slow-log or engine-log), `destinationType` (cloudwatch-logs or kinesis-firehose), and `destinationDetails`. **Production:** Enable slow-log to CloudWatch for performance debugging.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "logType": {
+            "type": "string",
+            "enum": ["slow-log", "engine-log"],
+            "description": "Type of Redis log to capture"
+          },
+          "destinationType": {
+            "type": "string",
+            "enum": ["cloudwatch-logs", "kinesis-firehose"],
+            "description": "AWS service to send logs to"
+          },
+          "destinationDetails": {
+            "type": "object",
+            "description": "Destination-specific configuration (log group for CloudWatch, stream for Kinesis)"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether this log configuration is enabled"
+          }
+        },
+        "required": ["logType", "destinationType", "destinationDetails"]
+      },
+      "default": []
+    },
+    "preferredCacheClusterAZs": {
+      "type": "array",
+      "description": "List of EC2 Availability Zones for placing cache nodes. Number of AZs should match total node count for even distribution. **Note:** If provided, this will override any preferredCacheClusterAZs supplied through COMPONENT_METADATA for backward compatibility. **Production:** Specify AZs close to application servers to minimize latency.",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z]{2}-[a-z]+-[0-9][a-z]$"
+      }
+    },
+    "kmsKeyId": {
+      "type": "string",
+      "description": "ARN of customer-managed KMS key for at-rest encryption. Only applies when `atRestEncryptionEnabled: true`. **Production:** Use customer-managed keys for compliance (HIPAA, PCI-DSS). Ensure proper key rotation policies."
+    }
+  },
+  "required": []
+}

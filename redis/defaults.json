@@ -1,0 +1,7 @@
+{
+  "clusterModeEnabled": false,
+  "authentication": {
+    "enabled": false
+  },
+  "maxmemoryPolicy": "allkeys-lru"
+}
