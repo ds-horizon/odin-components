@@ -16,180 +16,105 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      version_path: .version
-      BASE_REF: release-workflow
+      VERSION_PATH: .version
       VERSION_FILE: version.json
       COMPONENT: ${{ github.event.inputs.component }}
-      OWNER: dream-sports-labs
-      REPO: odin-components
-      GITHUB_TOKEN: ${{ github.token }}
       INDEX_BRANCH: test_gh_pages
       INDEX_FILE: index.yaml
+      PACKAGE_FILE: package.sh
 
     steps:
       - name: Check out
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
-      - name: Detect version change
-        id: component_version
+      - name: Extract Component Version
+        id: extract_component_version
         run: |
-          file="${{env.COMPONENT}}/${{env.VERSION_FILE}}"
+          file="${COMPONENT}/${VERSION_FILE}"
 
           # checking if version.json is present or not
           if [[ ! -f "$file" ]]; then
-              echo "File '$file' not found in working tree."
-              {
-              echo "changed=false"
-              echo "reason=missing_current_file"
-              } >> "$GITHUB_OUTPUT"
+              echo "::error::File '$file' not found in working tree."
               exit 1
           fi
 
-          new=$(jq -r "$version_path" "$file")
-          echo "new=$new" >> "$GITHUB_OUTPUT"
+          echo "VERSION=$(jq -r "$VERSION_PATH" "$file")" >> "$GITHUB_OUTPUT"
 
-      - name: Check if release exists (REST API)
-        id: check_release_api
-        env:
-          TAG: "${{env.COMPONENT}}-${{ steps.component_version.outputs.new}}"
-
+      - name: Setup gh
+        uses: wusatosi/setup-gh@7dae6c8246092454793fe35dd4d5a9e8bf8ed34d # v1.1
+      
+      - name: Check github release
         run: |
-          set -euo pipefail
-
-          url="https://api.github.com/repos/${OWNER}/${REPO}/releases/tags/${TAG}"
-          code=$(curl -sS -o /dev/null -w "%{http_code}" \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "$url")
-
-          if [[ "$code" == "200" ]]; then
-            echo "release_exists=true" >> "$GITHUB_OUTPUT"
-          elif [[ "$code" == "404" ]]; then
-            echo "release_exists=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "Unexpected status: $code"
+          if gh release view "${{env.COMPONENT}}-${{ steps.extract_component_version.outputs.VERSION}}" &>/dev/null; then
             exit 1
           fi
+
+      - name: run pakage if exists
+        run: |
+          if [[ -f "${{env.COMPONENT}}/${{env.PACKAGE_FILE}}" ]]; then
+            chmod +x ${{env.COMPONENT}}/${{env.PACKAGE_FILE}}
+            ./${{env.COMPONENT}}/${{env.PACKAGE_FILE}}
+          fi
+
 
       - name: Create tar file of component
         id: pack
         shell: bash
-        if: steps.check_release_api.outputs.release_exists == 'false'
 
         env:
-          TAG: "${{env.COMPONENT}}-${{ steps.component_version.outputs.new}}"
+          TAG: "${COMPONENT}-${{ steps.extract_component_version.outputs.VERSION}}"
         run: |
           set -euo pipefail
 
-          # Asset name: <foldername>-<tag>.tar.gz
-          folder_name="${{env.COMPONENT}}"
-          asset_name="$TAG.tar.gz"
+          ASSET_NAME="$TAG.tar.gz"
 
           mkdir -p dist
-          # Use -C to avoid nesting parent paths inside the tarball.
-          tar -czvf "dist/${asset_name}" -C "${{env.COMPONENT}}" .
+          tar -czvf "dist/${ASSET_NAME}" -C "${{env.COMPONENT}}" .
 
-          echo "asset_path=dist/${asset_name}" >> "$GITHUB_OUTPUT"
-          echo "asset_name=${asset_name}" >> "$GITHUB_OUTPUT"
+          echo "ASSET_PATH=dist/${ASSET_NAME}" >> "$GITHUB_OUTPUT"
+          echo "ASSET_NAME=${ASSET_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        if: steps.check_release_api.outputs.release_exists == 'false' && steps.pack.outputs.asset_path != ''
+        uses: softprops/action-gh-release@6cbd405e2c4e67a21c47fa9e383d020e4e28b836 #v2.3.3
         id: create_release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: "${{env.COMPONENT}}-${{ steps.component_version.outputs.new}}"
-          name: "${{env.COMPONENT}}-${{ steps.component_version.outputs.new}}"
+          tag_name: "${{env.COMPONENT}}-${{ steps.extract_component_version.outputs.VERSION}}"
+          name: "${{env.COMPONENT}}-${{ steps.extract_component_version.outputs.VERSION}}"
           files: |
-            ${{ steps.pack.outputs.asset_path }}
-
-      - name: check release created
-        id: check_release_created
-        env:
-          TAG: "${{env.COMPONENT}}-${{ steps.component_version.outputs.new}}"
-        if : steps.check_release_api.outputs.release_exists == 'false'
-        run: |
-          set -euo pipefail
-
-          url="https://api.github.com/repos/${OWNER}/${REPO}/releases/tags/${TAG}"
-          code=$(curl -sS -o /dev/null -w "%{http_code}" \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "$url")
-
-          if [[ "$code" == "200" ]]; then
-            echo "release_created=true" >> "$GITHUB_OUTPUT"
-          elif [[ "$code" == "404" ]]; then
-            echo "release_created=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "Unexpected status: $code"
-            exit 1
-          fi
-      
+            ${{ steps.pack.outputs.ASSET_PATH }}
       
       - name: Checkout target branch into subdir
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          ref: ${{ env.INDEX_BRANCH }}
-          fetch-depth: 0
-          
-      - name: check and update index file
-        id : check_branch_and_file
-        if : steps.check_release_api.outputs.release_exists == 'false' && steps.check_release_created.outputs.release_created == 'true'
-        run: |
-          set -euo pipefail
+          ref: ${{env.INDEX_BRANCH }}
 
-          # Fail early if the branch itself doesn't exist
-          if ! git rev-parse --verify --quiet "origin/${{env.INDEX_BRANCH}}^{commit}" >/dev/null; then
-            echo "branch_exists=false" >> "$GITHUB_OUTPUT"
-            echo "file_exists=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "branch_exists=true" >> "$GITHUB_OUTPUT"
-            if [[ -f "${{env.INDEX_FILE}}" ]]; then
-              echo "file_exists=true"  >> "$GITHUB_OUTPUT"
-            else
-              echo "file_exists=false" >> "$GITHUB_OUTPUT"
-            fi
-          fi
+      - name: Setup git config
+        run: |
+          git config user.name "release-bot"
+          git config user.email "<>"
 
       - name: Commit & push
-        env:
-          GITHUB_USERNAME: SohithKumarPavuluri
-          GITHUB_EMAIL: sohith.pavuluri.dream11.com
         
-        if : ${{steps.check_branch_and_file.outputs.branch_exists}} == "true" && ${{steps.check_release_api.outputs.release_exists}} == "false"
         run : |
           set -euo pipefail
 
-          git config user.name  ${{env.GITHUB_USERNAME}}
-          git config user.email ${{env.GITHUB_EMAIL}}
+          yq -i '.components = (.components // {})' "${{env.INDEX_FILE}}"
+          yq -i '.components."${{env.COMPONENT}}" = (.components."${{env.COMPONENT}}" // [])' "${{env.INDEX_FILE}}"
+          yq -i '.components."${{env.COMPONENT}}" += ({})' "${{env.INDEX_FILE}}"
+          yq -i '.components."${{env.COMPONENT}}"[-1].description = ("${{env.COMPONENT}}")' "${{env.INDEX_FILE}}"
+          yq -i '.components."${{env.COMPONENT}}"[-1].name = ("${{env.COMPONENT}}")' "${{env.INDEX_FILE}}"
+          yq -i '.components."${{env.COMPONENT}}"[-1].version = ("${{steps.extract_component_version.outputs.VERSION}}")' "${{env.INDEX_FILE}}"
 
-          if [[ "${{steps.check_branch_and_file.outputs.file_exists}}" == "false" ]]; then
-            touch "${{env.INDEX_FILE}}"
-            yq -i '.entries = ({})' "${{env.INDEX_FILE}}"
-            echo "creating file"
-          else 
-            echo "not creating file"
-          fi
-          
-          yq -i '.entries."${{env.COMPONENT}}" = (.entries."${{env.COMPONENT}}" // {})' "${{env.INDEX_FILE}}"
-          yq -i '.entries."${{env.COMPONENT}}".name = ("${{env.COMPONENT}}")' "${{env.INDEX_FILE}}"
-          yq -i '.entries."${{env.COMPONENT}}".versions = ("${{steps.component_version.outputs.new}}")' "${{env.INDEX_FILE}}"
           assets='${{ steps.create_release.outputs.assets }}'
-          echo $assets
           export url="$(jq -r '.[0]?.browser_download_url // empty' <<< "$assets")"
-          echo $url
-          yq -i '.entries."${{env.COMPONENT}}".url = strenv(url)' "${{ env.INDEX_FILE }}"
+          yq -i '.components."${{env.COMPONENT}}"[-1].downloadUrl = strenv(url)' "${{env.INDEX_FILE}}"
 
           git add "${{env.INDEX_FILE}}"
 
           if ! git diff --cached --quiet -- "${{env.INDEX_FILE}}"; then
             git commit -m "chore: update ${{env.INDEX_FILE}} via workflow"
-            git push origin HEAD:${{ env.INDEX_BRANCH }}
-            echo "Changes committed and pushed."
-          else
-            echo "No changes to commit."
+            git push origin HEAD:${{env.INDEX_BRANCH }}
           fi
+
