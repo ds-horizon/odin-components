@@ -35,8 +35,15 @@
       }
     },
     "discovery": {
-      "type": "string",
-      "description": "Logical DNS name where clients connect for read/write operations. Acts as the primary entry point to your Redis instance, abstracting the underlying infrastructure. Modern Redis clients handle read/write routing intelligently, automatically discovering replicas and routing reads appropriately in cluster mode. Must be provided by user based on their DNS architecture."
+      "type": "object",
+      "description": "Defines how clients discover and connect to the Redis instance.",
+      "properties": {
+        "endpoint": {
+          "type": "string",
+          "description": "Logical DNS name where clients connect for read/write operations. Acts as the primary entry point to your Redis instance, abstracting the underlying infrastructure. Modern Redis clients handle read/write routing intelligently, automatically discovering replicas and routing reads appropriately in cluster mode. Must be provided by user based on their DNS architecture."
+        }
+      },
+      "required": ["endpoint"]
     }
   },
   "required": [
