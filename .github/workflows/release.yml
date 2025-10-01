@@ -85,7 +85,6 @@ jobs:
 
           assets='${{ steps.create_release.outputs.assets }}'
           export url="$(jq -r '.[0]?.browser_download_url // empty' <<< "$assets")"
-          export component="${COMPONENT}"
 
           yq -i '.components."${{env.COMPONENT}}"  = (.components."${{env.COMPONENT}}"  // [])' "${{env.INDEX_FILE}}"
           yq -i '.components."${{env.COMPONENT}}" += ({
