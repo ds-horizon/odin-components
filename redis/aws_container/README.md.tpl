@@ -1,31 +1,38 @@
-# AWS Container (EKS) Flavor
+# AWS Container (EKS) Flavour
 
-Deploy and manage Redis on AWS EKS using the Opstree Redis Operator. Defaults are optimized for high availability with cost-effective development settings, suitable for both testing and production workloads.
+Deploy and manage Redis on AWS EKS using the [Opstree Redis Operator](https://github.com/OT-CONTAINER-KIT/redis-operator). Defaults are optimized for simplicity and cost-effectiveness, perfect for getting started quickly. Easily upgrade to Sentinel or Cluster mode for production workloads requiring high availability or horizontal scaling.
 
 ## Default Configuration Philosophy
 
-This flavor uses **high availability defaults** with minimal cost overhead:
-- **Sentinel mode** with 1 master + 1 replica for automatic failover
-- **3 Sentinel processes** for reliable failover detection and orchestration
+This flavour uses **standalone defaults** optimized for simplicity and cost:
+- **Standalone mode** - single Redis instance (no HA, simplest setup)
+- **No replicas** by default (replicaCount: 0)
 - **Persistent storage** enabled with gp3 volumes (AWS EBS)
-- **Prometheus metrics** enabled for observability
+- **No metrics** by default (enable Prometheus metrics for production)
 - **No backups** by default (configure S3 backups for production)
 - **ClusterIP service** for internal cluster access only
 
+**When to upgrade**:
+- [**Sentinel mode**](#sentinel-mode-recommended-for-production): When you need automatic failover for production
+- [**Cluster mode**](#cluster-mode-horizontal-scaling): When dataset >50GB or need horizontal write scaling
+
 ## Features
 
-- **Production-Ready HA**: Sentinel mode with automatic failover out of the box
+- **Simple by Default**: Standalone mode for quick starts, minimal configuration
+- **Scalable**: Upgrade to Sentinel (HA) or Cluster (horizontal scaling) when needed
 - **Kubernetes-Native**: Leverages Kubernetes primitives (StatefulSets, PVCs, Services)
 - **Operator-Managed**: Opstree Redis Operator handles lifecycle, scaling, and healing
 - **Multi-AZ Support**: Configure topology spread constraints for zone distribution
-- **Cluster Mode**: Optional Redis Cluster for horizontal scaling (3+ shards)
 - **Full Observability**: Prometheus metrics and Grafana dashboards
 - **Automated Backups**: Optional S3 backups with configurable retention
-- **Cost-Effective**: Runs on standard EKS nodes with flexible resource allocation
 
-## Prerequisites
+## For Component Developers & Contributors
 
-Before deploying Redis with this flavor, ensure:
+**Implementation Reference:** If you're developing provisioning logic or contributing to this component, see [IMPLEMENTATION_MAPPING.md](IMPLEMENTATION_MAPPING.md) for detailed mappings between Odin schema properties and OpsTree Redis Operator CRD fields.
+
+## Prerequisites (For Odin Admins)
+
+Before enabling usage of this flavour of Redis, ensure:
 
 1. **EKS Cluster**: Kubernetes 1.18+ cluster running on AWS EKS
 2. **Opstree Redis Operator**: Installed in your cluster
@@ -48,34 +55,38 @@ Before deploying Redis with this flavor, ensure:
 
 ## Configuration Examples
 
-### Minimal Development Configuration
+### Minimal Development Configuration (Default)
+```json
+{
+  "namespace": "redis-dev"
+}
+```
+This uses all defaults: standalone mode with a single Redis instance - perfect for development with minimal resources (1 pod).
+
+**Cost Estimate**: ~$30-50/month (t3.medium node, 10GB gp3 storage)
+
+**Application Connection**:
+```javascript
+// Standard Redis connection
+const redis = new Redis({
+  host: 'discovery.endpoint',  // From root schema
+  port: 6379,
+  password: 'your-auth-token'
+});
+```
+
+### Custom Storage for Development
 ```json
 {
   "namespace": "redis-dev",
-  "deploymentMode": "standalone",
-  "replicaCount": 0,
   "persistence": {
-    "enabled": true,
     "size": "5Gi"
   }
 }
 ```
-This creates a single Redis instance in standalone mode with 5GB storage - perfect for local development with minimal resources (1 pod).
+Reduces storage to 5GB for even lower costs.
 
-**Cost Estimate**: ~$30-40/month (t3.medium node, 5GB gp3 storage)
-
-### Default Sentinel HA Configuration (Recommended)
-```json
-{
-  "namespace": "redis",
-  "persistence": {
-    "size": "20Gi"
-  }
-}
-```
-This uses all defaults: Sentinel mode with 1 master + 1 replica + 3 Sentinels for production-ready HA. Total: 5 pods.
-
-**Cost Estimate**: ~$140-200/month (2-3 m5.large nodes, 40GB gp3 storage)
+**Cost Estimate**: ~$25-40/month
 
 ### Production Sentinel with Multi-AZ
 ```json
@@ -256,8 +267,10 @@ Configures automated backups every 6 hours to S3 with 90-day retention. Requires
 
 ## Deployment Modes
 
-### Standalone Mode
-**Use Case**: Development, testing, non-critical caching
+**IMPORTANT**: Each deployment mode requires **different application code** for connecting to Redis. Choose your mode based on requirements, then configure your application accordingly.
+
+### Standalone Mode (Default)
+**Use Case**: Development, testing, non-critical caching, single-tenant applications
 
 **Configuration**:
 ```json
@@ -274,6 +287,71 @@ Configures automated backups every 6 hours to S3 with 90-day retention. Requires
 - Pod restart = brief downtime (5-30 seconds)
 
 **Cost**: Lowest (~$30-60/month)
+
+**Application Code** (Standard Redis Connection):
+
+**Node.js (ioredis)**:
+```javascript
+const Redis = require('ioredis');
+
+const redis = new Redis({
+  host: process.env.REDIS_HOST,  // discovery.endpoint DNS
+  port: 6379,
+  password: process.env.REDIS_PASSWORD,
+  retryStrategy: (times) => Math.min(times * 50, 2000)
+});
+```
+
+**Python (redis-py)**:
+```python
+import redis
+import os
+
+r = redis.Redis(
+    host=os.getenv('REDIS_HOST'),  # discovery.endpoint DNS
+    port=6379,
+    password=os.getenv('REDIS_PASSWORD'),
+    decode_responses=True,
+    socket_connect_timeout=5,
+    retry_on_timeout=True
+)
+```
+
+**Java (Jedis)**:
+```java
+import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPool;
+import redis.clients.jedis.JedisPoolConfig;
+
+JedisPoolConfig poolConfig = new JedisPoolConfig();
+poolConfig.setMaxTotal(50);
+
+JedisPool pool = new JedisPool(
+    poolConfig,
+    System.getenv("REDIS_HOST"),  // discovery.endpoint DNS
+    6379,
+    2000,
+    System.getenv("REDIS_PASSWORD")
+);
+
+try (Jedis jedis = pool.getResource()) {
+    jedis.set("key", "value");
+}
+```
+
+**Go (go-redis)**:
+```go
+import (
+    "github.com/redis/go-redis/v9"
+    "os"
+)
+
+rdb := redis.NewClient(&redis.Options{
+    Addr:     os.Getenv("REDIS_HOST") + ":6379",  // discovery.endpoint DNS
+    Password: os.Getenv("REDIS_PASSWORD"),
+    DB:       0,
+})
+```
 
 ---
 
@@ -294,11 +372,13 @@ Configures automated backups every 6 hours to S3 with 90-day retention. Requires
 ```
 
 **Characteristics**:
-- 1 master + N replicas (default: 1 replica)
+- 1 master + N replicas (typically 1-2 replicas)
 - 3-7 Sentinel processes monitor health (default: 3)
 - Automatic failover when master fails (15-30 seconds)
 - Replicas serve read operations
 - Best for datasets that fit on single node
+
+**IMPORTANT**: `discovery.endpoint` in root schema should point to **Sentinel service DNS** (not Redis master)
 
 **Architecture**:
 ```
@@ -330,6 +410,110 @@ Configures automated backups every 6 hours to S3 with 90-day retention. Requires
 6. Total downtime: 15-30 seconds
 
 **Cost**: Medium (~$150-300/month)
+
+**Application Code** (Sentinel-Aware Connection):
+
+**Node.js (ioredis)**:
+```javascript
+const Redis = require('ioredis');
+
+const redis = new Redis({
+  sentinels: [
+    { host: process.env.REDIS_SENTINEL_HOST, port: 26379 },  // discovery.endpoint DNS
+    // ioredis automatically discovers other sentinels
+  ],
+  name: 'mymaster',  // Redis master name (check operator config)
+  password: process.env.REDIS_PASSWORD,
+  sentinelPassword: process.env.REDIS_PASSWORD,  // If sentinel auth enabled
+  retryStrategy: (times) => Math.min(times * 50, 2000),
+  sentinelRetryStrategy: (times) => Math.min(times * 50, 2000)
+});
+
+// ioredis automatically handles failover - no app changes needed
+redis.on('error', (err) => console.error('Redis error:', err));
+redis.on('+switch-master', (info) => console.log('Master switched:', info));
+```
+
+**Python (redis-py with sentinel)**:
+```python
+from redis.sentinel import Sentinel
+import os
+
+sentinel = Sentinel(
+    [(os.getenv('REDIS_SENTINEL_HOST'), 26379)],  # discovery.endpoint DNS
+    socket_timeout=0.5,
+    password=os.getenv('REDIS_PASSWORD'),
+    sentinel_kwargs={'password': os.getenv('REDIS_PASSWORD')}  # If sentinel auth
+)
+
+# Get master for writes
+master = sentinel.master_for(
+    'mymaster',  # Redis master name
+    socket_timeout=5,
+    password=os.getenv('REDIS_PASSWORD'),
+    decode_responses=True
+)
+
+# Get slave for reads (optional)
+slave = sentinel.slave_for(
+    'mymaster',
+    socket_timeout=5,
+    password=os.getenv('REDIS_PASSWORD'),
+    decode_responses=True
+)
+
+# Use master for writes
+master.set('key', 'value')
+
+# Use slave for reads (load balancing)
+value = slave.get('key')
+```
+
+**Java (Jedis with Sentinel)**:
+```java
+import redis.clients.jedis.JedisSentinelPool;
+import redis.clients.jedis.Jedis;
+import java.util.HashSet;
+import java.util.Set;
+
+Set<String> sentinels = new HashSet<>();
+sentinels.add(System.getenv("REDIS_SENTINEL_HOST") + ":26379");  // discovery.endpoint DNS
+
+JedisSentinelPool pool = new JedisSentinelPool(
+    "mymaster",  // Redis master name
+    sentinels,
+    System.getenv("REDIS_PASSWORD")
+);
+
+// Jedis automatically handles failover
+try (Jedis jedis = pool.getResource()) {
+    jedis.set("key", "value");
+}
+```
+
+**Go (go-redis with Sentinel)**:
+```go
+import (
+    "github.com/redis/go-redis/v9"
+    "os"
+)
+
+rdb := redis.NewFailoverClient(&redis.FailoverOptions{
+    MasterName:    "mymaster",  // Redis master name
+    SentinelAddrs: []string{os.Getenv("REDIS_SENTINEL_HOST") + ":26379"},  // discovery.endpoint DNS
+    Password:      os.Getenv("REDIS_PASSWORD"),
+    DB:            0,
+})
+
+// go-redis automatically handles failover
+```
+
+**Configuration Notes**:
+- `discovery.endpoint` → Sentinel service DNS (port 26379)
+- Master name is typically `mymaster` (check Opstree operator config)
+- Client libraries automatically discover master from Sentinels
+- Failover is transparent to application (client reconnects automatically)
+- Read/write splitting optional (use slaves for reads)
 
 ---
 
@@ -381,6 +565,127 @@ Hash Slots 0-5460          Hash Slots 5461-10922      Hash Slots 10923-16383
 - Multi-key operations must be on same hash slot (use hash tags: `{user:123}:session`, `{user:123}:profile`)
 
 **Cost**: Highest (~$500-2000+/month, scales with shards)
+
+**IMPORTANT**: `discovery.endpoint` in root schema should point to **any Redis cluster node DNS** (port 6379)
+
+**Application Code** (Cluster-Aware Connection):
+
+**Node.js (ioredis with cluster mode)**:
+```javascript
+const Redis = require('ioredis');
+
+const cluster = new Redis.Cluster([
+  {
+    host: process.env.REDIS_CLUSTER_HOST,  // discovery.endpoint DNS (any node)
+    port: 6379
+  }
+], {
+  redisOptions: {
+    password: process.env.REDIS_PASSWORD
+  },
+  clusterRetryStrategy: (times) => Math.min(100 * times, 2000),
+  enableReadyCheck: true,
+  maxRedirections: 16
+});
+
+// ioredis handles MOVED/ASK redirects automatically
+cluster.set('key', 'value');
+
+// For multi-key operations, use hash tags
+cluster.mget('{user:123}:session', '{user:123}:profile');  // Same hash slot
+```
+
+**Python (redis-py-cluster)**:
+```python
+from rediscluster import RedisCluster
+import os
+
+startup_nodes = [
+    {"host": os.getenv('REDIS_CLUSTER_HOST'), "port": "6379"}  # discovery.endpoint DNS
+]
+
+rc = RedisCluster(
+    startup_nodes=startup_nodes,
+    password=os.getenv('REDIS_PASSWORD'),
+    decode_responses=True,
+    skip_full_coverage_check=True,
+    max_connections_per_node=50
+)
+
+# Redis Cluster handles sharding automatically
+rc.set('key', 'value')
+
+# For multi-key operations, use hash tags
+rc.mget('{user:123}:session', '{user:123}:profile')  # Same hash slot
+```
+
+**Java (Jedis with Cluster)**:
+```java
+import redis.clients.jedis.JedisCluster;
+import redis.clients.jedis.HostAndPort;
+import java.util.HashSet;
+import java.util.Set;
+
+Set<HostAndPort> nodes = new HashSet<>();
+nodes.add(new HostAndPort(
+    System.getenv("REDIS_CLUSTER_HOST"),  // discovery.endpoint DNS
+    6379
+));
+
+JedisCluster cluster = new JedisCluster(
+    nodes,
+    2000,  // connection timeout
+    2000,  // socket timeout
+    5,     // max attempts
+    System.getenv("REDIS_PASSWORD")
+);
+
+// Jedis handles cluster topology and redirects
+cluster.set("key", "value");
+
+// Multi-key operations with hash tags
+cluster.mget("{user:123}:session", "{user:123}:profile");
+```
+
+**Go (go-redis with Cluster)**:
+```go
+import (
+    "github.com/redis/go-redis/v9"
+    "os"
+)
+
+rdb := redis.NewClusterClient(&redis.ClusterOptions{
+    Addrs:    []string{os.Getenv("REDIS_CLUSTER_HOST") + ":6379"},  // discovery.endpoint DNS
+    Password: os.Getenv("REDIS_PASSWORD"),
+
+    // Cluster options
+    MaxRedirects:   16,
+    ReadOnly:       false,
+    RouteByLatency: true,
+})
+
+// go-redis handles cluster topology
+rdb.Set(ctx, "key", "value", 0)
+
+// Multi-key operations with hash tags
+rdb.MGet(ctx, "{user:123}:session", "{user:123}:profile")
+```
+
+**Configuration Notes**:
+- `discovery.endpoint` → Any Redis cluster node DNS (port 6379)
+- Client discovers full cluster topology automatically
+- MOVED/ASK redirects handled by client library
+- Multi-key operations require hash tags: `{keyname}:suffix`
+- Hash tags ensure keys map to same slot: `{user:123}:*`
+- Avoid cross-slot operations (MGET across different users)
+
+**Migration Considerations**:
+When migrating from Standalone/Sentinel → Cluster:
+1. **Update connection code** to use cluster client
+2. **Add hash tags** to related keys for multi-key operations
+3. **Test thoroughly** - cluster mode changes key distribution
+4. **Transactions (MULTI/EXEC)** only work on same slot (use hash tags)
+5. **Lua scripts** must access keys in same slot
 
 ## High Availability & Disaster Recovery
 

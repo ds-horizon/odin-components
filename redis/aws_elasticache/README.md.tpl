@@ -4,7 +4,7 @@ Deploy and manage Redis using AWS ElastiCache service. Defaults are optimized fo
 
 ## Default Configuration Philosophy
 
-This flavor uses **cost-optimized defaults** to help you get started quickly:
+This flavour uses **cost-optimized defaults** to help you get started quickly:
 - **Single node** setup without replicas (add replicas for production)
 - **No encryption** by default (enable for production/sensitive data)
 - **No automatic backups** (configure retention for production)
@@ -95,7 +95,7 @@ When deploying to production, consider enabling these features:
 
 ## AWS Resources Created
 
-When deployed, this flavor creates:
+When deployed, this flavour creates:
 - ElastiCache Replication Group or Cluster
 - Cache Parameter Group (if specified)
 - Automatic snapshots based on retention policy

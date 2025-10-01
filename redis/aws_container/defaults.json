@@ -1,7 +1,6 @@
 {
   "namespace": "redis",
-  "deploymentMode": "sentinel",
-  "replicaCount": 1,
+  "deploymentMode": "standalone",
   "master": {
     "resources": {
       "requests": {
@@ -15,6 +14,7 @@
     }
   },
   "replica": {
+    "count": 0,
     "resources": {
       "requests": {
         "cpu": "500m",
@@ -31,14 +31,16 @@
     "storageClass": "gp3",
     "size": "10Gi",
     "rdb": {
-      "enabled": true
+      "enabled": true,
+      "saveInterval": "900 1 300 10 60 10000"
     },
     "aof": {
-      "enabled": false
+      "enabled": false,
+      "fsyncPolicy": "everysec"
     }
   },
   "sentinel": {
-    "enabled": true,
+    "enabled": false,
     "replicas": 3,
     "quorum": 2,
     "resources": {
@@ -55,7 +57,7 @@
   "antiAffinity": "soft",
   "topologySpreadConstraints": [],
   "metrics": {
-    "enabled": true,
+    "enabled": false,
     "serviceMonitor": {
       "enabled": false,
       "interval": "30s",

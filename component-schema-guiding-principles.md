@@ -463,7 +463,7 @@ Before adding ANY property to a flavour schema:
 
 ### How Validation Works
 
-**Important**: Root schema and flavor schema are **merged before validation**. This is implemented in the `odin-component-interface` and allows flavor schemas to reference and validate against root schema properties.
+**Important**: Root schema and flavour schema are **merged before validation**. This is implemented in the `odin-component-interface` and allows flavour schemas to reference and validate against root schema properties.
 
 ### Validation Flow
 
@@ -479,11 +479,11 @@ Before adding ANY property to a flavour schema:
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  Step 2: Schema Merging (odin-component-interface)          │
-│  Combines root and flavor schemas into single merged schema │
+│  Combines root and flavour schemas into single merged schema │
 │  {                                                           │
 │    "clusterModeEnabled": true,        // From root          │
-│    "deploymentMode": "cluster",       // From flavor        │
-│    "cluster": { ... },                // From flavor        │
+│    "deploymentMode": "cluster",       // From flavour        │
+│    "cluster": { ... },                // From flavour        │
 │    ... all other properties                                 │
 │  }                                                           │
 └─────────────────────────────────────────────────────────────┘
@@ -506,7 +506,7 @@ Before adding ANY property to a flavour schema:
 
 ### Cross-Schema Dependencies
 
-Since schemas are merged, flavor schemas can reference root schema properties directly in validation rules. This enables enforcing dependencies between root and flavor properties.
+Since schemas are merged, flavour schemas can reference root schema properties directly in validation rules. This enables enforcing dependencies between root and flavour properties.
 
 #### Example: Cluster Mode Dependency
 
@@ -560,8 +560,8 @@ Since schemas are merged, flavor schemas can reference root schema properties di
 ```
 
 **How It Works:**
-1. User provides configuration with both root and flavor properties
-2. Schemas are merged: `clusterModeEnabled` (root) + `deploymentMode` (flavor)
+1. User provides configuration with both root and flavour properties
+2. Schemas are merged: `clusterModeEnabled` (root) + `deploymentMode` (flavour)
 3. Validation runs on merged schema
 4. Flavor's `allOf` rules can check `clusterModeEnabled` value
 5. If mismatch detected, validation fails with clear error message
@@ -589,13 +589,13 @@ Since schemas are merged, flavor schemas can reference root schema properties di
 }
 ```
 
-This validates that ElastiCache's `numNodeGroups` (flavor property) aligns with Redis's `clusterModeEnabled` (root property).
+This validates that ElastiCache's `numNodeGroups` (flavour property) aligns with Redis's `clusterModeEnabled` (root property).
 
 ### When to Use Cross-Schema Validation
 
 Use cross-schema validation when:
 
-1. **Enforcing LSP**: Ensure flavor implementations respect root schema contracts
+1. **Enforcing LSP**: Ensure flavour implementations respect root schema contracts
 2. **Preventing Misconfigurations**: Catch incompatible property combinations early
 3. **Clear Error Messages**: Guide users to correct configuration issues
 4. **Platform-Specific Requirements**: Validate platform constraints against logical configuration
@@ -612,7 +612,7 @@ Use cross-schema validation when:
       "if": { "properties": { "flavorProp": { "const": "value" } } },
       "then": { "properties": { "rootProp": { "const": true } } }
     },
-    // Direction 2: Root property constrains flavor property
+    // Direction 2: Root property constrains flavour property
     {
       "if": { "properties": { "rootProp": { "const": false } } },
       "then": { "properties": { "flavorProp": { "not": { "const": "value" } } } }
@@ -674,7 +674,7 @@ When adding cross-schema validations, test:
 
 #### Pattern 2: Mutual Exclusivity
 ```json
-// Root property PREVENTS flavor property
+// Root property PREVENTS flavour property
 {
   "if": { "properties": { "rootMode": { "const": "simple" } } },
   "then": {
@@ -688,7 +688,7 @@ When adding cross-schema validations, test:
 
 #### Pattern 3: Conditional Requirements
 ```json
-// Flavor property requires additional flavor properties when root property is set
+// Flavor property requires additional flavour properties when root property is set
 {
   "if": {
     "properties": {

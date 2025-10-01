@@ -1,5 +1,5 @@
 {
-  "title": "Redis AWS Container (EKS) Flavor Configuration",
+  "title": "Redis AWS Container (EKS) Flavour Configuration",
   "type": "object",
   "allOf": [
     {
@@ -26,9 +26,13 @@
               "enabled": { "const": true }
             }
           },
-          "replicaCount": { "minimum": 1 }
+          "replica": {
+            "properties": {
+              "count": { "minimum": 1 }
+            }
+          }
         },
-        "errorMessage": "deploymentMode 'sentinel' requires sentinel.enabled: true and at least 1 replica"
+        "errorMessage": "deploymentMode 'sentinel' requires sentinel.enabled: true and at least 1 replica (replica.count >= 1)"
       }
     },
     {
@@ -43,9 +47,26 @@
       },
       "then": {
         "properties": {
-          "replicaCount": { "minimum": 1 }
+          "replica": {
+            "properties": {
+              "count": { "minimum": 1 }
+            }
+          }
         },
-        "errorMessage": "Sentinel requires at least 1 replica (replicaCount >= 1)"
+        "errorMessage": "Sentinel requires at least 1 replica (replica.count >= 1)"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "deploymentMode": { "const": "cluster" }
+        }
+      },
+      "then": {
+        "not": {
+          "required": ["replica"]
+        },
+        "errorMessage": "deploymentMode 'cluster' should not define 'replica' configuration - use 'cluster.replicasPerShard' instead"
       }
     },
     {
@@ -124,15 +145,8 @@
     "deploymentMode": {
       "type": "string",
       "enum": ["standalone", "sentinel", "cluster"],
-      "description": "Redis deployment topology determining high availability and scaling characteristics. **Standalone:** Single Redis instance for development and testing with no HA. **Sentinel:** Master-replica topology with Sentinel processes for automatic failover (recommended for production HA). **Cluster:** Horizontal scaling with data sharding across multiple master nodes, each with replicas. Cluster mode requires `clusterModeEnabled: true` in root schema. **Default: `sentinel`** (production HA with single shard). **Production:** Use sentinel for HA with single dataset, cluster for horizontal scaling needs.",
-      "default": "sentinel"
-    },
-    "replicaCount": {
-      "type": "number",
-      "minimum": 0,
-      "maximum": 5,
-      "description": "Number of read replicas for the Redis master in standalone or sentinel mode. Replicas provide high availability through automatic failover and read scaling. Each replica maintains a full copy of the data. Valid range: 0-5 (limited by Opstree operator). Set to 0 for development (no HA), 1-2 for production. **Default: `1`** (minimal HA with single replica). **Production:** Use 2 replicas for multi-AZ HA; 3+ for read-heavy workloads.",
-      "default": 1
+      "description": "Redis deployment topology determining high availability and scaling characteristics. **Standalone:** Single Redis instance with no automatic failover - simplest and most cost-effective for development, testing, and non-critical workloads. **Sentinel:** Master-replica topology with Sentinel processes for automatic failover (recommended for production HA). **Cluster:** Horizontal scaling with data sharding across multiple master nodes, each with replicas. Cluster mode requires `clusterModeEnabled: true` in root schema. **Default: `standalone`** (simplest, lowest cost for getting started). **Production:** Use sentinel for HA with single dataset, cluster for horizontal scaling needs. **IMPORTANT:** Changing deployment mode requires application code changes - see deployment modes documentation.",
+      "default": "standalone"
     },
     "master": {
       "type": "object",
@@ -186,8 +200,15 @@
     },
     "replica": {
       "type": "object",
-      "description": "Resource allocation and configuration for Redis replica node(s). Replicas serve read operations and provide failover redundancy. In sentinel mode, a replica is promoted to master if the master fails.",
+      "description": "Replica configuration for standalone or sentinel mode. Replicas serve read operations and provide failover redundancy. In sentinel mode, replicas enable automatic failover when master fails. **IMPORTANT:** This configuration is only valid for `deploymentMode: standalone` or `deploymentMode: sentinel`. For `deploymentMode: cluster`, use `cluster.replicasPerShard` instead. Configuration validation should enforce this constraint.",
       "properties": {
+        "count": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 5,
+          "description": "Number of read replicas for the Redis master. Replicas provide high availability through automatic failover (when using sentinel mode) and read scaling. Each replica maintains a full copy of the data. Valid range: 0-5 (limited by Opstree operator). Set to 0 for development and standalone mode (no HA). **Default: `0`** (no replicas for simplest setup). **Production:** Use 1-2 replicas with sentinel mode for HA; 3+ for read-heavy workloads. **Note:** Replicas without sentinel mode provide read scaling but NOT automatic failover.",
+          "default": 0
+        },
         "resources": {
           "type": "object",
           "description": "Kubernetes resource requests and limits for replica pods. Typically same as master since replicas maintain full data copies and may be promoted to master. Can be lower if replicas only serve reads and promotion latency is acceptable.",
@@ -232,7 +253,7 @@
           "required": ["requests", "limits"]
         }
       },
-      "required": ["resources"]
+      "required": ["count", "resources"]
     },
     "persistence": {
       "type": "object",
@@ -262,6 +283,12 @@
               "type": "boolean",
               "description": "Enable RDB snapshots. When true, Redis periodically saves snapshots to disk based on save intervals. Provides faster restart times compared to AOF. **Default: `true`** (recommended for most use cases). **Production:** Enable for faster recovery; combine with AOF for maximum durability.",
               "default": true
+            },
+            "saveInterval": {
+              "type": "string",
+              "pattern": "^(\\d+\\s+\\d+(\\s+\\d+\\s+\\d+)*)$|^\"\"$",
+              "description": "RDB snapshot save intervals in Redis format: `<seconds> <changes> [<seconds> <changes> ...]`. Redis saves a snapshot if at least `<changes>` keys changed in `<seconds>` seconds. Multiple intervals can be specified (space-separated). Set to empty string `\"\"` to disable RDB. **Default: `\"900 1 300 10 60 10000\"`** (Redis defaults: save after 900s if 1+ keys changed, after 300s if 10+ keys changed, after 60s if 10000+ keys changed). **Production:** Adjust based on write frequency and acceptable data loss window; more frequent saves increase I/O but reduce data loss.",
+              "default": "900 1 300 10 60 10000"
             }
           }
         },
@@ -271,8 +298,14 @@
           "properties": {
             "enabled": {
               "type": "boolean",
-              "description": "Enable AOF persistence. When true, Redis logs every write to an append-only file on disk. Provides maximum durability with `appendfsync everysec` (fsync every second). Increases disk I/O and storage usage. **Default: `false`** (RDB only for dev/test simplicity). **Production:** Enable for critical data where data loss is unacceptable; disable for caching workloads where data can be regenerated.",
+              "description": "Enable AOF persistence. When true, Redis logs every write to an append-only file on disk. Provides maximum durability based on fsyncPolicy setting. Increases disk I/O and storage usage. **Default: `false`** (RDB only for dev/test simplicity). **Production:** Enable for critical data where data loss is unacceptable; disable for caching workloads where data can be regenerated.",
               "default": false
+            },
+            "fsyncPolicy": {
+              "type": "string",
+              "enum": ["always", "everysec", "no"],
+              "description": "AOF fsync policy controlling when Redis forces writes to disk. **always:** fsync after every write (safest, slowest - ensures zero data loss but high I/O overhead). **everysec:** fsync every second in background thread (recommended balance - at most 1 second of data loss, minimal performance impact). **no:** never fsync, let OS decide (fastest, riskiest - potential minutes of data loss on system crash). **Default: `everysec`** (Redis recommendation - good balance of safety and performance). **Production:** Use everysec for most workloads; always only for critical financial/transactional data where zero data loss is required; never use no in production.",
+              "default": "everysec"
             }
           }
         }
@@ -285,8 +318,8 @@
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "Enable Redis Sentinel for automatic failover. When true, deploys separate Sentinel processes to monitor Redis master and replicas. Required when `deploymentMode: sentinel`. Provides automatic master promotion on failure (typically 15-30 second failover time). **Default: `true`** (enabled for HA). **Production:** Always enable for sentinel deployment mode.",
-          "default": true
+          "description": "Enable Redis Sentinel for automatic failover. When true, deploys separate Sentinel processes to monitor Redis master and replicas. Required when `deploymentMode: sentinel`. Provides automatic master promotion on failure (typically 15-30 second failover time). **Default: `false`** (disabled for standalone mode by default). **Production:** Set to true when using `deploymentMode: sentinel` for automatic failover.",
+          "default": false
         },
         "replicas": {
           "type": "number",
@@ -347,13 +380,13 @@
     },
     "cluster": {
       "type": "object",
-      "description": "Redis Cluster mode configuration for horizontal scaling through data sharding. **IMPORTANT:** This configuration is only valid when BOTH conditions are met: (1) `clusterModeEnabled: true` in root schema AND (2) `deploymentMode: cluster` in this flavor schema. This cross-schema dependency must be validated at the configuration composition layer. Distributes 16,384 hash slots across multiple master nodes for write scaling and larger datasets.",
+      "description": "Redis Cluster mode configuration for horizontal scaling through data sharding. **IMPORTANT:** This configuration is only valid when BOTH conditions are met: (1) `clusterModeEnabled: true` in root schema AND (2) `deploymentMode: cluster` in this flavour schema. This cross-schema dependency must be validated at the configuration composition layer. Distributes 16,384 hash slots across multiple master nodes for write scaling and larger datasets.",
       "properties": {
         "numShards": {
           "type": "number",
           "minimum": 3,
           "maximum": 500,
-          "description": "Number of shards (master nodes) in the Redis Cluster. Each shard handles a portion of the 16,384 hash slots. More shards increase write throughput and total capacity but add operational complexity. Minimum 3 required for proper cluster operation. Each shard can handle ~25K writes/sec and ~50K reads/sec. **Default: `3`** (minimum recommended for cluster mode). **Production:** Start with 3-6 shards for most use cases; scale based on write throughput needs (add shards for write scaling, add replicas for read scaling).",
+          "description": "Number of shards (master nodes) in the Redis Cluster. Each shard handles a portion of the 16,384 hash slots. More shards increase write throughput and total capacity but add operational complexity. Minimum 3 required for proper cluster operation. **Default: `3`** (minimum recommended for cluster mode). **Production:** Start with 3-6 shards for most use cases; scale based on write throughput needs (add shards for write scaling, add replicas for read scaling).",
           "default": 3
         },
         "replicasPerShard": {
@@ -405,8 +438,8 @@
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "Enable Prometheus metrics collection via redis-exporter sidecar container. When true, adds redis-exporter (port 9121) to each Redis pod exposing 100+ metrics. No performance impact (<1% CPU/memory overhead). **Default: `true`** (observability by default). **Production:** Always enable for monitoring and alerting.",
-          "default": true
+          "description": "Enable Prometheus metrics collection via redis-exporter sidecar container. When true, adds redis-exporter (port 9121) to each Redis pod exposing 100+ metrics. Minimal performance impact (<1% CPU/memory overhead). **Default: `false`** (disabled for simplest setup). **Production:** Enable for monitoring and alerting - essential for production observability.",
+          "default": false
         },
         "serviceMonitor": {
           "type": "object",
