@@ -1,78 +1,61 @@
-name: main release
+name: Release Component
 
 on:
   workflow_dispatch:
     inputs:
       component:
-        description: "Component to release (leave empty to check all)"
+        description: Name of the component to release
         required: true
-        default: "test-component-1"
 
 jobs:
-  changed:
-    permissions:
-      contents: write
-      pull-requests: read
+  release:
     runs-on: ubuntu-latest
 
     env:
       VERSION_PATH: .version
-      VERSION_FILE: version.json
+      DESCRIPTION_PATH: .description
+      VERSION_FILE: component.json
       COMPONENT: ${{ github.event.inputs.component }}
       INDEX_BRANCH: test_gh_pages
       INDEX_FILE: index.yaml
-      PACKAGE_FILE: package.sh
+      PACKAGE_SCRIPT: package.sh
 
     steps:
-      - name: Check out
+      - name: Checkout code
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
-      - name: Extract Component Version
-        id: extract_component_version
+      - name: Extract Component Details
+        id: extract_component_details
         run: |
           file="${COMPONENT}/${VERSION_FILE}"
 
-          # checking if version.json is present or not
           if [[ ! -f "$file" ]]; then
               echo "::error::File '$file' not found in working tree."
               exit 1
           fi
 
           echo "VERSION=$(jq -r "$VERSION_PATH" "$file")" >> "$GITHUB_OUTPUT"
+          echo "DESCRIPTION=$(jq -r "$DESCRIPTION_PATH" "$file")" >> "$GITHUB_OUTPUT"
 
       - name: Setup gh
         uses: wusatosi/setup-gh@7dae6c8246092454793fe35dd4d5a9e8bf8ed34d # v1.1
-      
-      - name: Check github release
-        run: |
-          if gh release view "${{env.COMPONENT}}-${{ steps.extract_component_version.outputs.VERSION}}" &>/dev/null; then
-            exit 1
-          fi
 
-      - name: run pakage if exists
-        run: |
-          if [[ -f "${{env.COMPONENT}}/${{env.PACKAGE_FILE}}" ]]; then
-            chmod +x ${{env.COMPONENT}}/${{env.PACKAGE_FILE}}
-            ./${{env.COMPONENT}}/${{env.PACKAGE_FILE}}
-          fi
-
-
-      - name: Create tar file of component
-        id: pack
-        shell: bash
-
-        env:
-          TAG: "${COMPONENT}-${{ steps.extract_component_version.outputs.VERSION}}"
+      - name: Package component
+        id: package
         run: |
           set -euo pipefail
 
-          ASSET_NAME="$TAG.tar.gz"
+          if [[ -f "${COMPONENT}/${PACKAGE_SCRIPT}" ]]; then
+            cd ${COMPONENT}
+            ./${PACKAGE_SCRIPT}
+            cd ..
+          fi
+          ASSET_NAME="${COMPONENT}-${{ steps.extract_component_details.outputs.VERSION}}.tar.gz"
 
           mkdir -p dist
-          tar -czvf "dist/${ASSET_NAME}" -C "${{env.COMPONENT}}" .
+          tar -czvf "dist/${ASSET_NAME}" -C "${COMPONENT}" .
 
           echo "ASSET_PATH=dist/${ASSET_NAME}" >> "$GITHUB_OUTPUT"
-          echo "ASSET_NAME=${ASSET_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@6cbd405e2c4e67a21c47fa9e383d020e4e28b836 #v2.3.3
@@ -80,15 +63,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: "${{env.COMPONENT}}-${{ steps.extract_component_version.outputs.VERSION}}"
-          name: "${{env.COMPONENT}}-${{ steps.extract_component_version.outputs.VERSION}}"
-          files: |
-            ${{ steps.pack.outputs.ASSET_PATH }}
+          overwrite_files: false
+          tag_name: "${{env.COMPONENT}}-${{ steps.extract_component_details.outputs.VERSION}}"
+          name: "${{env.COMPONENT}}-${{ steps.extract_component_details.outputs.VERSION}}"
+          files: ${{ steps.package.outputs.ASSET_PATH }}
       
-      - name: Checkout target branch into subdir
+      - name: Checkout code
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          ref: ${{env.INDEX_BRANCH }}
+          ref: ${{env.INDEX_BRANCH}}
 
       - name: Setup git config
         run: |
@@ -100,21 +83,21 @@ jobs:
         run : |
           set -euo pipefail
 
-          yq -i '.components = (.components // {})' "${{env.INDEX_FILE}}"
-          yq -i '.components."${{env.COMPONENT}}" = (.components."${{env.COMPONENT}}" // [])' "${{env.INDEX_FILE}}"
-          yq -i '.components."${{env.COMPONENT}}" += ({})' "${{env.INDEX_FILE}}"
-          yq -i '.components."${{env.COMPONENT}}"[-1].description = ("${{env.COMPONENT}}")' "${{env.INDEX_FILE}}"
-          yq -i '.components."${{env.COMPONENT}}"[-1].name = ("${{env.COMPONENT}}")' "${{env.INDEX_FILE}}"
-          yq -i '.components."${{env.COMPONENT}}"[-1].version = ("${{steps.extract_component_version.outputs.VERSION}}")' "${{env.INDEX_FILE}}"
-
           assets='${{ steps.create_release.outputs.assets }}'
           export url="$(jq -r '.[0]?.browser_download_url // empty' <<< "$assets")"
-          yq -i '.components."${{env.COMPONENT}}"[-1].downloadUrl = strenv(url)' "${{env.INDEX_FILE}}"
+          export component="${COMPONENT}"
 
-          git add "${{env.INDEX_FILE}}"
+          yq -i '.components."${{env.COMPONENT}}"  = (.components."${{env.COMPONENT}}"  // [])' "${{env.INDEX_FILE}}"
+          yq -i '.components."${{env.COMPONENT}}" += ({
+            "name": "${{env.COMPONENT}}",
+            "description": "${{steps.extract_component_details.outputs.DESCRIPTION}}", 
+            "version": "${{steps.extract_component_details.outputs.VERSION}}", 
+            "downloadUrl": strenv(url)})' "${INDEX_FILE}"
 
-          if ! git diff --cached --quiet -- "${{env.INDEX_FILE}}"; then
-            git commit -m "chore: update ${{env.INDEX_FILE}} via workflow"
-            git push origin HEAD:${{env.INDEX_BRANCH }}
+          git add "${INDEX_FILE}"
+
+          if ! git diff --cached --quiet -- "${INDEX_FILE}"; then
+            git commit -m "chore: update ${INDEX_FILE} via workflow"
+            git push origin HEAD:${INDEX_BRANCH}
           fi
 
