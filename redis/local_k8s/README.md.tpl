@@ -88,7 +88,9 @@ Then connect to `localhost:6379`
 Simplest setup for local development:
 ```json
 {
-  "deploymentMode": "standalone",
+  "deployment": {
+    "mode": "standalone"
+  },
   "replica": {
     "count": 0
   }
@@ -99,13 +101,17 @@ Simplest setup for local development:
 Test high availability locally:
 ```json
 {
-  "deploymentMode": "sentinel",
-  "replica": {
-    "count": 2
-  },
-  "sentinel": {
+  "deployment": {
+    "mode": "sentinel",
+    "config": {
+      "replica": {
+        "count": 2
+      },
+      "sentinel": {
     "enabled": true,
     "replicas": 3
+  }
+    }
   }
 }
 ```
@@ -114,10 +120,12 @@ Test high availability locally:
 Test Redis Cluster locally:
 ```json
 {
-  "deploymentMode": "cluster",
-  "cluster": {
+  "deployment": {
+    "mode": "cluster",
+    "config": {
     "numShards": 3,
     "replicasPerShard": 1
+  }
   }
 }
 ```
@@ -190,7 +198,9 @@ Key differences:
 ### Minimal Development Setup
 ```json
 {
-  "deploymentMode": "standalone",
+  "deployment": {
+    "mode": "standalone"
+  },
   "persistence": {
     "enabled": true,
     "size": "5Gi"
@@ -205,13 +215,17 @@ Key differences:
 ### Local HA Testing Setup
 ```json
 {
-  "deploymentMode": "sentinel",
-  "replica": {
-    "count": 2
-  },
-  "sentinel": {
+  "deployment": {
+    "mode": "sentinel",
+    "config": {
+      "replica": {
+        "count": 2
+      },
+      "sentinel": {
     "enabled": true,
     "replicas": 3
+  }
+    }
   },
   "persistence": {
     "enabled": true,

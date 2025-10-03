@@ -13,9 +13,9 @@ This document maps Odin component schema properties to OpsTree Redis Operator CR
 
 | Schema Property | Value | OpsTree CRD | Notes |
 |----------------|--------|-------------|-------|
-| `deploymentMode` | `"standalone"` | `kind: Redis` | Single instance, no replication |
-| `deploymentMode` | `"sentinel"` | `kind: RedisReplication` | Master-replica with Sentinel |
-| `deploymentMode` | `"cluster"` | `kind: RedisCluster` | Sharded cluster mode |
+| `deployment.mode` | `"standalone"` | `kind: Redis` | Single instance, no replication |
+| `deployment.mode` | `"sentinel"` | `kind: RedisReplication` | Master-replica with Sentinel |
+| `deployment.mode` | `"cluster"` | `kind: RedisCluster` | Sharded cluster mode |
 
 ## Property Mappings
 
@@ -23,9 +23,9 @@ This document maps Odin component schema properties to OpsTree Redis Operator CR
 
 | Odin Schema Property | OpsTree CRD Path | Example Value | Notes |
 |---------------------|------------------|---------------|-------|
-| `namespace` | `metadata.namespace` | `"redis"` | Kubernetes namespace |
-| `deploymentMode` | Determines `kind` | See table above | Selects CRD type |
-| `replica.count` | `spec.size` (RedisReplication) | `3` | For RedisReplication: size = 1 master + replica.count |
+| `namespace` | `metadata.namespace` | `"redis"` | From COMPONENT_METADATA, not in flavour schema |
+| `deployment.mode` | Determines `kind` | See table above | Selects CRD type |
+| `deployment.config.replica.count` | `spec.size` (RedisReplication) | `3` | For RedisReplication: size = 1 master + replica.count |
 
 ### Master Resources
 
@@ -40,10 +40,10 @@ This document maps Odin component schema properties to OpsTree Redis Operator CR
 
 | Odin Schema Property | OpsTree CRD Path | Example | Notes |
 |---------------------|------------------|---------|-------|
-| `replica.resources.requests.cpu` | `spec.redisReplication.resources.requests.cpu` | `"500m"` | Replica CPU request (RedisReplication) |
-| `replica.resources.requests.memory` | `spec.redisReplication.resources.requests.memory` | `"1Gi"` | Replica memory request (RedisReplication) |
-| `replica.resources.limits.cpu` | `spec.redisReplication.resources.limits.cpu` | `"1000m"` | Replica CPU limit (RedisReplication) |
-| `replica.resources.limits.memory` | `spec.redisReplication.resources.limits.memory` | `"2Gi"` | Replica memory limit (RedisReplication) |
+| `deployment.config.replica.resources.requests.cpu` | `spec.redisReplication.resources.requests.cpu` | `"500m"` | Replica CPU request (RedisReplication) |
+| `deployment.config.replica.resources.requests.memory` | `spec.redisReplication.resources.requests.memory` | `"1Gi"` | Replica memory request (RedisReplication) |
+| `deployment.config.replica.resources.limits.cpu` | `spec.redisReplication.resources.limits.cpu` | `"1000m"` | Replica CPU limit (RedisReplication) |
+| `deployment.config.replica.resources.limits.memory` | `spec.redisReplication.resources.limits.memory` | `"2Gi"` | Replica memory limit (RedisReplication) |
 
 ### Persistence
 
@@ -146,13 +146,13 @@ additional_config = "\n".join(redis_config)
 
 | Odin Schema Property | OpsTree CRD Path | Example | Notes |
 |---------------------|------------------|---------|-------|
-| `sentinel.enabled` | Use `RedisReplication` kind | - | Controls CRD type selection |
-| `sentinel.replicas` | `spec.redisSentinel.replicas` (RedisReplication) | `3` | Number of Sentinel pods |
-| `sentinel.quorum` | `spec.redisSentinel.config.quorum` (RedisReplication) | `2` | Quorum for failover |
-| `sentinel.resources.requests.cpu` | `spec.redisSentinel.resources.requests.cpu` | `"100m"` | Sentinel CPU request |
-| `sentinel.resources.requests.memory` | `spec.redisSentinel.resources.requests.memory` | `"128Mi"` | Sentinel memory request |
-| `sentinel.resources.limits.cpu` | `spec.redisSentinel.resources.limits.cpu` | `"200m"` | Sentinel CPU limit |
-| `sentinel.resources.limits.memory` | `spec.redisSentinel.resources.limits.memory` | `"256Mi"` | Sentinel memory limit |
+| `deployment.mode: "sentinel"` | Use `RedisReplication` kind | - | Controls CRD type selection |
+| `deployment.config.sentinel.replicas` | `spec.redisSentinel.replicas` (RedisReplication) | `3` | Number of Sentinel pods |
+| `deployment.config.sentinel.quorum` | `spec.redisSentinel.config.quorum` (RedisReplication) | `2` | Quorum for failover |
+| `deployment.config.sentinel.resources.requests.cpu` | `spec.redisSentinel.resources.requests.cpu` | `"100m"` | Sentinel CPU request |
+| `deployment.config.sentinel.resources.requests.memory` | `spec.redisSentinel.resources.requests.memory` | `"128Mi"` | Sentinel memory request |
+| `deployment.config.sentinel.resources.limits.cpu` | `spec.redisSentinel.resources.limits.cpu` | `"200m"` | Sentinel CPU limit |
+| `deployment.config.sentinel.resources.limits.memory` | `spec.redisSentinel.resources.limits.memory` | `"256Mi"` | Sentinel memory limit |
 
 **Sentinel Example:**
 ```yaml
@@ -179,8 +179,8 @@ spec:
 
 | Odin Schema Property | OpsTree CRD Path | Example | Notes |
 |---------------------|------------------|---------|-------|
-| `cluster.numShards` | `spec.clusterSize` (RedisCluster) | `3` | Number of master nodes |
-| `cluster.replicasPerShard` | `spec.clusterReplicas` (RedisCluster) | `1` | Replicas per master |
+| `deployment.config.numShards` | `spec.clusterSize` (RedisCluster) | `3` | Number of master nodes |
+| `deployment.config.replicasPerShard` | `spec.clusterReplicas` (RedisCluster) | `1` | Replicas per master |
 
 **Cluster Example:**
 ```yaml
@@ -426,14 +426,9 @@ spec:
 **Odin Schema:**
 ```json
 {
-  "namespace": "redis",
-  "deploymentMode": "standalone",
-  "replica": {
-    "count": 0,
-    "resources": {
-      "requests": {"cpu": "500m", "memory": "1Gi"},
-      "limits": {"cpu": "1000m", "memory": "2Gi"}
-    }
+  "deployment": {
+    "mode": "standalone",
+    "config": {}
   },
   "master": {
     "resources": {
@@ -451,6 +446,8 @@ spec:
   }
 }
 ```
+
+**Note:** `namespace` comes from COMPONENT_METADATA, not flavour schema.
 
 **OpsTree CRD:**
 ```yaml
@@ -488,19 +485,25 @@ spec:
 **Odin Schema:**
 ```json
 {
-  "namespace": "redis",
-  "deploymentMode": "sentinel",
-  "replica": {
-    "count": 2,
-    "resources": {
-      "requests": {"cpu": "500m", "memory": "1Gi"},
-      "limits": {"cpu": "1000m", "memory": "2Gi"}
+  "deployment": {
+    "mode": "sentinel",
+    "config": {
+      "replica": {
+        "count": 2,
+        "resources": {
+          "requests": {"cpu": "500m", "memory": "1Gi"},
+          "limits": {"cpu": "1000m", "memory": "2Gi"}
+        }
+      },
+      "sentinel": {
+        "replicas": 3,
+        "quorum": 2,
+        "resources": {
+          "requests": {"cpu": "100m", "memory": "128Mi"},
+          "limits": {"cpu": "200m", "memory": "256Mi"}
+        }
+      }
     }
-  },
-  "sentinel": {
-    "enabled": true,
-    "replicas": 3,
-    "quorum": 2
   }
 }
 ```
@@ -513,13 +516,20 @@ metadata:
   name: redis-replication
   namespace: redis
 spec:
-  size: 3  # 1 master + replica.count
+  size: 3  # 1 master + deployment.config.replica.count
   kubernetesConfig:
     image: redis:7.1
   redisSentinel:
     replicas: 3
     config:
       quorum: "2"
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "200m"
+        memory: "256Mi"
 ```
 
 ### Cluster Mode
@@ -527,11 +537,12 @@ spec:
 **Odin Schema:**
 ```json
 {
-  "namespace": "redis",
-  "deploymentMode": "cluster",
-  "cluster": {
-    "numShards": 3,
-    "replicasPerShard": 1
+  "deployment": {
+    "mode": "cluster",
+    "config": {
+      "numShards": 3,
+      "replicasPerShard": 1
+    }
   }
 }
 ```
@@ -562,17 +573,18 @@ Some Odin properties require creating **separate Kubernetes resources**:
 
 ### CRD Selection Logic
 ```
-if deploymentMode == "standalone":
+if deployment.mode == "standalone":
     use kind: Redis
-    if replica.count > 0:
-        set spec.size = 1 + replica.count (master + replicas)
-elif deploymentMode == "sentinel":
+    if deployment.config.replica.count > 0:
+        set spec.size = 1 + deployment.config.replica.count (master + replicas)
+elif deployment.mode == "sentinel":
     use kind: RedisReplication
-    set spec.size = 1 + replica.count
-elif deploymentMode == "cluster":
+    set spec.size = 1 + deployment.config.replica.count
+    deployment.config must contain sentinel object
+elif deployment.mode == "cluster":
     use kind: RedisCluster
     must check root schema clusterModeEnabled == true
-    replica.count should NOT be set (validation error)
+    deployment.config must contain numShards and replicasPerShard
 ```
 
 ### Version Mapping

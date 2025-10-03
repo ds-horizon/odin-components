@@ -1,19 +1,9 @@
 {
-  "deploymentMode": "standalone",
-  "master": {
-    "resources": {
-      "requests": {
-        "cpu": "500m",
-        "memory": "1Gi"
-      },
-      "limits": {
-        "cpu": "1000m",
-        "memory": "2Gi"
-      }
-    }
+  "deployment": {
+    "mode": "standalone",
+    "config": {}
   },
-  "replica": {
-    "count": 0,
+  "master": {
     "resources": {
       "requests": {
         "cpu": "500m",
@@ -36,21 +26,6 @@
     "aof": {
       "enabled": false,
       "fsyncPolicy": "everysec"
-    }
-  },
-  "sentinel": {
-    "enabled": false,
-    "replicas": 3,
-    "quorum": 2,
-    "resources": {
-      "requests": {
-        "cpu": "100m",
-        "memory": "128Mi"
-      },
-      "limits": {
-        "cpu": "200m",
-        "memory": "256Mi"
-      }
     }
   },
   "service": {
