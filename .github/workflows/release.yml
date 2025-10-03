@@ -1,0 +1,101 @@
+name: Release Component
+
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: Name of the component to release
+        required: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    env:
+      VERSION_PATH: .version
+      DESCRIPTION_PATH: .description
+      VERSION_FILE: component.json
+      COMPONENT: ${{ github.event.inputs.component }}
+      INDEX_BRANCH: gh-pages
+      INDEX_FILE: index.yaml
+      PACKAGE_SCRIPT: package.sh
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Extract Component Details
+        id: extract_component_details
+        run: |
+          file="${COMPONENT}/${VERSION_FILE}"
+          if [[ ! -f "$file" ]]; then
+              echo "::error::File '$file' not found in working tree."
+              exit 1
+          fi
+
+          echo "VERSION=$(jq -r "$VERSION_PATH" "$file")" >> "$GITHUB_OUTPUT"
+          echo "DESCRIPTION=$(jq -r "$DESCRIPTION_PATH" "$file")" >> "$GITHUB_OUTPUT"
+
+      - name: Setup gh
+        uses: wusatosi/setup-gh@7dae6c8246092454793fe35dd4d5a9e8bf8ed34d # v1.1
+
+      - name: Package component
+        id: package
+        run: |
+          set -euo pipefail
+
+          if [[ -f "${COMPONENT}/${PACKAGE_SCRIPT}" ]]; then
+            cd ${COMPONENT}
+            ./${PACKAGE_SCRIPT}
+            cd ..
+          fi
+          ASSET_NAME="${COMPONENT}-${{ steps.extract_component_details.outputs.VERSION}}.tar.gz"
+
+          mkdir -p dist
+          tar -czvf "dist/${ASSET_NAME}" -C "${COMPONENT}" .
+
+          echo "ASSET_PATH=dist/${ASSET_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@6cbd405e2c4e67a21c47fa9e383d020e4e28b836 #v2.3.3
+        id: create_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          overwrite_files: false
+          tag_name: "${{env.COMPONENT}}-${{ steps.extract_component_details.outputs.VERSION}}"
+          name: "${{env.COMPONENT}}-${{ steps.extract_component_details.outputs.VERSION}}"
+          files: ${{ steps.package.outputs.ASSET_PATH }}
+      
+      - name: Checkout code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          ref: ${{env.INDEX_BRANCH}}
+
+      - name: Setup git config
+        run: |
+          git config user.name "release-bot"
+          git config user.email "<>"
+
+      - name: Commit & push
+        
+        run : |
+          set -euo pipefail
+
+          assets='${{ steps.create_release.outputs.assets }}'
+          export url="$(jq -r '.[0]?.browser_download_url // empty' <<< "$assets")"
+
+          yq -i '.components."${{env.COMPONENT}}"  = (.components."${{env.COMPONENT}}"  // [])' "${INDEX_FILE}"
+          yq -i '.components."${{env.COMPONENT}}" += ({
+            "name": "${{env.COMPONENT}}",
+            "description": "${{steps.extract_component_details.outputs.DESCRIPTION}}", 
+            "version": "${{steps.extract_component_details.outputs.VERSION}}", 
+            "downloadUrl": strenv(url)})' "${INDEX_FILE}"
+
+          git add "${INDEX_FILE}"
+
+          if ! git diff --cached --quiet -- "${INDEX_FILE}"; then
+            git commit -m "chore: update ${INDEX_FILE} via workflow"
+            git push origin HEAD:${INDEX_BRANCH}
+          fi
+
