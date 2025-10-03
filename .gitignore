@@ -35,3 +35,14 @@ logs/*
 .config
 .env
 .tool-versions
+
+
+# Application
+application/**/target
+application/**/state.json
+application/**/manifest.json
+application/*/image.pkr.hcl
+application/**/*.zip
+application/**/response.json
+application/local_kubernetes/values.yaml
+application/**/*.jar

@@ -1,0 +1,122 @@
+image:
+  registry: ${registry}
+  repository: ${deployConfig.artifactConfig.name}
+  tag: ${tag}
+  pullPolicy: Always
+
+  pullSecrets:
+  <#list pullSecrets as pullSecret>
+  - ${pullSecret}
+  </#list>
+envVars:
+  - name: HOST_IP
+    valueFrom:
+      fieldRef:
+        fieldPath: status.hostIP
+  <#list environmentVariables as key, value>
+  - name: ${key}
+    value: "${value}"
+  </#list>
+replicaCount: ${deployConfig.replicas?c}
+enableServiceLinks: false
+resources:
+  limits:
+    cpu: ${deployConfig.resources.limits.cpu}
+    memory: ${deployConfig.resources.limits.memory}
+  requests:
+    cpu: ${deployConfig.resources.requests.cpu}
+    memory: ${deployConfig.resources.requests.memory}
+
+livenessProbe:
+  enabled: ${deployConfig.probes.liveness.enabled?c}
+  <#if deployConfig.probes.liveness.type == "HTTP_GET">
+  config:
+    httpGet:
+      path: ${deployConfig.probes.liveness.config.path}
+      port: ${deployConfig.probes.liveness.config.port?c}
+      scheme: ${deployConfig.probes.liveness.config.scheme}
+      httpHeaders:
+        <#list deployConfig.probes.liveness.config.headers as key, value>
+        - name: ${key}
+          value: ${value}
+        </#list>
+
+  <#elseif deployConfig.probes.liveness.type == "TCP">
+  config:
+    tcpSocket:
+      port: ${deployConfig.probes.liveness.config.port?c}
+  <#elseif deployConfig.probes.liveness.type == "GRPC">
+  config:
+    grpc:
+      service: ${deployConfig.probes.liveness.config.service}
+      port: ${deployConfig.probes.liveness.config.port?c}
+  </#if>
+  initialDelaySeconds: ${deployConfig.probes.liveness.initialDelaySeconds}
+  periodSeconds: ${deployConfig.probes.liveness.intervalSeconds}
+  timeoutSeconds: ${deployConfig.probes.liveness.timeoutSeconds}
+  failureThreshold: ${deployConfig.probes.liveness.failureThreshold}
+
+readinessProbe:
+  enabled: ${deployConfig.probes.readiness.enabled?c}
+  <#if deployConfig.probes.readiness.type == "HTTP_GET">
+  config:
+    httpGet:
+      path: ${deployConfig.probes.readiness.config.path}
+      port: ${deployConfig.probes.readiness.config.port?c}
+      scheme: ${deployConfig.probes.readiness.config.scheme}
+      httpHeaders:
+          <#list deployConfig.probes.readiness.config.headers as key, value>
+            - name: ${key}
+            value: ${value}
+            </#list>
+
+  <#elseif deployConfig.probes.readiness.type == "TCP">
+  config:
+    tcpSocket:
+      port: ${deployConfig.probes.readiness.config.port?c}
+  <#elseif deployConfig.probes.readiness.type == "GRPC">
+  config:
+    grpc:
+      service: ${deployConfig.probes.readiness.config.service}
+      port: ${deployConfig.probes.readiness.config.port?c}
+  </#if>
+  initialDelaySeconds: ${deployConfig.probes.readiness.initialDelaySeconds}
+  periodSeconds: ${deployConfig.probes.readiness.intervalSeconds}
+  timeoutSeconds: ${deployConfig.probes.readiness.timeoutSeconds}
+  successThreshold: ${deployConfig.probes.readiness.successThreshold}
+  failureThreshold: ${deployConfig.probes.readiness.failureThreshold}
+
+startupProbe:
+  enabled: ${deployConfig.probes.startup.enabled?c}
+  <#if deployConfig.probes.startup.type == "HTTP_GET">
+  config:
+    httpGet:
+      path: ${deployConfig.probes.startup.config.path}
+      port: ${deployConfig.probes.startup.config.port?c}
+      scheme: ${deployConfig.probes.startup.config.scheme}
+      httpHeaders:
+          <#list deployConfig.probes.startup.config.headers as key, value>
+            - name: ${key}
+            value: ${value}
+            </#list>
+
+  <#elseif deployConfig.probes.startup.type == "TCP">
+  config:
+    tcpSocket:
+      port: ${deployConfig.probes.startup.config.port?c}
+  <#elseif deployConfig.probes.startup.type == "GRPC">
+  config:
+    grpc:
+      service: ${deployConfig.probes.startup.config.service}
+      port: ${deployConfig.probes.startup.config.port?c}
+  </#if>
+  initialDelaySeconds: ${deployConfig.probes.startup.initialDelaySeconds}
+  periodSeconds: ${deployConfig.probes.startup.intervalSeconds}
+  timeoutSeconds: ${deployConfig.probes.startup.timeoutSeconds}
+  failureThreshold: ${deployConfig.probes.startup.failureThreshold}
+
+ports:
+  <#list deployConfig.ports as port>
+  - targetPort: ${port.targetPort?c}
+    port: ${port.port?c}
+  </#list>

@@ -1,0 +1,6 @@
+./README.md.tpl
+./local_kubernetes/README.md.tpl
+./local_kubernetes/operations/redeploy/README.md.tpl
+./local_kubernetes/chart/charts/common-1.17.1.tgz
+./local_kubernetes/chart/templates/deployment.yaml
+./local_kubernetes/chart/templates/service.yaml

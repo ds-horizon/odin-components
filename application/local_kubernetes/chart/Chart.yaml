@@ -1,0 +1,10 @@
+apiVersion: v2
+name: application
+description: Application deployment helm chart
+version: 0.0.1
+dependencies:
+  - name: common
+    repository: https://charts.bitnami.com/bitnami
+    tags:
+      - bitnami-common
+    version: 1.x.x

@@ -1,0 +1,159 @@
+## @section Application parameters
+##
+
+## @param image.registry Application image registry
+## @param image.repository Application image repository
+## @param image.tag Application image tag (immutable tags are recommended)
+## @param image.pullPolicy image pull policy
+## @param image.pullSecrets Application image pull secrets
+##
+image:
+  registry: docker.io
+  repository: nginx
+  tag: 1.19.0
+  ## Specify a imagePullPolicy
+  ## ref: https://kubernetes.io/docs/user-guide/images/#pre-pulling-images
+  ##
+  pullPolicy: IfNotPresent
+  ## Optionally specify an array of imagePullSecrets.
+  ## Secrets must be manually created in the namespace.
+  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+  ## e.g:
+  ## pullSecrets:
+  ##   - myRegistryKeySecretName
+  ##
+  pullSecrets: []
+
+## @param annotations Annotations to be added on all resources
+## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+##
+annotations: { }
+
+## @param labels Labels to be added on all resources
+## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+##
+labels: { }
+
+## @section Deployment parameters
+##
+
+## @param envVars Environment variables to be set on application container
+## For example:
+##  - name: FOO
+##    value: BAR
+##
+envVars: [ ]
+
+## @param replicaCount Number of application replicas
+##
+replicaCount: 1
+
+## @param strategy.type updateStrategy for Application deployment
+## ref: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#strategy
+##
+strategy:
+  type: RollingUpdate
+
+## @param podAnnotations Additional pod annotations
+## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+##
+podAnnotations: { }
+## @param podLabels Additional pod labels
+## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+##
+podLabels: { }
+
+## @param enableServiceLinks Enable service links
+## ref: https://kubernetes.io/docs/tutorials/services/connect-applications-service/#accessing-the-service
+##
+enableServiceLinks: false
+
+## Application pods' resource requests and limits
+## ref: https://kubernetes.io/docs/user-guide/compute-resources/
+## @param resources.limits The resources limits for Aerospike containers
+## @param resources.requests The requested resources for Aerospike containers
+##
+resources:
+  ## Example:
+  ## limits:
+  ##    cpu: 2
+  ##    memory: 4Gi
+  ##
+  limits: { }
+  ## Examples:
+  ## requests:
+  ##    cpu: 2
+  ##    memory: 4Gi
+  ##
+  requests: { }
+
+## Configure extra options for application containers' liveness and readiness probes
+## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/#configure-probes
+## @param livenessProbe.enabled Enable livenessProbe
+## @param livenessProbe.config Probe config
+## @param livenessProbe.initialDelaySeconds Initial delay seconds for livenessProbe
+## @param livenessProbe.periodSeconds Period seconds for livenessProbe
+## @param livenessProbe.timeoutSeconds Timeout seconds for livenessProbe
+## @param livenessProbe.failureThreshold Failure threshold for livenessProbe
+## @param livenessProbe.successThreshold Success threshold for livenessProbe
+##
+livenessProbe:
+  enabled: true
+  config: { }
+  initialDelaySeconds: 30
+  periodSeconds: 30
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 5
+
+## @param readinessProbe.enabled Enable readinessProbe
+## @param readinessProbe.config Probe config
+## @param readinessProbe.initialDelaySeconds Initial delay seconds for readinessProbe
+## @param readinessProbe.periodSeconds Period seconds for readinessProbe
+## @param readinessProbe.timeoutSeconds Timeout seconds for readinessProbe
+## @param readinessProbe.failureThreshold Failure threshold for readinessProbe
+## @param readinessProbe.successThreshold Success threshold for readinessProbe
+##
+readinessProbe:
+  enabled: true
+  config: { }
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 5
+
+## Configure extra options for startup probe
+## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/#configure-probes
+## @param startupProbe.enabled Enable startupProbe
+## @param startupProbe.config Probe config
+## @param startupProbe.initialDelaySeconds Initial delay seconds for startupProbe
+## @param startupProbe.periodSeconds Period seconds for startupProbe
+## @param startupProbe.timeoutSeconds Timeout seconds for startupProbe
+## @param startupProbe.failureThreshold Failure threshold for startupProbe
+## @param startupProbe.successThreshold Success threshold for startupProbe
+##
+startupProbe:
+  enabled: false
+  config: { }
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 60
+
+## @param ports Configure application ports
+## Example:
+##  ports:
+##  - targetPort: 8080
+##    port: 80
+##
+ports:
+  - port: 80
+    targetPort: 8080
+
+## Service parameters
+##
+service:
+  ## @param service.annotations Annotations for Kubernetes service
+  annotations: { }

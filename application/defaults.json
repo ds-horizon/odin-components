@@ -1,0 +1,29 @@
+{
+  "artifact": {
+    "hooks": {
+      "start": {
+        "script": ".odin/start.sh",
+        "enabled": true
+      },
+      "stop": {
+        "script": ".odin/stop.sh",
+        "enabled": true
+      },
+      "preDeploy": {
+        "script": ".odin/pre-deploy.sh",
+        "enabled": true
+      },
+      "postDeploy": {
+        "script": ".odin/post-deploy.sh",
+        "enabled": true
+      },
+      "imageSetup": {
+        "script": ".odin/setup.sh",
+        "enabled": true
+      }
+    }
+  },
+  "discovery": {
+
+  }
+}

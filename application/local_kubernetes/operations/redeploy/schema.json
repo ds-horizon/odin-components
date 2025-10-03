@@ -1,0 +1,833 @@
+{
+  "title": "Local kubernetes redeploy operation schema",
+  "type": "object",
+  "properties": {
+    "artifact": {
+      "type": "object",
+      "description": "Application artifact properties",
+      "properties": {
+        "version": {
+          "type": "string",
+          "description": "Version of the artifact"
+        },
+        "hooks": {
+          "type": "object",
+          "description": "Hooks present in the artifact",
+          "properties": {
+            "start": {
+              "type": "object",
+              "description": "Start up hook",
+              "properties": {
+                "script": {
+                  "type": "string",
+                  "description": "Script path relative to the artifact"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Whether to enable this hook?"
+                }
+              },
+              "additionalProperties": false,
+              "required": []
+            },
+            "stop": {
+              "type": "object",
+              "description": "Stop application hook",
+              "properties": {
+                "script": {
+                  "type": "string",
+                  "description": "Script path relative to the artifact"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Whether to enable this hook?"
+                }
+              },
+              "additionalProperties": false,
+              "required": []
+            },
+            "preDeploy": {
+              "type": "object",
+              "description": "Pre deployment hook",
+              "properties": {
+                "script": {
+                  "type": "string",
+                  "description": "Script path relative to the artifact"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Whether to enable this hook?"
+                },
+                "dockerImage": {
+                  "type": "string",
+                  "description": "Docker image in which the script will run"
+                }
+              },
+              "additionalProperties": false,
+              "required": []
+            },
+            "postDeploy": {
+              "type": "object",
+              "description": "Post deployment hook",
+              "properties": {
+                "script": {
+                  "type": "string",
+                  "description": "Script path relative to the artifact"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Whether to enable this hook?"
+                },
+                "dockerImage": {
+                  "type": "string",
+                  "description": "Docker image in which the script will run"
+                }
+              },
+              "additionalProperties": false,
+              "required": []
+            },
+            "imageSetup": {
+              "type": "object",
+              "description": "Image setup hook. Execute a custom script before creating the image",
+              "properties": {
+                "script": {
+                  "type": "string",
+                  "description": "Script path relative to the artifact"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Whether to enable this hook?"
+                }
+              },
+              "additionalProperties": false,
+              "required": []
+            }
+          },
+          "additionalProperties": false,
+          "required": []
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "version"
+      ]
+    },
+    "baseImage": {
+      "type": "object",
+      "description": "The base image to use for the container",
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "The repository of the base image"
+        },
+        "tag": {
+          "type": "string",
+          "description": "The tag of the base image"
+        }
+      },
+      "additionalProperties": false,
+      "required": []
+    },
+    "extraEnvVars": {
+      "type": "object",
+      "description": "Extra environment variables to pass to application",
+      "properties": {
+      }
+    },
+    "resources": {
+      "type": "object",
+      "description": "The resources to allocate for the container",
+      "additionalProperties": false,
+      "properties": {
+        "requests": {
+          "type": "object",
+          "description": "The resource requests for the container",
+          "additionalProperties": false,
+          "properties": {
+            "cpu": {
+              "type": "string",
+              "description": "The amount of CPU to request for the container, e.g. 0.5"
+            },
+            "memory": {
+              "type": "string",
+              "description": "The amount of memory to request for the container, e.g. 512Mi"
+            }
+          },
+          "required": []
+        },
+        "limits": {
+          "type": "object",
+          "description": "The resource limits for the container",
+          "additionalProperties": false,
+          "properties": {
+            "cpu": {
+              "type": "string",
+              "description": "The amount of CPU to limit for the container, e.g. 0.5"
+            },
+            "memory": {
+              "type": "string",
+              "description": "The amount of memory to limit for the container, e.g. 512Mi"
+            }
+          },
+          "required": []
+        }
+      },
+      "required": []
+    },
+    "replicas": {
+      "type": "integer",
+      "description": "Number of replicas to deploy"
+    },
+    "ports": {
+      "type": "array",
+      "description": "The ports to expose on the container",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "port": {
+            "type": "integer",
+            "description": "The port number to expose"
+          },
+          "targetPort": {
+            "type": "integer",
+            "description": "Target port on the container"
+          }
+        },
+        "required": [
+          "port",
+          "targetPort"
+        ]
+      }
+    },
+    "probes": {
+      "type": "object",
+      "description": "The probes configuration for the container",
+      "properties": {
+        "readiness": {
+          "type": "object",
+          "description": "The readiness probe configuration",
+          "properties": {
+            "type": {
+              "type": "string",
+              "description": "The type of probe to use",
+              "enum": [
+                "HTTP_GET",
+                "TCP",
+                "GRPC"
+              ]
+            },
+            "enabled": {
+              "type": "boolean",
+              "description": "Whether readiness probe is enabled"
+            },
+            "initialDelaySeconds": {
+              "type": "integer",
+              "description": "The initial delay before starting the probe"
+            },
+            "intervalSeconds": {
+              "type": "integer",
+              "description": "The interval between probes"
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "description": "The timeout for the probe"
+            },
+            "successThreshold": {
+              "type": "integer",
+              "description": "The number of successful probes before the container is considered healthy"
+            },
+            "failureThreshold": {
+              "type": "integer",
+              "description": "The number of failed probes before the container is considered unhealthy"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "type": {
+                    "const": "HTTP_GET"
+                  }
+                },
+                "required": [
+                  "type",
+                  "enabled",
+                  "config",
+                  "initialDelaySeconds",
+                  "intervalSeconds",
+                  "timeoutSeconds",
+                  "successThreshold",
+                  "failureThreshold"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "config": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "description": "The path to use for the probe"
+                      },
+                      "port": {
+                        "type": "integer",
+                        "description": "The port to use for the probe"
+                      },
+                      "headers": {
+                        "type": "object",
+                        "description": "The headers to use for the probe",
+                        "properties": {
+                        }
+                      },
+                      "scheme": {
+                        "type": "string",
+                        "description": "The scheme to use for the probe"
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "port"
+                    ]
+                  }
+                },
+                "required": [
+                  "type",
+                  "enabled",
+                  "config",
+                  "initialDelaySeconds",
+                  "intervalSeconds",
+                  "timeoutSeconds",
+                  "successThreshold",
+                  "failureThreshold"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "type": {
+                    "const": "GRPC"
+                  }
+                },
+                "required": [
+                  "type",
+                  "enabled",
+                  "config",
+                  "initialDelaySeconds",
+                  "intervalSeconds",
+                  "timeoutSeconds",
+                  "failureThreshold"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "config": {
+                    "type": "object",
+                    "properties": {
+                      "service": {
+                        "type": "string",
+                        "description": "The path to use for the probe"
+                      },
+                      "port": {
+                        "type": "integer",
+                        "description": "The port to use for the probe"
+                      }
+                    },
+                    "required": [
+                      "service",
+                      "port"
+                    ]
+                  }
+                },
+                "required": [
+                  "type",
+                  "enabled",
+                  "config",
+                  "initialDelaySeconds",
+                  "intervalSeconds",
+                  "timeoutSeconds",
+                  "failureThreshold"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "type": {
+                    "const": "TCP"
+                  }
+                },
+                "required": [
+                  "type",
+                  "enabled",
+                  "config",
+                  "initialDelaySeconds",
+                  "intervalSeconds",
+                  "timeoutSeconds",
+                  "successThreshold",
+                  "failureThreshold"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "config": {
+                    "type": "object",
+                    "properties": {
+                      "port": {
+                        "type": "integer",
+                        "description": "The port to use for the probe"
+                      }
+                    },
+                    "required": [
+                      "port"
+                    ]
+                  }
+                },
+                "required": [
+                  "type",
+                  "enabled",
+                  "config",
+                  "initialDelaySeconds",
+                  "intervalSeconds",
+                  "timeoutSeconds",
+                  "successThreshold",
+                  "failureThreshold"
+                ]
+              }
+            }
+          ],
+          "required": [
+            "type",
+            "enabled",
+            "config",
+            "initialDelaySeconds",
+            "intervalSeconds",
+            "timeoutSeconds",
+            "successThreshold",
+            "failureThreshold"
+          ]
+        },
+        "liveness": {
+          "type": "object",
+          "description": "The liveness probe configuration",
+          "properties": {
+            "type": {
+              "type": "string",
+              "description": "The type of probe to use",
+              "enum": [
+                "HTTP_GET",
+                "TCP",
+                "GRPC"
+              ]
+            },
+            "enabled": {
+              "type": "boolean",
+              "description": "Whether liveness probe is enabled"
+            },
+            "initialDelaySeconds": {
+              "type": "integer",
+              "description": "The initial delay before starting the probe"
+            },
+            "intervalSeconds": {
+              "type": "integer",
+              "description": "The interval between probes"
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "description": "The timeout for the probe"
+            },
+            "failureThreshold": {
+              "type": "integer",
+              "description": "The number of failed probes before the container is considered unhealthy"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "type": {
+                    "const": "HTTP_GET"
+                  }
+                },
+                "required": [
+                  "type",
+                  "enabled",
+                  "config",
+                  "initialDelaySeconds",
+                  "intervalSeconds",
+                  "timeoutSeconds",
+                  "failureThreshold"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "config": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "description": "The path to use for the probe"
+                      },
+                      "port": {
+                        "type": "integer",
+                        "description": "The port to use for the probe"
+                      },
+                      "headers": {
+                        "type": "object",
+                        "description": "The headers to use for the probe",
+                        "properties": {
+                        }
+                      },
+                      "scheme": {
+                        "type": "string",
+                        "description": "The scheme to use for the probe"
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "port"
+                    ]
+                  }
+                },
+                "required": [
+                  "type",
+                  "enabled",
+                  "config",
+                  "initialDelaySeconds",
+                  "intervalSeconds",
+                  "timeoutSeconds",
+                  "failureThreshold"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "type": {
+                    "const": "GRPC"
+                  }
+                },
+                "required": [
+                  "type",
+                  "enabled",
+                  "config",
+                  "initialDelaySeconds",
+                  "intervalSeconds",
+                  "timeoutSeconds",
+                  "failureThreshold"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "config": {
+                    "type": "object",
+                    "properties": {
+                      "service": {
+                        "type": "string",
+                        "description": "The path to use for the probe"
+                      },
+                      "port": {
+                        "type": "integer",
+                        "description": "The port to use for the probe"
+                      }
+                    },
+                    "required": [
+                      "service",
+                      "port"
+                    ]
+                  }
+                },
+                "required": [
+                  "type",
+                  "enabled",
+                  "config",
+                  "initialDelaySeconds",
+                  "intervalSeconds",
+                  "timeoutSeconds",
+                  "failureThreshold"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "type": {
+                    "const": "TCP"
+                  }
+                },
+                "required": [
+                  "type",
+                  "enabled",
+                  "config",
+                  "initialDelaySeconds",
+                  "intervalSeconds",
+                  "timeoutSeconds",
+                  "failureThreshold"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "config": {
+                    "type": "object",
+                    "properties": {
+                      "port": {
+                        "type": "integer",
+                        "description": "The port to use for the probe"
+                      }
+                    },
+                    "required": [
+                      "port"
+                    ]
+                  }
+                },
+                "required": [
+                  "type",
+                  "enabled",
+                  "config",
+                  "initialDelaySeconds",
+                  "intervalSeconds",
+                  "timeoutSeconds",
+                  "failureThreshold"
+                ]
+              }
+            }
+          ],
+          "required": [
+            "type",
+            "enabled",
+            "config",
+            "initialDelaySeconds",
+            "intervalSeconds",
+            "timeoutSeconds",
+            "failureThreshold"
+          ]
+        },
+        "startup": {
+          "type": "object",
+          "description": "The startup probe configuration",
+          "properties": {
+            "type": {
+              "type": "string",
+              "description": "The type of probe to use",
+              "enum": [
+                "HTTP_GET",
+                "TCP",
+                "GRPC"
+              ]
+            },
+            "enabled": {
+              "type": "boolean",
+              "description": "Whether startup probe is enabled"
+            },
+            "initialDelaySeconds": {
+              "type": "integer",
+              "description": "The initial delay before starting the probe"
+            },
+            "intervalSeconds": {
+              "type": "integer",
+              "description": "The interval between probes"
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "description": "The timeout for the probe"
+            },
+            "failureThreshold": {
+              "type": "integer",
+              "description": "The number of failed probes before the container is considered unhealthy"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "type": {
+                    "const": "HTTP_GET"
+                  }
+                },
+                "required": [
+                  "type",
+                  "enabled",
+                  "config",
+                  "initialDelaySeconds",
+                  "intervalSeconds",
+                  "timeoutSeconds",
+                  "failureThreshold"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "config": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "description": "The path to use for the probe"
+                      },
+                      "port": {
+                        "type": "integer",
+                        "description": "The port to use for the probe"
+                      },
+                      "headers": {
+                        "type": "object",
+                        "description": "The headers to use for the probe",
+                        "properties": {
+                        }
+                      },
+                      "scheme": {
+                        "type": "string",
+                        "description": "The scheme to use for the probe"
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "port"
+                    ]
+                  }
+                },
+                "required": [
+                  "type",
+                  "enabled",
+                  "config",
+                  "initialDelaySeconds",
+                  "intervalSeconds",
+                  "timeoutSeconds",
+                  "failureThreshold"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "type": {
+                    "const": "GRPC"
+                  }
+                },
+                "required": [
+                  "type",
+                  "enabled",
+                  "config",
+                  "initialDelaySeconds",
+                  "intervalSeconds",
+                  "timeoutSeconds",
+                  "failureThreshold"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "config": {
+                    "type": "object",
+                    "properties": {
+                      "service": {
+                        "type": "string",
+                        "description": "The path to use for the probe"
+                      },
+                      "port": {
+                        "type": "integer",
+                        "description": "The port to use for the probe"
+                      }
+                    },
+                    "required": [
+                      "service",
+                      "port"
+                    ]
+                  }
+                },
+                "required": [
+                  "type",
+                  "enabled",
+                  "config",
+                  "initialDelaySeconds",
+                  "intervalSeconds",
+                  "timeoutSeconds",
+                  "failureThreshold"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "type": {
+                    "const": "TCP"
+                  }
+                },
+                "required": [
+                  "type",
+                  "enabled",
+                  "config",
+                  "initialDelaySeconds",
+                  "intervalSeconds",
+                  "timeoutSeconds",
+                  "failureThreshold"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "config": {
+                    "type": "object",
+                    "properties": {
+                      "port": {
+                        "type": "integer",
+                        "description": "The port to use for the probe"
+                      }
+                    },
+                    "required": [
+                      "port"
+                    ]
+                  }
+                },
+                "required": [
+                  "type",
+                  "enabled",
+                  "config",
+                  "initialDelaySeconds",
+                  "intervalSeconds",
+                  "timeoutSeconds",
+                  "failureThreshold"
+                ]
+              }
+            }
+          ],
+          "required": [
+            "type",
+            "enabled",
+            "config",
+            "initialDelaySeconds",
+            "intervalSeconds",
+            "timeoutSeconds",
+            "failureThreshold"
+          ]
+        }
+      },
+      "required": [
+        "readiness",
+        "liveness",
+        "startup"
+      ]
+    },
+    "localArtifact": {
+      "type": "object",
+      "description": "Local artifact configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether local artifact is enabled"
+        },
+        "path": {
+          "type": "string",
+          "description": "Path to local artifact"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "path"
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "artifact"
+  ]
+}

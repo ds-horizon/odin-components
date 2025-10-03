@@ -1,0 +1,166 @@
+{
+  "title": "Schema valid for across all flavours",
+  "type": "object",
+  "properties": {
+    "artifact": {
+      "type": "object",
+      "description": "Application artifact properties",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the artifact"
+        },
+        "version": {
+          "type": "string",
+          "description": "Version of the artifact"
+        },
+        "hooks": {
+          "type": "object",
+          "description": "Hooks present in the artifact",
+          "properties": {
+            "start": {
+              "type": "object",
+              "description": "Start up hook",
+              "properties": {
+                "script": {
+                  "type": "string",
+                  "description": "Script path relative to the artifact"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Whether to enable this hook?"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "script",
+                "enabled"
+              ]
+            },
+            "stop": {
+              "type": "object",
+              "description": "Stop application hook",
+              "properties": {
+                "script": {
+                  "type": "string",
+                  "description": "Script path relative to the artifact"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Whether to enable this hook?"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "script",
+                "enabled"
+              ]
+            },
+            "preDeploy": {
+              "type": "object",
+              "description": "Pre deployment hook",
+              "properties": {
+                "script": {
+                  "type": "string",
+                  "description": "Script path relative to the artifact"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Whether to enable this hook?"
+                },
+                "dockerImage": {
+                  "type": "string",
+                  "description": "Docker image in which the script will run"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "script",
+                "enabled",
+                "dockerImage"
+              ]
+            },
+            "postDeploy": {
+              "type": "object",
+              "description": "Post deployment hook",
+              "properties": {
+                "script": {
+                  "type": "string",
+                  "description": "Script path relative to the artifact"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Whether to enable this hook?"
+                },
+                "dockerImage": {
+                  "type": "string",
+                  "description": "Docker image in which the script will run"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "script",
+                "enabled",
+                "dockerImage"
+              ]
+            },
+            "imageSetup": {
+              "type": "object",
+              "description": "Image setup hook. Execute a custom script before creating the image",
+              "properties": {
+                "script": {
+                  "type": "string",
+                  "description": "Script path relative to the artifact"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Whether to enable this hook?"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "script",
+                "enabled"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "start",
+            "stop",
+            "preDeploy",
+            "postDeploy",
+            "imageSetup"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "hooks"
+      ]
+    },
+    "discovery": {
+      "type": "object",
+      "description": "Discovery config for the artifact",
+      "properties": {
+        "private": {
+          "description": "The private discovery endpoint for the application",
+          "type": "string",
+          "pattern": "^[^A-Z]*$"
+        },
+        "public": {
+          "description": "The public discovery endpoint for the application",
+          "type": "string",
+          "pattern": "^[^A-Z]*$"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "artifact",
+    "discovery"
+  ]
+}
