@@ -16,7 +16,7 @@ jobs:
       DESCRIPTION_PATH: .description
       VERSION_FILE: component.json
       COMPONENT: ${{ github.event.inputs.component }}
-      INDEX_BRANCH: gh_pages
+      INDEX_BRANCH: gh-pages
       INDEX_FILE: index.yaml
       PACKAGE_SCRIPT: package.sh
 
