@@ -178,8 +178,8 @@ kubectl run -it --rm redis-cli --image=redis:7 --restart=Never -- redis-cli -h r
 See [FLAVOUR_DIFFERENCES.md](./FLAVOUR_DIFFERENCES.md) for detailed explanation of differences between local_k8s and aws_k8s flavours.
 
 Key differences:
-- **Storage**: Empty storageClass (uses cluster default automatically) vs `gp3` (must be created on EKS 1.30+)
-- **Setup Required**: None (pre-configured defaults) vs Must create StorageClass
+- **Storage**: Both use empty storageClass (cluster default), but local K8s has pre-configured defaults while EKS 1.30+ requires external StorageClass setup
+- **Setup Required**: None (pre-configured defaults) vs Must create and configure default StorageClass
 - **Load Balancing**: NodePort/port-forward vs AWS NLB
 - **IAM**: No IRSA integration locally
 - **Multi-AZ**: Single node/zone vs multi-AZ spreading

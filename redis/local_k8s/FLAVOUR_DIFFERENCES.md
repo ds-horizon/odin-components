@@ -18,13 +18,13 @@ It might seem efficient to symlink the schema files since both flavours deploy R
 
 | Aspect | AWS K8s | Local K8s |
 |--------|---------------|-----------------|
-| **Default** | `gp3` | `""` (empty - uses cluster default) |
-| **Cluster Behavior** | EKS 1.30+ has NO default StorageClass - must be created | All local K8s distributions have pre-configured default StorageClass |
+| **Default** | `""` (empty - uses cluster default) | `""` (empty - uses cluster default) |
+| **Cluster Behavior** | EKS 1.30+ has NO default StorageClass - must be created externally | All local K8s distributions have pre-configured default StorageClass |
 | **Description** | References AWS EBS volumes (gp3, io2), IOPS, encryption, KMS, warns about EKS 1.30+ behavior | References local storage provisioners (local-path, hostpath, standard), explains empty uses cluster default |
-| **User Setup Required** | Must create gp3 StorageClass (see Prerequisites) | No setup required - works out-of-the-box |
+| **User Setup Required** | Must create a StorageClass and mark as default (see Prerequisites for gp3 setup) | No setup required - works out-of-the-box |
 
 **Why it matters:**
-- **AWS:** Explicit `gp3` default prevents deployment failures since EKS 1.30+ doesn't include a default StorageClass. Users must create the gp3 StorageClass as documented in Prerequisites.
+- **AWS:** Empty string uses cluster's default StorageClass. Since EKS 1.30+ doesn't include a default, users must create one and mark it as default (e.g., gp3 with encryption) as documented in Prerequisites.
 - **Local:** Empty string automatically uses cluster's default StorageClass, which exists in all local K8s distributions (kind uses `standard`, k3s uses `local-path`, etc.). No user action needed.
 - The entire description differs: AWS references EBS-specific features (encryption, IOPS, AZ topology, KMS keys) that are irrelevant locally.
 
@@ -176,10 +176,9 @@ It might seem efficient to symlink the schema files since both flavours deploy R
 ## Why Symlink Would Fail
 
 ### Immediate Technical Failures
-1. **AWS default `storageClass: "gp3"` would fail locally** → StorageClass not found error (gp3 doesn't exist in local K8s)
-2. **Local default `storageClass: ""` would fail on EKS 1.30+** → No default StorageClass exists, PVCs remain pending
-3. **Backup validation requires S3 fields** → Schema validation failures when backups enabled locally
-4. **Incorrect documentation** → Users following AWS-specific steps that don't apply locally
+1. **Empty `storageClass` would fail on EKS 1.30+ without setup** → No default StorageClass exists, PVCs remain pending (requires external setup)
+2. **Backup validation requires S3 fields** → Schema validation failures when backups enabled locally
+3. **Incorrect documentation** → Users following AWS-specific steps that don't apply locally
 
 ### User Experience Issues
 1. **Confusing guidance** → References to EBS, IRSA, NLB, AZs that don't exist locally

@@ -27,7 +27,7 @@
   },
   "persistence": {
     "enabled": true,
-    "storageClass": "gp3",
+    "storageClass": "",
     "size": "10Gi",
     "rdb": {
       "enabled": true,
