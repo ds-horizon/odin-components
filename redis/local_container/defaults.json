@@ -1,0 +1,70 @@
+{
+  "namespace": "redis",
+  "deploymentMode": "standalone",
+  "master": {
+    "resources": {
+      "requests": {
+        "cpu": "500m",
+        "memory": "1Gi"
+      },
+      "limits": {
+        "cpu": "1000m",
+        "memory": "2Gi"
+      }
+    }
+  },
+  "replica": {
+    "count": 0,
+    "resources": {
+      "requests": {
+        "cpu": "500m",
+        "memory": "1Gi"
+      },
+      "limits": {
+        "cpu": "1000m",
+        "memory": "2Gi"
+      }
+    }
+  },
+  "persistence": {
+    "enabled": true,
+    "storageClass": "standard",
+    "size": "10Gi",
+    "rdb": {
+      "enabled": true,
+      "saveInterval": "900 1 300 10 60 10000"
+    },
+    "aof": {
+      "enabled": false,
+      "fsyncPolicy": "everysec"
+    }
+  },
+  "sentinel": {
+    "enabled": false,
+    "replicas": 3,
+    "quorum": 2,
+    "resources": {
+      "requests": {
+        "cpu": "100m",
+        "memory": "128Mi"
+      },
+      "limits": {
+        "cpu": "200m",
+        "memory": "256Mi"
+      }
+    }
+  },
+  "antiAffinity": "soft",
+  "service": {
+    "type": "ClusterIP",
+    "annotations": {}
+  },
+  "updateStrategy": {
+    "type": "RollingUpdate",
+    "rollingUpdate": {
+      "maxUnavailable": 1
+    }
+  },
+  "nodeSelector": {},
+  "additionalConfig": {}
+}
