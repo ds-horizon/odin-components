@@ -28,7 +28,6 @@ jobs:
         id: extract_component_details
         run: |
           file="${COMPONENT}/${VERSION_FILE}"
-
           if [[ ! -f "$file" ]]; then
               echo "::error::File '$file' not found in working tree."
               exit 1
