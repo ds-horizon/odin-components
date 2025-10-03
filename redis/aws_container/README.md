@@ -598,7 +598,7 @@ Configures automated backups every 6 hours to S3 with 90-day retention. Requires
    ```bash
    eksctl create iamserviceaccount \
      --name redis-backup-sa \
-     --namespace redis \
+     --namespace <namespace> \
      --cluster my-cluster \
      --attach-policy-arn arn:aws:iam::ACCOUNT:policy/RedisS3BackupPolicy \
      --approve
@@ -1416,7 +1416,7 @@ kubectl get storageclass gp3-encrypted -o yaml
 **Verify PVC uses encrypted storage:**
 ```bash
 # Get PVC name
-kubectl get pvc -n redis
+kubectl get pvc -n <namespace>
 
 # Get PV and volume ID
 kubectl get pv <pv-name> -o jsonpath='{.spec.csi.volumeHandle}'
@@ -1693,7 +1693,7 @@ aws iam create-policy \
 # Create ServiceAccount with IAM role
 eksctl create iamserviceaccount \
   --name redis-backup-sa \
-  --namespace redis \
+  --namespace <namespace> \
   --cluster my-cluster \
   --attach-policy-arn arn:aws:iam::ACCOUNT_ID:policy/RedisS3BackupPolicy \
   --approve
@@ -1712,7 +1712,7 @@ Then reference in configuration:
 ```bash
 kubectl create secret generic redis-auth \
   --from-literal=password='your-secure-password' \
-  -n redis
+  -n <namespace>
 ```
 
 **Option 2: AWS Secrets Manager (Recommended)**
@@ -1784,7 +1784,7 @@ Example: 5GB dataset
 import redis
 
 pool = redis.ConnectionPool(
-    host='redis-master.redis.svc.cluster.local',
+    host='redis-master.<namespace>.svc.cluster.local',
     port=6379,
     password='your-password',
     max_connections=50,  # Pool size
@@ -1800,7 +1800,7 @@ redis_client = redis.Redis(connection_pool=pool)
 const Redis = require('ioredis');
 
 const redis = new Redis({
-  host: 'redis-master.redis.svc.cluster.local',
+  host: 'redis-master.<namespace>.svc.cluster.local',
   port: 6379,
   password: 'your-password',
   maxRetriesPerRequest: 3,
@@ -1868,7 +1868,7 @@ Use `additionalConfig` for advanced Redis settings:
 **1. Right-Size Resources**
 ```bash
 # Monitor actual usage
-kubectl top pods -n redis
+kubectl top pods -n <namespace>
 
 # Adjust resources based on observations
 # Start conservative, scale up as needed
@@ -1960,7 +1960,7 @@ Pack 4-6 small Redis instances on single m5.large node.
    kubectl apply -f redis-cluster.yaml
 
    # Wait for pods ready
-   kubectl wait --for=condition=ready pod -l app=redis -n redis --timeout=300s
+   kubectl wait --for=condition=ready pod -l app=redis -n <namespace> --timeout=300s
    ```
 
 4. **Data Import**:
@@ -1969,16 +1969,16 @@ Pack 4-6 small Redis instances on single m5.large node.
    aws s3 cp s3://my-migration-bucket/dump.rdb /tmp/
 
    # Copy to Redis master pod
-   kubectl cp /tmp/dump.rdb redis-master-0:/data/dump.rdb -n redis
+   kubectl cp /tmp/dump.rdb redis-master-0:/data/dump.rdb -n <namespace>
 
    # Restart Redis to load data
-   kubectl delete pod redis-master-0 -n redis
+   kubectl delete pod redis-master-0 -n <namespace>
    ```
 
 5. **Validation**:
    ```bash
    # Verify data
-   kubectl exec -it redis-master-0 -n redis -- redis-cli INFO keyspace
+   kubectl exec -it redis-master-0 -n <namespace> -- redis-cli INFO keyspace
 
    # Test application connectivity
    # Run smoke tests
@@ -1999,7 +1999,7 @@ Pack 4-6 small Redis instances on single m5.large node.
 **Issue: Pods stuck in Pending**
 ```bash
 # Check events
-kubectl describe pod redis-master-0 -n redis
+kubectl describe pod redis-master-0 -n <namespace>
 
 # Common causes:
 # 1. Insufficient resources
@@ -2016,7 +2016,7 @@ kubectl get storageclass
 **Issue: Persistent volume not binding**
 ```bash
 # Check PVC status
-kubectl get pvc -n redis
+kubectl get pvc -n <namespace>
 
 # Check PV provisioner
 kubectl get storageclass gp3 -o yaml
@@ -2029,22 +2029,22 @@ kubectl get pods -n kube-system | grep ebs-csi
 **Issue: Sentinel not detecting master**
 ```bash
 # Check Sentinel logs
-kubectl logs redis-sentinel-0 -n redis
+kubectl logs redis-sentinel-0 -n <namespace>
 
 # Verify Sentinel configuration
-kubectl exec redis-sentinel-0 -n redis -- redis-cli -p 26379 SENTINEL masters
+kubectl exec redis-sentinel-0 -n <namespace> -- redis-cli -p 26379 SENTINEL masters
 
 # Common fix: Ensure master Service is reachable
-kubectl get svc -n redis
+kubectl get svc -n <namespace>
 ```
 
 **Issue: High memory usage / OOM kills**
 ```bash
 # Check actual memory usage
-kubectl top pod redis-master-0 -n redis
+kubectl top pod redis-master-0 -n <namespace>
 
 # Check Redis memory
-kubectl exec redis-master-0 -n redis -- redis-cli INFO memory
+kubectl exec redis-master-0 -n <namespace> -- redis-cli INFO memory
 
 # Solutions:
 # 1. Increase memory limits
@@ -2055,14 +2055,14 @@ kubectl exec redis-master-0 -n redis -- redis-cli INFO memory
 **Issue: Connection refused from application**
 ```bash
 # Verify Service exists
-kubectl get svc redis-master -n redis
+kubectl get svc redis-master -n <namespace>
 
 # Test connectivity from app namespace
 kubectl run -it --rm debug --image=redis:7.1 --restart=Never -- \
-  redis-cli -h redis-master.redis.svc.cluster.local -a 'password' PING
+  redis-cli -h redis-master.<namespace>.svc.cluster.local -a 'password' PING
 
 # Check NetworkPolicy
-kubectl get networkpolicy -n redis
+kubectl get networkpolicy -n <namespace>
 
 # Ensure application namespace is in allowedNamespaces
 ```
@@ -2070,14 +2070,14 @@ kubectl get networkpolicy -n redis
 **Issue: Backup job failing**
 ```bash
 # Check CronJob status
-kubectl get cronjob -n redis
+kubectl get cronjob -n <namespace>
 
 # Check job logs
-kubectl logs job/redis-backup-<timestamp> -n redis
+kubectl logs job/redis-backup-<timestamp> -n <namespace>
 
 # Common issues:
 # 1. ServiceAccount missing IRSA annotation
-kubectl describe sa redis-backup-sa -n redis
+kubectl describe sa redis-backup-sa -n <namespace>
 
 # 2. S3 bucket permissions
 # Verify IAM policy allows s3:PutObject
@@ -2096,19 +2096,19 @@ kubectl logs deployment/redis-operator -n redis-operator
 
 **Check Redis Logs**:
 ```bash
-kubectl logs redis-master-0 -n redis -c redis
-kubectl logs redis-replica-0 -n redis -c redis
+kubectl logs redis-master-0 -n <namespace> -c redis
+kubectl logs redis-replica-0 -n <namespace> -c redis
 ```
 
 **Check Redis Metrics**:
 ```bash
-kubectl port-forward redis-master-0 9121:9121 -n redis
+kubectl port-forward redis-master-0 9121:9121 -n <namespace>
 curl localhost:9121/metrics | grep redis_up
 ```
 
 **Interactive Redis CLI**:
 ```bash
-kubectl exec -it redis-master-0 -n redis -- redis-cli -a 'password'
+kubectl exec -it redis-master-0 -n <namespace> -- redis-cli -a 'password'
 > INFO replication
 > CLUSTER INFO  # (cluster mode)
 > SENTINEL masters  # (sentinel - port 26379)
@@ -2116,12 +2116,12 @@ kubectl exec -it redis-master-0 -n redis -- redis-cli -a 'password'
 
 **Check Replication Status**:
 ```bash
-kubectl exec redis-master-0 -n redis -- redis-cli -a 'password' INFO replication
+kubectl exec redis-master-0 -n <namespace> -- redis-cli -a 'password' INFO replication
 ```
 
 **Force Sentinel Failover (Testing)**:
 ```bash
-kubectl exec redis-sentinel-0 -n redis -- redis-cli -p 26379 SENTINEL failover mymaster
+kubectl exec redis-sentinel-0 -n <namespace> -- redis-cli -p 26379 SENTINEL failover mymaster
 ```
 
 ## Additional Resources

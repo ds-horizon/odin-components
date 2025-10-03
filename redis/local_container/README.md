@@ -94,7 +94,7 @@ Then connect via `localhost:<nodePort>` (get nodePort with `kubectl get svc`)
 
 **Option 2: Port Forward**
 ```bash
-kubectl port-forward svc/redis-master 6379:6379 -n redis
+kubectl port-forward svc/redis-master 6379:6379 -n <namespace>
 ```
 Then connect to `localhost:6379`
 
@@ -163,7 +163,7 @@ For local development, you may want to reduce resource usage:
 ### Pods Stuck in Pending
 Check PVC status:
 ```bash
-kubectl get pvc -n redis
+kubectl get pvc -n <namespace>
 ```
 If PVCs are pending, verify StorageClass is installed and set as default.
 
@@ -177,13 +177,13 @@ Update your config to use an available StorageClass.
 ### Connection Issues
 Verify services:
 ```bash
-kubectl get svc -n redis
-kubectl describe svc redis-master -n redis
+kubectl get svc -n <namespace>
+kubectl describe svc redis-master -n <namespace>
 ```
 
 Test connection from within cluster:
 ```bash
-kubectl run -it --rm redis-cli --image=redis:7 --restart=Never -- redis-cli -h redis-master.redis.svc.cluster.local ping
+kubectl run -it --rm redis-cli --image=redis:7 --restart=Never -- redis-cli -h redis-master.<namespace>.svc.cluster.local ping
 ```
 
 ## Redis Local Container (Local Kubernetes) Flavour Configuration
@@ -480,12 +480,12 @@ Key differences:
 
 Delete Redis deployment:
 ```bash
-kubectl delete -n redis redis <instance-name>
+kubectl delete -n <namespace> redis <instance-name>
 ```
 
 Delete PVCs (data will be lost):
 ```bash
-kubectl delete pvc -n redis --all
+kubectl delete pvc -n <namespace> --all
 ```
 
 Delete operator:
