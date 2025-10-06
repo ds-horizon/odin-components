@@ -12,9 +12,6 @@ import lombok.NoArgsConstructor;
 
 @Data
 public class Account {
-  @NotBlank String name;
-  @NotBlank String provider;
-  @NotBlank String category;
   @NotNull @Valid List<Service> services = new ArrayList<>();
   @NotNull Map<String, Object> data;
 
@@ -22,7 +19,6 @@ public class Account {
   @AllArgsConstructor
   @NoArgsConstructor
   public static class Service {
-    @NotBlank String name;
     @NotBlank String category;
     @NotNull Map<String, Object> data;
   }

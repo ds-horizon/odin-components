@@ -1,9 +1,6 @@
 ## aws_rds Flavour
 
-Deploy and perform operations on your application in AWS EC2
-
-## Operations
-- [redeploy](operations/redeploy)
+Deploy and perform operations on your application in AWS RDS
 
 {{ .Markdown 3 }}
 

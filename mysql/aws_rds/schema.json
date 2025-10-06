@@ -15,7 +15,6 @@
     },
     "port": {
       "type": "integer",
-      "default": 3306,
       "minimum": 1150,
       "maximum": 65535
     },
@@ -25,7 +24,6 @@
         "aurora",
         "aurora-iopt1"
       ],
-      "default": "aurora",
       "description": "Storage type for rds cluster"
     },
     "backupRetentionPeriod": {
@@ -44,16 +42,13 @@
       "pattern": "^\\d{2}:\\d{2}-\\d{2}:\\d{2}$"
     },
     "copyTagsToSnapshot": {
-      "type": "boolean",
-      "default": true
+      "type": "boolean"
     },
     "deletionProtection": {
-      "type": "boolean",
-      "default": true
+      "type": "boolean"
     },
     "encryptionAtRest": {
       "type": "boolean",
-      "default": true,
       "description": "Controls cluster storage encryption"
     },
     "kmsKeyId": {
@@ -63,7 +58,6 @@
     },
     "enableIAMDatabaseAuthentication": {
       "type": "boolean",
-      "default": false,
       "description": "Enable IAM DB authentication for the cluster"
     },
     "enableCloudwatchLogsExports": {
@@ -140,8 +134,7 @@
           "pattern": "^arn:(aws|aws-cn|aws-us-gov):kms:[a-z0-9-]+:\\d{12}:key\\/[0-9a-fA-F-]{36}$"
         },
         "manageMasterUserPassword": {
-          "type": "boolean",
-          "default": false
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
@@ -284,7 +277,6 @@
       "properties": {
         "skipFinalSnapshot": {
           "type": "boolean",
-          "default": true,
           "description": "If false, a final snapshot is required on delete"
         },
         "finalSnapshotIdentifier": {
@@ -354,20 +346,16 @@
           "pattern": "^[a-z]{2}-[a-z]+-\\d[a-z]?$"
         },
         "publiclyAccessible": {
-          "type": "boolean",
-          "default": false
+          "type": "boolean"
         },
         "autoMinorVersionUpgrade": {
-          "type": "boolean",
-          "default": true
+          "type": "boolean"
         },
         "deletionProtection": {
-          "type": "boolean",
-          "default": true
+          "type": "boolean"
         },
         "enablePerformanceInsights": {
-          "type": "boolean",
-          "default": false
+          "type": "boolean"
         },
         "performanceInsightsKmsKeyId": {
           "type": "string",
@@ -384,8 +372,7 @@
           "type": "object",
           "properties": {
             "enabled": {
-              "type": "boolean",
-              "default": false
+              "type": "boolean"
             },
             "interval": {
               "type": "integer",
@@ -396,8 +383,7 @@
                 15,
                 30,
                 60
-              ],
-              "default": 60
+              ]
             },
             "monitoringRoleArn": {
               "type": "string",
@@ -462,8 +448,7 @@
           "enum": [
             "IPV4",
             "DUAL"
-          ],
-          "default": "IPV4"
+          ]
         }
       },
       "required": [
@@ -513,20 +498,16 @@
             "pattern": "^[a-z]{2}-[a-z]+-\\d[a-z]?$"
           },
           "publiclyAccessible": {
-            "type": "boolean",
-            "default": false
+            "type": "boolean"
           },
           "autoMinorVersionUpgrade": {
-            "type": "boolean",
-            "default": true
+            "type": "boolean"
           },
           "deletionProtection": {
-            "type": "boolean",
-            "default": true
+            "type": "boolean"
           },
           "enablePerformanceInsights": {
-            "type": "boolean",
-            "default": false
+            "type": "boolean"
           },
           "performanceInsightsKmsKeyId": {
             "type": "string",
@@ -543,8 +524,7 @@
             "type": "object",
             "properties": {
               "enabled": {
-                "type": "boolean",
-                "default": false
+                "type": "boolean"
               },
               "interval": {
                 "type": "integer",
@@ -555,8 +535,7 @@
                   15,
                   30,
                   60
-                ],
-                "default": 60
+                ]
               },
               "monitoringRoleArn": {
                 "type": "string",
@@ -620,8 +599,7 @@
             "enum": [
               "IPV4",
               "DUAL"
-            ],
-            "default": "IPV4"
+            ]
           }
         },
         "required": [

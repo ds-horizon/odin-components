@@ -1,12 +1,10 @@
 package com.dream11.mysql.inject;
 
-import com.dream11.mysql.Application;
+
 import com.dream11.mysql.config.metadata.ComponentMetadata;
 import com.dream11.mysql.config.metadata.aws.AwsAccountData;
 import com.dream11.mysql.config.metadata.aws.RDSData;
 import com.dream11.mysql.config.user.DeployConfig;
-import com.dream11.mysql.constant.Constants;
-import com.dream11.mysql.util.ApplicationUtil;
 import com.google.inject.AbstractModule;
 import java.util.Objects;
 import lombok.Builder;
@@ -16,26 +14,12 @@ import lombok.NonNull;
 public class ConfigModule extends AbstractModule {
 
   @NonNull final ComponentMetadata componentMetadata;
-  final DeployConfig deployConfig;
-  RDSData rdsData;
-  AwsAccountData awsAccountData;
-
-  private void init() {
-    this.rdsData =
-        ApplicationUtil.getServiceWithCategory(
-            this.componentMetadata.getCloudProviderDetails().getAccount().getServices(),
-            Constants.RDS_CATEGORY,
-            RDSData.class);
-    this.awsAccountData =
-        Application.getObjectMapper()
-            .convertValue(
-                this.componentMetadata.getCloudProviderDetails().getAccount().getData(),
-                AwsAccountData.class);
-  }
+  @NonNull final DeployConfig deployConfig;
+  @NonNull final RDSData rdsData;
+  @NonNull final AwsAccountData awsAccountData;
 
   @Override
   protected void configure() {
-    this.init();
     this.validateBindings();
     bind(ComponentMetadata.class).toInstance(this.componentMetadata);
     bind(RDSData.class).toInstance(this.rdsData);

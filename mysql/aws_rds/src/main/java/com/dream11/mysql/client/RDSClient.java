@@ -8,12 +8,19 @@ import com.dream11.mysql.config.user.InstanceConfig;
 import com.dream11.mysql.config.user.InstanceParameterGroupConfig;
 import com.dream11.mysql.constant.Constants;
 import com.dream11.mysql.error.ApplicationError;
+import com.dream11.mysql.exception.DBClusterNotFoundException;
+import com.dream11.mysql.exception.DBClusterParameterGroupNotFoundException;
+import com.dream11.mysql.exception.DBInstanceNotFoundException;
+import com.dream11.mysql.exception.DBParameterGroupNotFoundException;
 import com.dream11.mysql.exception.GenericApplicationException;
+import com.dream11.mysql.util.ApplicationUtil;
+
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.regions.Region;
@@ -33,10 +40,10 @@ import software.amazon.awssdk.services.rds.waiters.RdsWaiter;
 
 @Slf4j
 public class RDSClient {
-  final RdsClient rdsClient;
+  final RdsClient dbClient;
 
   public RDSClient(String region) {
-    this.rdsClient =
+    this.dbClient =
         RdsClient.builder()
             .region(Region.of(region))
             .overrideConfiguration(
@@ -67,7 +74,6 @@ public class RDSClient {
           clusterIdentifier, clusterParameterGroupName, tags, deployConfig, rdsData);
     }
   }
-
   private List<String> restoreDBClusterFromSnapshot(
       String clusterIdentifier,
       String snapshotIdentifier,
@@ -108,7 +114,7 @@ public class RDSClient {
 
     RestoreDbClusterFromSnapshotRequest request = restoreBuilder.build();
 
-    DBCluster cluster = rdsClient.restoreDBClusterFromSnapshot(request).dbCluster();
+    DBCluster cluster = this.dbClient.restoreDBClusterFromSnapshot(request).dbCluster();
     return List.of(cluster.endpoint(), cluster.readerEndpoint());
   }
 
@@ -158,27 +164,27 @@ public class RDSClient {
       }
     }
 
-    setIfNotNull(createBuilder::databaseName, deployConfig.getDbName());
+    ApplicationUtil.setIfNotNull(createBuilder::databaseName, deployConfig.getDbName());
 
-    setIfNotNull(createBuilder::backupRetentionPeriod, deployConfig.getBackupRetentionPeriod());
+    ApplicationUtil.setIfNotNull(createBuilder::backupRetentionPeriod, deployConfig.getBackupRetentionPeriod());
 
-    setIfNotNull(createBuilder::preferredBackupWindow, deployConfig.getPreferredBackupWindow());
+    ApplicationUtil.setIfNotNull(createBuilder::preferredBackupWindow, deployConfig.getPreferredBackupWindow());
 
-    setIfNotNull(
+    ApplicationUtil.setIfNotNull(
         createBuilder::preferredMaintenanceWindow, deployConfig.getPreferredMaintenanceWindow());
 
-    setIfNotNull(createBuilder::storageEncrypted, deployConfig.getEncryptionAtRest());
+    ApplicationUtil.setIfNotNull(createBuilder::storageEncrypted, deployConfig.getEncryptionAtRest());
 
-    setIfNotNull(
+    ApplicationUtil.setIfNotNull(
         createBuilder::replicationSourceIdentifier, deployConfig.getReplicationSourceIdentifier());
 
-    setIfNotNull(createBuilder::sourceRegion, deployConfig.getSourceRegion());
+    ApplicationUtil.setIfNotNull(createBuilder::sourceRegion, deployConfig.getSourceRegion());
 
-    setIfNotNull(createBuilder::globalClusterIdentifier, deployConfig.getGlobalClusterIdentifier());
+    ApplicationUtil.setIfNotNull(createBuilder::globalClusterIdentifier, deployConfig.getGlobalClusterIdentifier());
 
     CreateDbClusterRequest request = createBuilder.build();
 
-    DBCluster cluster = rdsClient.createDBCluster(request).dbCluster();
+    DBCluster cluster = this.dbClient.createDBCluster(request).dbCluster();
     return List.of(cluster.endpoint(), cluster.readerEndpoint());
   }
 
@@ -215,21 +221,21 @@ public class RDSClient {
     securityGroupIdsSetter.accept(rdsData.getSecurityGroups());
     tagsSetter.accept(convertMapToTags(tags));
 
-    setIfNotNull(portSetter, deployConfig.getPort());
+    ApplicationUtil.setIfNotNull(portSetter, deployConfig.getPort());
 
-    setIfNotNull(storageTypeSetter, deployConfig.getStorageType());
+    ApplicationUtil.setIfNotNull(storageTypeSetter, deployConfig.getStorageType());
 
-    setIfNotNull(copyTagsSetter, deployConfig.getCopyTagsToSnapshot());
+    ApplicationUtil.setIfNotNull(copyTagsSetter, deployConfig.getCopyTagsToSnapshot());
 
-    setIfNotNull(deletionProtectionSetter, deployConfig.getDeletionProtection());
+    ApplicationUtil.setIfNotNull(deletionProtectionSetter, deployConfig.getDeletionProtection());
 
-    setIfNotNull(iamAuthSetter, deployConfig.getEnableIAMDatabaseAuthentication());
+    ApplicationUtil.setIfNotNull(iamAuthSetter, deployConfig.getEnableIAMDatabaseAuthentication());
 
-    setIfNotNull(kmsKeyIdSetter, deployConfig.getKmsKeyId());
+    ApplicationUtil.setIfNotNull(kmsKeyIdSetter, deployConfig.getKmsKeyId());
 
-    setIfNotNull(logsExportsSetter, deployConfig.getEnableCloudwatchLogsExports());
+    ApplicationUtil.setIfNotNull(logsExportsSetter, deployConfig.getEnableCloudwatchLogsExports());
 
-    setIfNotNull(backtrackSetter, deployConfig.getBacktrackWindow());
+    ApplicationUtil.setIfNotNull(backtrackSetter, deployConfig.getBacktrackWindow());
 
     if (deployConfig.getServerlessV2ScalingConfiguration() != null) {
       scalingSetter.accept(
@@ -256,23 +262,23 @@ public class RDSClient {
             .engine(Constants.ENGINE_TYPE)
             .tags(convertMapToTags(tags));
 
-    setIfNotNull(requestBuilder::publiclyAccessible, instanceConfig.getPubliclyAccessible());
+    ApplicationUtil.setIfNotNull(requestBuilder::publiclyAccessible, instanceConfig.getPubliclyAccessible());
 
-    setIfNotNull(
+    ApplicationUtil.setIfNotNull(
         requestBuilder::autoMinorVersionUpgrade, instanceConfig.getAutoMinorVersionUpgrade());
 
-    setIfNotNull(requestBuilder::deletionProtection, instanceConfig.getDeletionProtection());
+    ApplicationUtil.setIfNotNull(requestBuilder::deletionProtection, instanceConfig.getDeletionProtection());
 
-    setIfNotNull(
+    ApplicationUtil.setIfNotNull(
         requestBuilder::enablePerformanceInsights, instanceConfig.getEnablePerformanceInsights());
 
-    setIfNotNull(requestBuilder::availabilityZone, instanceConfig.getAvailabilityZone());
+    ApplicationUtil.setIfNotNull(requestBuilder::availabilityZone, instanceConfig.getAvailabilityZone());
 
-    setIfNotNull(
+    ApplicationUtil.setIfNotNull(
         requestBuilder::performanceInsightsKMSKeyId,
         instanceConfig.getPerformanceInsightsKmsKeyId());
 
-    setIfNotNull(
+    ApplicationUtil.setIfNotNull(
         requestBuilder::performanceInsightsRetentionPeriod,
         instanceConfig.getPerformanceInsightsRetentionPeriod());
 
@@ -283,14 +289,14 @@ public class RDSClient {
     }
 
     CreateDbInstanceRequest request = requestBuilder.build();
-    rdsClient.createDBInstance(request);
+    this.dbClient.createDBInstance(request);
   }
 
   private void performWait(
       String identifier, String type, String waitType, Consumer<RdsWaiter> waitAction) {
     try (RdsWaiter waiter =
         RdsWaiter.builder()
-            .client(rdsClient)
+            .client(this.dbClient)
             .overrideConfiguration(config -> config.maxAttempts(60))
             .build()) {
       log.info("Waiting for DB {} {} to be {}", type, identifier, waitType);
@@ -353,7 +359,7 @@ public class RDSClient {
             .tags(convertMapToTags(tags))
             .build();
 
-    rdsClient.createDBClusterParameterGroup(request);
+    this.dbClient.createDBClusterParameterGroup(request);
 
     if (deployConfig.getClusterParameterGroupConfig() != null) {
       configureDBClusterParameters(
@@ -414,7 +420,7 @@ public class RDSClient {
                 .parameters(parameters)
                 .build();
 
-        rdsClient.modifyDBClusterParameterGroup(request);
+        this.dbClient.modifyDBClusterParameterGroup(request);
         log.info(
             "Successfully configured {} parameters for cluster parameter group: {}",
             parameters.size(),
@@ -443,7 +449,7 @@ public class RDSClient {
             .tags(convertMapToTags(tags))
             .build();
 
-    rdsClient.createDBParameterGroup(request);
+    this.dbClient.createDBParameterGroup(request);
     if (config != null) {
       configureDBInstanceParameters(instanceParameterGroupName, config);
     }
@@ -527,7 +533,7 @@ public class RDSClient {
                 .parameters(parameters)
                 .build();
 
-        rdsClient.modifyDBParameterGroup(request);
+        this.dbClient.modifyDBParameterGroup(request);
         log.info(
             "Successfully configured {} parameters for instance parameter group: {}",
             parameters.size(),
@@ -547,31 +553,29 @@ public class RDSClient {
   }
 
   public void describeDBCluster(String clusterIdentifier) {
-    this.rdsClient
+    this.dbClient
         .describeDBClusters(request -> request.dbClusterIdentifier(clusterIdentifier))
         .dbClusters()
         .stream()
         .findFirst()
         .orElseThrow(
             () ->
-                new GenericApplicationException(
-                    ApplicationError.CLUSTER_NOT_FOUND, clusterIdentifier));
+                new DBClusterNotFoundException(clusterIdentifier));
   }
 
   public void describeDBInstance(String instanceIdentifier) {
-    this.rdsClient
+    this.dbClient
         .describeDBInstances(request -> request.dbInstanceIdentifier(instanceIdentifier))
         .dbInstances()
         .stream()
         .findFirst()
         .orElseThrow(
             () ->
-                new GenericApplicationException(
-                    ApplicationError.INSTANCE_NOT_FOUND, instanceIdentifier));
+                new DBInstanceNotFoundException(instanceIdentifier));
   }
 
   public void describeDBClusterParameterGroup(String clusterParameterGroupName) {
-    this.rdsClient
+    this.dbClient
         .describeDBClusterParameterGroups(
             request -> request.dbClusterParameterGroupName(clusterParameterGroupName))
         .dbClusterParameterGroups()
@@ -579,12 +583,11 @@ public class RDSClient {
         .findFirst()
         .orElseThrow(
             () ->
-                new GenericApplicationException(
-                    ApplicationError.CLUSTER_PARAMETER_GROUP_NOT_FOUND, clusterParameterGroupName));
+                new DBClusterParameterGroupNotFoundException(clusterParameterGroupName));
   }
 
   public void describeDBParameterGroup(String instanceParameterGroupName) {
-    this.rdsClient
+    this.dbClient
         .describeDBParameterGroups(
             request -> request.dbParameterGroupName(instanceParameterGroupName))
         .dbParameterGroups()
@@ -592,18 +595,15 @@ public class RDSClient {
         .findFirst()
         .orElseThrow(
             () ->
-                new GenericApplicationException(
-                    ApplicationError.INSTANCE_PARAMETER_GROUP_NOT_FOUND,
-                    instanceParameterGroupName));
+                new DBParameterGroupNotFoundException(instanceParameterGroupName));
   }
 
   public void deleteDBCluster(String clusterIdentifier, DeletionConfig deletionConfig) {
-    this.rdsClient.deleteDBCluster(
+    this.dbClient.deleteDBCluster(
         request -> {
           request.dbClusterIdentifier(clusterIdentifier);
           if (!deletionConfig.getSkipFinalSnapshot()) {
-            request.skipFinalSnapshot(false);
-            request.finalDBSnapshotIdentifier(deletionConfig.getFinalSnapshotIdentifier());
+            request.skipFinalSnapshot(false).finalDBSnapshotIdentifier(deletionConfig.getFinalSnapshotIdentifier());
           } else {
             request.skipFinalSnapshot(true);
           }
@@ -611,12 +611,11 @@ public class RDSClient {
   }
 
   public void deleteDBInstance(String instanceIdentifier, DeletionConfig deletionConfig) {
-    this.rdsClient.deleteDBInstance(
+    this.dbClient.deleteDBInstance(
         request -> {
           request.dbInstanceIdentifier(instanceIdentifier);
           if (!deletionConfig.getSkipFinalSnapshot()) {
-            request.skipFinalSnapshot(false);
-            request.finalDBSnapshotIdentifier(deletionConfig.getFinalSnapshotIdentifier());
+            request.skipFinalSnapshot(false).finalDBSnapshotIdentifier(deletionConfig.getFinalSnapshotIdentifier());
           } else {
             request.skipFinalSnapshot(true);
           }
@@ -624,30 +623,18 @@ public class RDSClient {
   }
 
   public void deleteDBClusterParameterGroup(String clusterParameterGroupName) {
-    this.rdsClient.deleteDBClusterParameterGroup(
+    this.dbClient.deleteDBClusterParameterGroup(
         request -> request.dbClusterParameterGroupName(clusterParameterGroupName));
   }
 
   public void deleteDBParameterGroup(String instanceParameterGroupName) {
-    this.rdsClient.deleteDBParameterGroup(
+    this.dbClient.deleteDBParameterGroup(
         request -> request.dbParameterGroupName(instanceParameterGroupName));
   }
 
   private List<Tag> convertMapToTags(Map<String, String> tagMap) {
-    if (tagMap == null || tagMap.isEmpty()) {
-      return new ArrayList<>();
-    }
-
-    List<Tag> tags = new ArrayList<>();
-    for (Map.Entry<String, String> entry : tagMap.entrySet()) {
-      tags.add(Tag.builder().key(entry.getKey()).value(entry.getValue()).build());
-    }
-    return tags;
-  }
-
-  private <T> void setIfNotNull(Consumer<T> setter, T value) {
-    if (value != null) {
-      setter.accept(value);
-    }
+    return tagMap.entrySet().stream()
+        .map(entry -> Tag.builder().key(entry.getKey()).value(entry.getValue()).build())
+        .toList();
   }
 }

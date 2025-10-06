@@ -3,6 +3,7 @@ package com.dream11.mysql;
 import com.dream11.mysql.client.RDSClient;
 import com.dream11.mysql.config.metadata.ComponentMetadata;
 import com.dream11.mysql.config.metadata.aws.AwsAccountData;
+import com.dream11.mysql.config.metadata.aws.RDSData;
 import com.dream11.mysql.config.user.DeployConfig;
 import com.dream11.mysql.constant.Constants;
 import com.dream11.mysql.constant.Operations;
@@ -23,7 +24,6 @@ import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.inject.Module;
@@ -31,7 +31,6 @@ import java.io.File;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -63,29 +62,16 @@ public class Application {
           .build();
 
   @Getter
-  static final XmlMapper xmlMapper =
-      XmlMapper.builder()
-          .configure(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES, false)
-          .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-          .enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS)
-          .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
-          .withConfigOverride(
-              ArrayNode.class, mutableConfigOverride -> mutableConfigOverride.setMergeable(false))
-          .build();
-
-  @Getter
   static final ExecutorService executorService =
       new ThreadPoolExecutor(0, Integer.MAX_VALUE, 0L, TimeUnit.SECONDS, new SynchronousQueue<>());
 
-  /* Add Cloud specific clients */
-
-  /* Common configs */
   ComponentMetadata componentMetadata;
   String config;
   final String operationName;
 
   DeployConfig deployConfig;
   AwsAccountData awsAccountData;
+  RDSData rdsData;
   RDSClient rdsClient;
 
   @Getter @Setter static State state;
@@ -165,21 +151,18 @@ public class Application {
             yield Deploy.class;
           }
           case UNDEPLOY -> Undeploy.class;
-            /* Add operation */
         };
 
-    List<Module> modules = new ArrayList<>(this.getGuiceModules());
-    Operation operation = this.initializeGuiceModules(modules).getInstance(operationClass);
+    Operation operation = this.initializeGuiceModules(this.getGuiceModules()).getInstance(operationClass);
     log.debug("Executing operation:[{}]", Operations.fromValue(this.operationName));
     if (Operations.fromValue(this.operationName).equals(Operations.UNDEPLOY)) {
       log.info("Deleting all created resources");
     } else {
       log.info("Executing operation:[{}]", Operations.fromValue(this.operationName));
     }
-    if (operation.execute()) {
-      Application.getState().setDeployConfig(this.deployConfig);
-      log.info("Executed operation:[{}]", Operations.fromValue(this.operationName));
-    }
+    operation.execute();
+    Application.getState().setDeployConfig(this.deployConfig);
+    log.info("Executed operation:[{}]", Operations.fromValue(this.operationName));
   }
 
   private void shutdown() {
@@ -215,15 +198,17 @@ public class Application {
                 this.componentMetadata.getCloudProviderDetails().getAccount().getData(),
                 AwsAccountData.class);
     this.awsAccountData.validate();
-
+    this.rdsData =
+    ApplicationUtil.getServiceWithCategory(
+        this.componentMetadata.getCloudProviderDetails().getAccount().getServices(),
+        Constants.RDS_CATEGORY,
+        RDSData.class);
+    this.rdsData.validate();
     this.config = System.getenv(Constants.CONFIG);
-
-    /* Cloud specific configs */
   }
 
   void initializeCloudProviderClients() {
-    String region = this.awsAccountData.getRegion();
-    this.rdsClient = new RDSClient(region);
+    this.rdsClient = new RDSClient(this.awsAccountData.getRegion());
   }
 
   private Injector initializeGuiceModules(List<Module> modules) {
@@ -231,14 +216,13 @@ public class Application {
   }
 
   private List<Module> getGuiceModules() {
-    List<Module> modules = new ArrayList<>();
-    modules.add(
+    return List.of(
         ConfigModule.builder()
             .componentMetadata(this.componentMetadata)
             .deployConfig(this.deployConfig)
-            .build());
-
-    modules.add(AwsModule.builder().rdsClient(this.rdsClient).build());
-    return modules;
+            .awsAccountData(this.awsAccountData)
+            .rdsData(this.rdsData)
+            .build(),
+        AwsModule.builder().rdsClient(this.rdsClient).build());
   }
 }

@@ -14,10 +14,9 @@ Deploy and perform operations on your mysql component across different flavors
 * Execute the following commands
 ```
   export PATH_TO_JAR=<path to downloaded jar>
-  bash run.sh stage=<stage> operation=<operation> account_flavour=<account_flavour>
+  bash run.sh component=mysql stage=<stage> operation=<operation> account_flavour=<account_flavour>
   example:
-  bash run.sh stage=deploy account_flavour=stag_aws_rds
-  (account_flavour is optional default value is sandbox_aws_ec2)
+  bash run.sh component=mysql stage=deploy account_flavour=stag_aws_rds
 ```
 
 ## Contributing

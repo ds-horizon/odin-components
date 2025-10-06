@@ -5,14 +5,12 @@ import com.dream11.mysql.config.metadata.Account;
 import com.dream11.mysql.constant.Constants;
 import com.dream11.mysql.error.ApplicationError;
 import com.dream11.mysql.exception.GenericApplicationException;
-import freemarker.template.Template;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
 import java.io.InputStream;
-import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -23,6 +21,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import lombok.SneakyThrows;
 import lombok.experimental.UtilityClass;
@@ -51,14 +50,6 @@ public class ApplicationUtil {
             () -> new GenericApplicationException(ApplicationError.SERVICE_NOT_FOUND, category));
   }
 
-  public Account getAccountWithCategory(List<Account> accounts, String category) {
-    return accounts.stream()
-        .filter(account -> account.getCategory().equals(category))
-        .findFirst()
-        .orElseThrow(
-            () -> new GenericApplicationException(ApplicationError.ACCOUNT_NOT_FOUND, category));
-  }
-
   /*
    Merges all the maps, last argument is of highest priority
   */
@@ -66,16 +57,6 @@ public class ApplicationUtil {
     Map<K, V> mergedMap = new HashMap<>();
     maps.forEach(mergedMap::putAll);
     return mergedMap;
-  }
-
-  @SneakyThrows
-  public static String substituteValues(
-      String name, String content, Map<String, Object> dataModel) {
-    Template template = new Template(name, content, null);
-    try (StringWriter out = new StringWriter()) {
-      template.process(dataModel, out);
-      return out.toString();
-    }
   }
 
   @SneakyThrows
@@ -152,7 +133,13 @@ public class ApplicationUtil {
     return Objects.isNull(throwable.getCause()) ? throwable : getRootCause(throwable.getCause());
   }
 
-  public String joinByDash(String... strings) {
+  public String joinByHyphen(String... strings) {
     return String.join("-", strings);
+  }
+
+  public <T> void setIfNotNull(Consumer<T> setter, T value) {
+    if (value != null) {
+      setter.accept(value);
+    }
   }
 }

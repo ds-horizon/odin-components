@@ -9,7 +9,6 @@ import lombok.Data;
 
 @Data
 public class AwsAccountData implements Config {
-  @NotBlank String accountId;
   @NotBlank String region;
   @NotNull Map<String, String> tags = new HashMap<>();
 }

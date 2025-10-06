@@ -13,7 +13,7 @@ Odin.component {
                 run "echo '${lastState}' > state.json"
             }
             String config = OdinUtil.mergeJsons(List.of(getBaseConfigWithDefaults(), getFlavourConfigWithDefaults()))
-            run "CONFIG='${config}' bash deploy.sh deploy"
+            run "CONFIG='${config}' bash execute.sh deploy"
             out "cat state.json"
 
             discovery {
@@ -41,7 +41,7 @@ Odin.component {
             if (lastState != null && !lastState.isEmpty()) {
                 run "echo '${lastState}' > state.json"
             }
-            run "bash undeploy.sh"
+            run "bash execute.sh undeploy"
             out "cat state.json"
         }
     }

@@ -1,17 +1,21 @@
 package com.dream11.mysql.operation;
 
-import com.dream11.mysql.service.DeployService;
+import com.dream11.mysql.service.RDSService;
+import com.dream11.mysql.service.StateCorrectionService;
 import com.google.inject.Inject;
+import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RequiredArgsConstructor(onConstructor = @__({@Inject}))
 public class Deploy implements Operation {
-  final DeployService deployService;
+  @NonNull final RDSService rdsService;
+  @NonNull final StateCorrectionService stateCorrectionService;
 
-  public boolean execute() {
-    deployService.deployService();
-    return true;
+  @Override
+  public void execute() {
+    this.stateCorrectionService.correctState();
+    this.rdsService.deployService();
   }
 }

@@ -2,7 +2,10 @@ package com.dream11.mysql.service;
 
 import com.dream11.mysql.Application;
 import com.dream11.mysql.client.RDSClient;
-import com.dream11.mysql.exception.GenericApplicationException;
+import com.dream11.mysql.exception.DBClusterNotFoundException;
+import com.dream11.mysql.exception.DBClusterParameterGroupNotFoundException;
+import com.dream11.mysql.exception.DBInstanceNotFoundException;
+import com.dream11.mysql.exception.DBParameterGroupNotFoundException;
 import com.dream11.mysql.state.State;
 import com.google.inject.Inject;
 import java.util.ArrayList;
@@ -24,7 +27,7 @@ public class StateCorrectionService {
     if (state.getClusterIdentifier() != null) {
       try {
         this.rdsClient.describeDBCluster(state.getClusterIdentifier());
-      } catch (GenericApplicationException ex) {
+      } catch (DBClusterNotFoundException ex) {
         log.warn(
             "DB cluster:[{}] from state does not exist. Updating state.",
             state.getClusterIdentifier());
@@ -35,7 +38,7 @@ public class StateCorrectionService {
     if (state.getWriterInstanceIdentifier() != null) {
       try {
         this.rdsClient.describeDBInstance(state.getWriterInstanceIdentifier());
-      } catch (GenericApplicationException ex) {
+      } catch (DBInstanceNotFoundException ex) {
         log.warn(
             "DB instance:[{}] from state does not exist. Updating state.",
             state.getWriterInstanceIdentifier());
@@ -49,7 +52,7 @@ public class StateCorrectionService {
       for (Map.Entry<String, String> entry : readerInstanceIdentifiers) {
         try {
           this.rdsClient.describeDBInstance(entry.getValue());
-        } catch (GenericApplicationException ex) {
+        } catch (DBInstanceNotFoundException ex) {
           log.warn("DB instance:[{}] from state does not exist. Updating state.", entry.getValue());
           readerInstanceIdentifiers.remove(entry);
         }
@@ -59,7 +62,7 @@ public class StateCorrectionService {
     if (state.getClusterParameterGroupName() != null) {
       try {
         this.rdsClient.describeDBClusterParameterGroup(state.getClusterParameterGroupName());
-      } catch (GenericApplicationException ex) {
+      } catch (DBClusterParameterGroupNotFoundException ex) {
         log.warn(
             "DB cluster parameter group:[{}] from state does not exist. Updating state.",
             state.getClusterParameterGroupName());
@@ -70,7 +73,7 @@ public class StateCorrectionService {
     if (state.getWriterInstanceParameterGroupName() != null) {
       try {
         this.rdsClient.describeDBParameterGroup(state.getWriterInstanceParameterGroupName());
-      } catch (GenericApplicationException ex) {
+      } catch (DBParameterGroupNotFoundException ex) {
         log.warn(
             "DB parameter group:[{}] from state does not exist. Updating state.",
             state.getWriterInstanceParameterGroupName());
@@ -84,7 +87,7 @@ public class StateCorrectionService {
       for (Map.Entry<String, String> entry : readerInstanceParameterGroupNames) {
         try {
           this.rdsClient.describeDBParameterGroup(entry.getValue());
-        } catch (GenericApplicationException ex) {
+        } catch (DBParameterGroupNotFoundException ex) {
           log.warn(
               "DB parameter group:[{}] from state does not exist. Updating state.",
               entry.getValue());
