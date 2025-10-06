@@ -1927,10 +1927,10 @@ Pack 4-6 small Redis instances on single m5.large node.
 | ElastiCache | aws_k8s | Notes |
 |-------------|---------------|-------|
 | `cacheNodeType: cache.r5.large` | `master.resources: {cpu: 2000m, memory: 16Gi}` | Map instance type to K8s resources |
-| `replicasPerNodeGroup: 2` | `replicaCount: 2` | Same concept |
-| `numNodeGroups: 3` | `cluster.numShards: 3` | Cluster mode sharding |
+| `replicasPerNodeGroup: 2` | `deployment.config.replica.count: 2` | Same concept (for sentinel mode) |
+| `numNodeGroups: 3` | `deployment.config.numShards: 3` | Cluster mode sharding |
 | `multiAzEnabled: true` | `topologySpreadConstraints` | Multi-AZ via topology |
-| `automaticFailoverEnabled: true` | `sentinel.enabled: true` (or cluster mode) | Automatic in Sentinel/Cluster |
+| `automaticFailoverEnabled: true` | `deployment.mode: "sentinel"` (or cluster mode) | Automatic in Sentinel/Cluster |
 | `transitEncryptionEnabled: true` | `additionalConfig` (TLS) | Configure TLS manually |
 | `snapshotRetentionLimit: 7` | `backup.retention: 7` | Same retention days |
 | `snapshotWindow: "03:00-05:00"` | `backup.schedule: "0 3 * * *"` | Time window → cron |
