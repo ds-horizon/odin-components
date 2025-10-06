@@ -1,7 +1,7 @@
 import com.dream11.Odin
 
 Odin.component {
-    dslVersion "v0.0.1"
+    dslVersion "v0.0.1-SNAPSHOT"
     flavour {
         name "aws_flavour"
         deploy {
