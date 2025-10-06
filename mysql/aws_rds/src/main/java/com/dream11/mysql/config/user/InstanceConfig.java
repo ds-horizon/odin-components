@@ -1,27 +1,14 @@
 package com.dream11.mysql.config.user;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 
 @Data
-public abstract class InstanceConfig {
-
-  @NotNull
-  @Pattern(
-      regexp =
-          "^(db\\.(?:[trm][0-9][a-z]?\\.(?:micro|small|medium|large|xlarge|\\d+x?large))|db\\.serverless)$")
-  private String instanceType;
+public class InstanceConfig {
 
   @Pattern(regexp = "^[a-z]{2}-[a-z]+-\\d[a-z]?$")
   private String availabilityZone;
-
-  @Min(0)
-  @Max(15)
-  private Integer promotionTier;
 
   private Boolean publiclyAccessible;
 

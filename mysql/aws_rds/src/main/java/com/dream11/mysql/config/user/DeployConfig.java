@@ -79,6 +79,8 @@ public class DeployConfig implements Config {
 
   @Valid private List<ReaderConfig> readers;
 
+  @Valid private InstanceConfig instanceConfig;
+  
   @Override
   public void validate() {
     Config.super.validate();

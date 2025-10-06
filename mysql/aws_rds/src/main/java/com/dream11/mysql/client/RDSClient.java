@@ -16,7 +16,6 @@ import com.dream11.mysql.exception.GenericApplicationException;
 import com.dream11.mysql.util.ApplicationUtil;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -30,6 +29,9 @@ import software.amazon.awssdk.services.rds.model.CreateDbClusterRequest;
 import software.amazon.awssdk.services.rds.model.CreateDbInstanceRequest;
 import software.amazon.awssdk.services.rds.model.CreateDbParameterGroupRequest;
 import software.amazon.awssdk.services.rds.model.DBCluster;
+import software.amazon.awssdk.services.rds.model.DBClusterParameterGroup;
+import software.amazon.awssdk.services.rds.model.DBInstance;
+import software.amazon.awssdk.services.rds.model.DBParameterGroup;
 import software.amazon.awssdk.services.rds.model.ModifyDbClusterParameterGroupRequest;
 import software.amazon.awssdk.services.rds.model.ModifyDbParameterGroupRequest;
 import software.amazon.awssdk.services.rds.model.Parameter;
@@ -55,36 +57,13 @@ public class RDSClient {
             .build();
   }
 
-  public List<String> createDBCluster(
-      String clusterIdentifier,
-      String clusterParameterGroupName,
-      Map<String, String> tags,
-      DeployConfig deployConfig,
-      RDSData rdsData) {
-    if (deployConfig.getSnapshotIdentifier() != null) {
-      return restoreDBClusterFromSnapshot(
-          clusterIdentifier,
-          deployConfig.getSnapshotIdentifier(),
-          tags,
-          deployConfig,
-          clusterParameterGroupName,
-          rdsData);
-    } else {
-      return createDBClusterFromScratch(
-          clusterIdentifier, clusterParameterGroupName, tags, deployConfig, rdsData);
-    }
-  }
-  private List<String> restoreDBClusterFromSnapshot(
+  public List<String> restoreDBClusterFromSnapshot(
       String clusterIdentifier,
       String snapshotIdentifier,
       Map<String, String> tags,
       DeployConfig deployConfig,
       String clusterParameterGroupName,
       RDSData rdsData) {
-    log.info(
-        "Restoring MySQL cluster {} from snapshot: {}",
-        clusterIdentifier,
-        deployConfig.getSnapshotIdentifier());
     RestoreDbClusterFromSnapshotRequest.Builder restoreBuilder =
         RestoreDbClusterFromSnapshotRequest.builder()
             .snapshotIdentifier(deployConfig.getSnapshotIdentifier());
@@ -118,13 +97,12 @@ public class RDSClient {
     return List.of(cluster.endpoint(), cluster.readerEndpoint());
   }
 
-  private List<String> createDBClusterFromScratch(
+  public List<String> createDBClusterFromScratch(
       String clusterIdentifier,
       String clusterParameterGroupName,
       Map<String, String> tags,
       DeployConfig deployConfig,
       RDSData rdsData) {
-    log.info("Creating MySQL cluster: {}", clusterIdentifier);
     CreateDbClusterRequest.Builder createBuilder = CreateDbClusterRequest.builder();
 
     applyCommonConfiguration(
@@ -251,16 +229,21 @@ public class RDSClient {
       String clusterIdentifier,
       String instanceParameterGroupName,
       Map<String, String> tags,
+      String instanceType,
+      Integer promotionTier,
       InstanceConfig instanceConfig) {
-    log.info("Creating MySQL instance: {}", instanceIdentifier);
     CreateDbInstanceRequest.Builder requestBuilder =
         CreateDbInstanceRequest.builder()
             .dbInstanceIdentifier(instanceIdentifier)
             .dbClusterIdentifier(clusterIdentifier)
-            .dbInstanceClass(instanceConfig.getInstanceType())
+            .dbInstanceClass(instanceType)
             .dbParameterGroupName(instanceParameterGroupName)
             .engine(Constants.ENGINE_TYPE)
             .tags(convertMapToTags(tags));
+    
+    if (promotionTier != null) {
+      requestBuilder.promotionTier(promotionTier);
+    }
 
     ApplicationUtil.setIfNotNull(requestBuilder::publiclyAccessible, instanceConfig.getPubliclyAccessible());
 
@@ -299,9 +282,7 @@ public class RDSClient {
             .client(this.dbClient)
             .overrideConfiguration(config -> config.maxAttempts(60))
             .build()) {
-      log.info("Waiting for DB {} {} to be {}", type, identifier, waitType);
       waitAction.accept(waiter);
-      log.info("DB {} {} is now {}", type, identifier, waitType);
     } catch (Exception e) {
       throw new GenericApplicationException(
           ApplicationError.DB_WAIT_TIMEOUT, type, identifier, waitType);
@@ -349,71 +330,30 @@ public class RDSClient {
   }
 
   public void createDBClusterParameterGroup(
-      String clusterParameterGroupName, Map<String, String> tags, DeployConfig deployConfig) {
-    log.info("Creating cluster parameter group: {}", clusterParameterGroupName);
+      String clusterParameterGroupName, String version, Map<String, String> tags) {
     CreateDbClusterParameterGroupRequest request =
         CreateDbClusterParameterGroupRequest.builder()
             .dbClusterParameterGroupName(clusterParameterGroupName)
-            .dbParameterGroupFamily(Constants.ENGINE_TYPE + deployConfig.getVersion())
+            .dbParameterGroupFamily(Constants.ENGINE_TYPE + version)
             .description(clusterParameterGroupName)
             .tags(convertMapToTags(tags))
             .build();
 
     this.dbClient.createDBClusterParameterGroup(request);
-
-    if (deployConfig.getClusterParameterGroupConfig() != null) {
-      configureDBClusterParameters(
-          clusterParameterGroupName, deployConfig.getClusterParameterGroupConfig());
-    }
   }
 
-  private void configureDBClusterParameters(
+  public void configureDBClusterParameters(
       String clusterParameterGroupName, ClusterParameterGroupConfig config) {
-    log.info("Configuring cluster parameters for parameter group: {}", clusterParameterGroupName);
-    List<Parameter> parameters = new ArrayList<>();
+    Map<String, Object> parameterMap = ApplicationUtil.extractParameters(config);
 
-    if (config.getBinlogFormat() != null) {
-      parameters.add(
-          Parameter.builder()
-              .parameterName("binlog_format")
-              .parameterValue(config.getBinlogFormat())
-              .build());
-    }
+    if (!parameterMap.isEmpty()) {
+        List<Parameter> parameters = parameterMap.entrySet().stream()
+            .map(entry -> Parameter.builder()
+                .parameterName(entry.getKey())
+                .parameterValue(entry.getValue().toString())
+                .build())
+            .toList();
 
-    if (config.getInnodbPrintAllDeadlocks() != null) {
-      parameters.add(
-          Parameter.builder()
-              .parameterName("innodb_print_all_deadlocks")
-              .parameterValue(config.getInnodbPrintAllDeadlocks())
-              .build());
-    }
-
-    if (config.getAwsDefaultLambdaRole() != null) {
-      parameters.add(
-          Parameter.builder()
-              .parameterName("aws_default_lambda_role")
-              .parameterValue(config.getAwsDefaultLambdaRole())
-              .build());
-    }
-
-    if (config.getAwsDefaultS3Role() != null) {
-      parameters.add(
-          Parameter.builder()
-              .parameterName("aws_default_s3_role")
-              .parameterValue(config.getAwsDefaultS3Role())
-              .build());
-    }
-
-    if (config.getAwsDefaultLogsRole() != null) {
-      parameters.add(
-          Parameter.builder()
-              .parameterName("aws_default_logs_role")
-              .parameterValue(config.getAwsDefaultLogsRole())
-              .build());
-    }
-
-    if (!parameters.isEmpty()) {
-      try {
         ModifyDbClusterParameterGroupRequest request =
             ModifyDbClusterParameterGroupRequest.builder()
                 .dbClusterParameterGroupName(clusterParameterGroupName)
@@ -421,26 +361,13 @@ public class RDSClient {
                 .build();
 
         this.dbClient.modifyDBClusterParameterGroup(request);
-        log.info(
-            "Successfully configured {} parameters for cluster parameter group: {}",
-            parameters.size(),
-            clusterParameterGroupName);
-
-      } catch (Exception e) {
-        log.error("Failed to configure cluster parameters: {}", e.getMessage(), e);
-        throw new RuntimeException("Failed to configure cluster parameters", e);
-      }
-    } else {
-      log.info("No cluster parameters to configure");
     }
   }
 
   public void createDBInstanceParameterGroup(
       String instanceParameterGroupName,
       String version,
-      Map<String, String> tags,
-      InstanceParameterGroupConfig config) {
-    log.info("Creating instance parameter group: {}", instanceParameterGroupName);
+      Map<String, String> tags) {
     CreateDbParameterGroupRequest request =
         CreateDbParameterGroupRequest.builder()
             .dbParameterGroupName(instanceParameterGroupName)
@@ -450,83 +377,20 @@ public class RDSClient {
             .build();
 
     this.dbClient.createDBParameterGroup(request);
-    if (config != null) {
-      configureDBInstanceParameters(instanceParameterGroupName, config);
-    }
   }
 
-  private void configureDBInstanceParameters(
+  public void configureDBInstanceParameters(
       String instanceParameterGroupName, InstanceParameterGroupConfig config) {
-    log.info("Configuring instance parameters for parameter group: {}", instanceParameterGroupName);
+    Map<String, Object> parameterMap = ApplicationUtil.extractParameters(config);
 
-    List<Parameter> parameters = new ArrayList<>();
+    if (!parameterMap.isEmpty()) {
+        List<Parameter> parameters = parameterMap.entrySet().stream()
+            .map(entry -> Parameter.builder()
+                .parameterName(entry.getKey())
+                .parameterValue(entry.getValue().toString())
+                .build())
+            .toList();
 
-    if (config.getInteractiveTimeout() != null) {
-      parameters.add(
-          Parameter.builder()
-              .parameterName("interactive_timeout")
-              .parameterValue(config.getInteractiveTimeout().toString())
-              .build());
-    }
-
-    if (config.getWaitTimeout() != null) {
-      parameters.add(
-          Parameter.builder()
-              .parameterName("wait_timeout")
-              .parameterValue(config.getWaitTimeout().toString())
-              .build());
-    }
-
-    if (config.getLockWaitTimeout() != null) {
-      parameters.add(
-          Parameter.builder()
-              .parameterName("lock_wait_timeout")
-              .parameterValue(config.getLockWaitTimeout().toString())
-              .build());
-    }
-
-    if (config.getLongQueryTime() != null) {
-      parameters.add(
-          Parameter.builder()
-              .parameterName("long_query_time")
-              .parameterValue(config.getLongQueryTime().toString())
-              .build());
-    }
-
-    if (config.getMaxAllowedPacket() != null) {
-      parameters.add(
-          Parameter.builder()
-              .parameterName("max_allowed_packet")
-              .parameterValue(config.getMaxAllowedPacket().toString())
-              .build());
-    }
-
-    if (config.getSlowQueryLog() != null) {
-      parameters.add(
-          Parameter.builder()
-              .parameterName("slow_query_log")
-              .parameterValue(config.getSlowQueryLog().toString())
-              .build());
-    }
-
-    if (config.getTmpTableSize() != null) {
-      parameters.add(
-          Parameter.builder()
-              .parameterName("tmp_table_size")
-              .parameterValue(config.getTmpTableSize().toString())
-              .build());
-    }
-
-    if (config.getMaxHeapTableSize() != null) {
-      parameters.add(
-          Parameter.builder()
-              .parameterName("max_heap_table_size")
-              .parameterValue(config.getMaxHeapTableSize().toString())
-              .build());
-    }
-
-    if (!parameters.isEmpty()) {
-      try {
         ModifyDbParameterGroupRequest request =
             ModifyDbParameterGroupRequest.builder()
                 .dbParameterGroupName(instanceParameterGroupName)
@@ -534,26 +398,11 @@ public class RDSClient {
                 .build();
 
         this.dbClient.modifyDBParameterGroup(request);
-        log.info(
-            "Successfully configured {} parameters for instance parameter group: {}",
-            parameters.size(),
-            instanceParameterGroupName);
-
-        for (Parameter param : parameters) {
-          log.info("Set parameter: {} = {}", param.parameterName(), param.parameterValue());
-        }
-
-      } catch (Exception e) {
-        log.error("Failed to configure instance parameters: {}", e.getMessage(), e);
-        throw new RuntimeException("Failed to configure instance parameters", e);
-      }
-    } else {
-      log.info("No instance parameters to configure");
     }
   }
 
-  public void describeDBCluster(String clusterIdentifier) {
-    this.dbClient
+  public DBCluster getDBCluster(String clusterIdentifier) {
+    return this.dbClient
         .describeDBClusters(request -> request.dbClusterIdentifier(clusterIdentifier))
         .dbClusters()
         .stream()
@@ -563,8 +412,8 @@ public class RDSClient {
                 new DBClusterNotFoundException(clusterIdentifier));
   }
 
-  public void describeDBInstance(String instanceIdentifier) {
-    this.dbClient
+  public DBInstance getDBInstance(String instanceIdentifier) {
+    return this.dbClient
         .describeDBInstances(request -> request.dbInstanceIdentifier(instanceIdentifier))
         .dbInstances()
         .stream()
@@ -574,8 +423,8 @@ public class RDSClient {
                 new DBInstanceNotFoundException(instanceIdentifier));
   }
 
-  public void describeDBClusterParameterGroup(String clusterParameterGroupName) {
-    this.dbClient
+  public DBClusterParameterGroup getDBClusterParameterGroup(String clusterParameterGroupName) {
+    return this.dbClient
         .describeDBClusterParameterGroups(
             request -> request.dbClusterParameterGroupName(clusterParameterGroupName))
         .dbClusterParameterGroups()
@@ -586,8 +435,8 @@ public class RDSClient {
                 new DBClusterParameterGroupNotFoundException(clusterParameterGroupName));
   }
 
-  public void describeDBParameterGroup(String instanceParameterGroupName) {
-    this.dbClient
+  public DBParameterGroup getDBParameterGroup(String instanceParameterGroupName) {
+    return this.dbClient
         .describeDBParameterGroups(
             request -> request.dbParameterGroupName(instanceParameterGroupName))
         .dbParameterGroups()

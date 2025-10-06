@@ -27,6 +27,8 @@ import lombok.SneakyThrows;
 import lombok.experimental.UtilityClass;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.RandomStringUtils;
+import com.dream11.mysql.annotation.ParameterName;
+import java.lang.reflect.Field;
 
 @UtilityClass
 @Slf4j
@@ -141,5 +143,31 @@ public class ApplicationUtil {
     if (value != null) {
       setter.accept(value);
     }
+  }
+
+  @SneakyThrows
+  public Map<String, Object> extractParameters(Object config) {
+    Map<String, Object> parameters = new HashMap<>();
+    
+    if (config == null) {
+      return parameters;
+    }
+    
+    Class<?> clazz = config.getClass();
+    Field[] fields = clazz.getDeclaredFields();
+    
+    for (Field field : fields) {
+      ParameterName parameterAnnotation = field.getAnnotation(ParameterName.class);
+      if (parameterAnnotation != null) {
+        field.setAccessible(true);
+        Object value = field.get(config);
+        
+        if (value != null) {
+          parameters.put(parameterAnnotation.value(), value);
+        }
+      }
+    }
+    
+    return parameters;
   }
 }

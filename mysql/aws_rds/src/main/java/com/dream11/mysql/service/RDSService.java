@@ -5,7 +5,9 @@ import com.dream11.mysql.client.RDSClient;
 import com.dream11.mysql.config.metadata.ComponentMetadata;
 import com.dream11.mysql.config.metadata.aws.AwsAccountData;
 import com.dream11.mysql.config.metadata.aws.RDSData;
+import com.dream11.mysql.config.user.ClusterParameterGroupConfig;
 import com.dream11.mysql.config.user.DeployConfig;
+import com.dream11.mysql.config.user.InstanceParameterGroupConfig;
 import com.dream11.mysql.constant.Constants;
 import com.dream11.mysql.util.ApplicationUtil;
 import com.google.inject.Inject;
@@ -38,74 +40,112 @@ public class RDSService {
 
     Map<String, String> tags =
         ApplicationUtil.merge(List.of(this.deployConfig.getTags(), this.awsAccountData.getTags(), Constants.COMPONENT_TAGS));
+    
+    List<String> parameterGroups = this.createParameterGroups(name, randomId, tags);
+    String clusterParameterGroupName = parameterGroups.get(0);
+    String instanceParameterGroupName = parameterGroups.get(1);
 
-    String clusterIdentifier = this.createClusterAndWait(name, randomId, tags);
+    String clusterIdentifier = this.createClusterAndWait(name, randomId, tags, clusterParameterGroupName);
 
-    tasks.addAll(this.createWriterInstanceAndWaitTaks(name, randomId, clusterIdentifier, tags));
-    tasks.addAll(this.createReaderInstancesAndWaitTaks(name, randomId, clusterIdentifier, tags));
+    tasks.addAll(this.createWriterInstanceAndWaitTaks(name, randomId, clusterIdentifier, tags, instanceParameterGroupName));
+    tasks.addAll(this.createReaderInstancesAndWaitTaks(name, randomId, clusterIdentifier, tags, instanceParameterGroupName));
 
     ApplicationUtil.runOnExecutorService(tasks);
 
     log.info("MySQL cluster deployment completed successfully");
   }
 
-  private String createClusterAndWait(String name, String randomId, Map<String, String> tags) {
+  private List<String> createParameterGroups(String name, String randomId, Map<String, String> tags) {
     String clusterParameterGroupName =
-        this.deployConfig.getClusterParameterGroupName() != null
-            ? this.deployConfig.getClusterParameterGroupName()
-            : Application.getState().getClusterParameterGroupName();
-    if (clusterParameterGroupName == null) {
-      clusterParameterGroupName =
-          ApplicationUtil.joinByHyphen(name, Constants.CLUSTER_PARAMETER_GROUP_SUFFIX, randomId);
-      this.rdsClient.createDBClusterParameterGroup(clusterParameterGroupName, tags, this.deployConfig);
-      Application.getState().setClusterParameterGroupName(clusterParameterGroupName);
-    }
+    this.deployConfig.getClusterParameterGroupName() != null
+        ? this.deployConfig.getClusterParameterGroupName()
+        : Application.getState().getClusterParameterGroupName();
+if (clusterParameterGroupName == null) {
+  clusterParameterGroupName =
+      ApplicationUtil.joinByHyphen(name, Constants.CLUSTER_PARAMETER_GROUP_SUFFIX, randomId);
+  log.info("Creating cluster parameter group: {}", clusterParameterGroupName);
+  this.rdsClient.createDBClusterParameterGroup(clusterParameterGroupName, this.deployConfig.getVersion(), tags);
+  ClusterParameterGroupConfig clusterParameterGroupConfig = this.deployConfig.getClusterParameterGroupConfig();
+  log.info("Configuring cluster parameter group: {}", clusterParameterGroupName);
+  if (clusterParameterGroupConfig != null) {
+    this.rdsClient.configureDBClusterParameters(clusterParameterGroupName, clusterParameterGroupConfig);
+  }
+  Application.getState().setClusterParameterGroupName(clusterParameterGroupName);
+}
+ String instanceParameterGroupName =
+ this.deployConfig.getInstanceConfig() != null && this.deployConfig.getInstanceConfig().getInstanceParameterGroupName() != null
+     ? this.deployConfig.getInstanceConfig().getInstanceParameterGroupName()
+     : Application.getState().getInstanceParameterGroupName();
+ if (instanceParameterGroupName == null) {
+   instanceParameterGroupName =
+       ApplicationUtil.joinByHyphen(name, Constants.INSTANCE_PARAMETER_GROUP_SUFFIX, randomId);
+   log.info("Creating instance parameter group: {}", instanceParameterGroupName);
+   this.rdsClient.createDBInstanceParameterGroup(instanceParameterGroupName, this.deployConfig.getVersion(), tags);
+   log.info("Configuring instance parameter group: {}", instanceParameterGroupName);
+   InstanceParameterGroupConfig instanceParameterGroupConfig = this.deployConfig.getInstanceConfig().getInstanceParameterGroupConfig();
+   if (instanceParameterGroupConfig != null) {
+    this.rdsClient.configureDBInstanceParameters(instanceParameterGroupName, instanceParameterGroupConfig);
+   }
+   Application.getState().setInstanceParameterGroupName(instanceParameterGroupName);
+ }
+ return List.of(clusterParameterGroupName, instanceParameterGroupName);
+  }
 
+  private String createClusterAndWait(String name, String randomId, Map<String, String> tags, String clusterParameterGroupName) {
     String clusterIdentifier = Application.getState().getClusterIdentifier();
     if (clusterIdentifier == null) {
       clusterIdentifier = ApplicationUtil.joinByHyphen(name, Constants.CLUSTER_SUFFIX, randomId);
-      List<String> endpoints =
-          this.rdsClient.createDBCluster(
-              clusterIdentifier, clusterParameterGroupName, tags, this.deployConfig, this.rdsData);
+      List<String> endpoints;
+      String snapshotIdentifier = this.deployConfig.getSnapshotIdentifier();
+      if (snapshotIdentifier != null) {
+        log.info(
+        "Restoring DB cluster {} from snapshot: {}",
+        clusterIdentifier,
+        snapshotIdentifier);
+        endpoints = this.rdsClient.restoreDBClusterFromSnapshot(
+            clusterIdentifier,
+            snapshotIdentifier,
+            tags,
+            this.deployConfig,
+            clusterParameterGroupName,
+            this.rdsData);
+      } else {
+        log.info("Creating DB cluster: {}", clusterIdentifier);
+        endpoints = this.rdsClient.createDBClusterFromScratch(
+            clusterIdentifier, clusterParameterGroupName, tags, this.deployConfig, this.rdsData);
+      }
       Application.getState().setClusterIdentifier(clusterIdentifier);
       Application.getState().setWriterEndpoint(endpoints.get(0));
       Application.getState().setReaderEndpoint(endpoints.get(1));
+      log.info("Waiting for DB cluster to be available: {}", clusterIdentifier);
       this.rdsClient.waitUntilDBClusterAvailable(clusterIdentifier);
+      log.info("DB cluster is now available: {}", clusterIdentifier);
     }
     return clusterIdentifier;
   }
 
   private List<Callable<Void>> createWriterInstanceAndWaitTaks(
-      String name, String randomId, String clusterIdentifier, Map<String, String> tags) {
+      String name, String randomId, String clusterIdentifier, Map<String, String> tags, String instanceParameterGroupName) {
     List<Callable<Void>> tasks = new ArrayList<>();
-    String writerInstanceParameterGroupName =
-        this.deployConfig.getWriter().getInstanceParameterGroupName() != null
-            ? this.deployConfig.getWriter().getInstanceParameterGroupName()
-            : Application.getState().getWriterInstanceParameterGroupName();
-    if (writerInstanceParameterGroupName == null) {
-      writerInstanceParameterGroupName =
-          ApplicationUtil.joinByHyphen(name, Constants.WRITER_INSTANCE_PARAMETER_GROUP_SUFFIX, randomId);
-      this.rdsClient.createDBInstanceParameterGroup(
-          writerInstanceParameterGroupName,
-          this.deployConfig.getVersion(),
-          tags,
-          this.deployConfig.getWriter().getInstanceParameterGroupConfig());
-      Application.getState().setWriterInstanceParameterGroupName(writerInstanceParameterGroupName);
-    }
 
     if (Application.getState().getWriterInstanceIdentifier() == null) {
       String writerInstanceIdentifier =
           ApplicationUtil.joinByHyphen(name, Constants.WRITER_INSTANCE_SUFFIX, randomId);
+      log.info("Creating DB writer instance: {}", writerInstanceIdentifier);
       this.rdsClient.createDBInstance(
           writerInstanceIdentifier,
           clusterIdentifier,
-          writerInstanceParameterGroupName,
+          instanceParameterGroupName,
           tags,
-          this.deployConfig.getWriter());
+          this.deployConfig.getWriter().getInstanceType(),
+          this.deployConfig.getWriter().getPromotionTier(),
+          this.deployConfig.getInstanceConfig());
       Application.getState().setWriterInstanceIdentifier(writerInstanceIdentifier);
       tasks.add(
           () -> {
+            log.info("Waiting for DB writer instance to be available: {}", writerInstanceIdentifier);
             this.rdsClient.waitUntilDBInstanceAvailable(writerInstanceIdentifier);
+            log.info("DB writer instance is now available: {}", writerInstanceIdentifier);
             return null;
           });
     }
@@ -113,60 +153,48 @@ public class RDSService {
   }
 
   private List<Callable<Void>> createReaderInstancesAndWaitTaks(
-      String name, String randomId, String clusterIdentifier, Map<String, String> tags) {
+      String name, String randomId, String clusterIdentifier, Map<String, String> tags, String instanceParameterGroupName) {
     List<Callable<Void>> tasks = new ArrayList<>();
     if (this.deployConfig.getReaders() != null && !this.deployConfig.getReaders().isEmpty()) {
       if (Application.getState().getReaderInstanceIdentifiers() == null) {
         Application.getState().setReaderInstanceIdentifiers(new HashMap<>());
       }
-      if (Application.getState().getReaderInstanceParameterGroupNames() == null) {
-        Application.getState().setReaderInstanceParameterGroupNames(new HashMap<>());
-      }
 
       for (int i = 0; i < this.deployConfig.getReaders().size(); i++) {
-        String parameterGroupKey = String.valueOf(i);
-        String instanceParameterGroupName =
-            this.deployConfig.getReaders().get(i).getInstanceParameterGroupName() != null
-                ? this.deployConfig.getReaders().get(i).getInstanceParameterGroupName()
-                : Application.getState()
-                    .getReaderInstanceParameterGroupNames()
-                    .get(parameterGroupKey);
-        if (instanceParameterGroupName == null) {
-          instanceParameterGroupName =
-              ApplicationUtil.joinByHyphen(
-                  name, Constants.READER_INSTANCE_PARAMETER_GROUP_SUFFIX, parameterGroupKey, randomId);
-          this.rdsClient.createDBInstanceParameterGroup(
-              instanceParameterGroupName,
-              this.deployConfig.getVersion(),
-              tags,
-              this.deployConfig.getReaders().get(i).getInstanceParameterGroupConfig());
-          Application.getState()
-              .getReaderInstanceParameterGroupNames()
-              .put(parameterGroupKey, instanceParameterGroupName);
-        }
-        for (int j = 0; j < this.deployConfig.getReaders().get(i).getInstanceCount(); j++) {
-          String instanceKey = ApplicationUtil.joinByHyphen(String.valueOf(i), String.valueOf(j));
+        String instanceType = this.deployConfig.getReaders().get(i).getInstanceType();
+        Integer promotionTier = this.deployConfig.getReaders().get(i).getPromotionTier();
+        Integer instanceCount = this.deployConfig.getReaders().get(i).getInstanceCount();
 
-          if (Application.getState().getReaderInstanceIdentifiers().get(instanceKey) == null) {
+        List<String> existingInstances = Application.getState().getReaderInstanceIdentifiers().get(instanceType);
+        Integer stateInstanceCount = existingInstances != null ? existingInstances.size() : 0;
+
+
+        for (int j = stateInstanceCount; j < instanceCount; j++) {
             String readerInstanceIdentifier =
                 ApplicationUtil.joinByHyphen(
-                    name, Constants.READER_INSTANCE_SUFFIX, instanceKey, randomId);
+                    name, Constants.READER_INSTANCE_SUFFIX, String.valueOf(j), randomId);
+            log.info("Creating MySQL reader instance: {}", readerInstanceIdentifier);
             this.rdsClient.createDBInstance(
                 readerInstanceIdentifier,
                 clusterIdentifier,
                 instanceParameterGroupName,
                 tags,
-                this.deployConfig.getReaders().get(i));
+                instanceType,
+                promotionTier,
+                this.deployConfig.getInstanceConfig());
             Application.getState()
                 .getReaderInstanceIdentifiers()
-                .put(instanceKey, readerInstanceIdentifier);
+                .computeIfAbsent(instanceType, k -> new ArrayList<>())
+                .add(readerInstanceIdentifier);
 
             tasks.add(
                 () -> {
+                  log.info("Waiting for DB reader instance to be available: {}", readerInstanceIdentifier);
                   this.rdsClient.waitUntilDBInstanceAvailable(readerInstanceIdentifier);
+                  log.info("DB reader instance is now available: {}", readerInstanceIdentifier);
                   return null;
                 });
-          }
+          
         }
       }
     }
@@ -175,10 +203,11 @@ public class RDSService {
   }
 
   public void undeployService() {
+    log.info("Starting with mysql undeployment");
     List<Callable<Void>> tasks = new ArrayList<>();
 
-    tasks.addAll(deleteReaderInstancesAndWaitTaks());
-    tasks.addAll(deleteWriterInstanceAndWaitTaks());
+    tasks.addAll(deleteReaderInstancesAndWaitTasks());
+    tasks.addAll(deleteWriterInstanceAndWaitTasks());
 
     ApplicationUtil.runOnExecutorService(tasks);
 
@@ -189,38 +218,45 @@ public class RDSService {
     log.info("MySQL cluster undeployment completed successfully");
   }
 
-  private List<Callable<Void>> deleteReaderInstancesAndWaitTaks() {
+  private List<Callable<Void>> deleteReaderInstancesAndWaitTasks() {
     List<Callable<Void>> tasks = new ArrayList<>();
-    if (Application.getState().getReaderInstanceIdentifiers() != null
-        && !Application.getState().getReaderInstanceIdentifiers().isEmpty()) {
-      List<Map.Entry<String, String>> readerInstancesToDelete =
+    if (Application.getState().getReaderInstanceIdentifiers() != null) {
+      List<Map.Entry<String, List<String>>> readerInstancesToDelete =
           new ArrayList<>(Application.getState().getReaderInstanceIdentifiers().entrySet());
-      for (Map.Entry<String, String> entry : readerInstancesToDelete) {
-        String readerInstanceIdentifier = entry.getValue();
+      for (Map.Entry<String, List<String>> entry : readerInstancesToDelete) {
+        List<String> readerInstanceIdentifiers = entry.getValue();
         String key = entry.getKey();
-        rdsClient.deleteDBInstance(
-            readerInstanceIdentifier, Application.getState().getDeployConfig().getDeletionConfig());
-        tasks.add(
-            () -> {
-              rdsClient.waitUntilDBInstanceDeleted(readerInstanceIdentifier);
-              Application.getState().getReaderInstanceIdentifiers().remove(key);
-              return null;
-            });
+        for (String readerInstanceIdentifier : readerInstanceIdentifiers) {
+          log.info("Deleting DB reader instance: {}", readerInstanceIdentifier);
+          this.rdsClient.deleteDBInstance(
+              readerInstanceIdentifier, Application.getState().getDeployConfig().getDeletionConfig());
+          tasks.add(
+              () -> {
+                log.info("Waiting for DB reader instance to be deleted: {}", readerInstanceIdentifier);
+                this.rdsClient.waitUntilDBInstanceDeleted(readerInstanceIdentifier);
+                log.info("DB reader instance is now deleted: {}", readerInstanceIdentifier);
+                Application.getState().getReaderInstanceIdentifiers().remove(key);
+                return null;
+              });
+        }
       }
     }
     return tasks;
   }
 
-  private List<Callable<Void>> deleteWriterInstanceAndWaitTaks() {
+  private List<Callable<Void>> deleteWriterInstanceAndWaitTasks() {
     List<Callable<Void>> tasks = new ArrayList<>();
     if (Application.getState().getWriterInstanceIdentifier() != null) {
-      rdsClient.deleteDBInstance(
+      log.info("Deleting DB writer instance: {}", Application.getState().getWriterInstanceIdentifier());
+      this.rdsClient.deleteDBInstance(
           Application.getState().getWriterInstanceIdentifier(),
           Application.getState().getDeployConfig().getDeletionConfig());
-      tasks.add(
+      tasks.add(  
           () -> {
-            rdsClient.waitUntilDBInstanceDeleted(
+            log.info("Waiting for DB writer instance to be deleted: {}", Application.getState().getWriterInstanceIdentifier());
+            this.rdsClient.waitUntilDBInstanceDeleted(
                 Application.getState().getWriterInstanceIdentifier());
+            log.info("DB writer instance is now deleted: {}", Application.getState().getWriterInstanceIdentifier());
             Application.getState().setWriterInstanceIdentifier(null);
             return null;
           });
@@ -230,10 +266,13 @@ public class RDSService {
 
   private void deleteClusterAndWait() {
     if (Application.getState().getClusterIdentifier() != null) {
-      rdsClient.deleteDBCluster(
+      log.info("Deleting DB cluster: {}", Application.getState().getClusterIdentifier());
+      this.rdsClient.deleteDBCluster(
           Application.getState().getClusterIdentifier(),
           Application.getState().getDeployConfig().getDeletionConfig());
-      rdsClient.waitUntilDBClusterDeleted(Application.getState().getClusterIdentifier());
+      log.info("Waiting for DB cluster to be deleted: {}", Application.getState().getClusterIdentifier());
+      this.rdsClient.waitUntilDBClusterDeleted(Application.getState().getClusterIdentifier());
+      log.info("DB cluster is now deleted: {}", Application.getState().getClusterIdentifier());
       Application.getState().setClusterIdentifier(null);
       Application.getState().setWriterEndpoint(null);
       Application.getState().setReaderEndpoint(null);
@@ -242,26 +281,16 @@ public class RDSService {
 
   private void deleteParameterGroups() {
     if (Application.getState().getClusterParameterGroupName() != null) {
-      rdsClient.deleteDBClusterParameterGroup(
+      log.info("Deleting DB cluster parameter group: {}", Application.getState().getClusterParameterGroupName());
+      this.rdsClient.deleteDBClusterParameterGroup(
           Application.getState().getClusterParameterGroupName());
       Application.getState().setClusterParameterGroupName(null);
     }
-    if (Application.getState().getWriterInstanceParameterGroupName() != null) {
-      rdsClient.deleteDBParameterGroup(
-          Application.getState().getWriterInstanceParameterGroupName());
-      Application.getState().setWriterInstanceParameterGroupName(null);
-    }
-
-    if (Application.getState().getReaderInstanceParameterGroupNames() != null
-        && !Application.getState().getReaderInstanceParameterGroupNames().isEmpty()) {
-      List<Map.Entry<String, String>> readerParameterGroupsToDelete =
-          new ArrayList<>(Application.getState().getReaderInstanceParameterGroupNames().entrySet());
-      for (Map.Entry<String, String> entry : readerParameterGroupsToDelete) {
-        String readerInstanceParameterGroupName = entry.getValue();
-        String key = entry.getKey();
-        rdsClient.deleteDBParameterGroup(readerInstanceParameterGroupName);
-        Application.getState().getReaderInstanceParameterGroupNames().remove(key);
-      }
+    if (Application.getState().getInstanceParameterGroupName() != null) {
+      log.info("Deleting DB instance parameter group: {}", Application.getState().getInstanceParameterGroupName());
+      this.rdsClient.deleteDBParameterGroup(
+          Application.getState().getInstanceParameterGroupName());
+      Application.getState().setInstanceParameterGroupName(null);
     }
   }
 }
