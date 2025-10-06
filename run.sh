@@ -8,14 +8,21 @@ do
 done
 
 echo -e "\ncomponent: $component"
-echo -e "\nstage: $stage"
-echo -e "\noperation: $operation"
-echo -e "\naccount_flavour: $account_flavour"
+echo -e "stage: $stage"
+echo -e "account_flavour: $account_flavour\n"
 
 if [[ -z ${component} || -z ${stage} || -z ${account_flavour} ]]; then
-  echo -e "\nPlease provide the component, stage and account_flavour, example command:"
+  echo -e "Please provide the component, stage and account_flavour, example command:"
   echo -e "bash run.sh component=mysql stage=deploy account_flavour=stag_aws_rds\n"
   exit 1
+fi
+
+if [[ $stage == "operate" ]]; then
+  if [[ -z ${operation} ]]; then
+    echo -e "Please provide the operation\n"
+    exit 1
+  fi
+  echo -e "operation: $operation\n"
 fi
 
 cd ${component}

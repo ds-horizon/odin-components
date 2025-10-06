@@ -247,33 +247,35 @@ public class RDSClient {
       requestBuilder.promotionTier(promotionTier);
     }
 
-    ApplicationUtil.setIfNotNull(
-        requestBuilder::publiclyAccessible, instanceConfig.getPubliclyAccessible());
+    if (instanceConfig != null) {
+      ApplicationUtil.setIfNotNull(
+          requestBuilder::publiclyAccessible, instanceConfig.getPubliclyAccessible());
 
-    ApplicationUtil.setIfNotNull(
-        requestBuilder::autoMinorVersionUpgrade, instanceConfig.getAutoMinorVersionUpgrade());
+      ApplicationUtil.setIfNotNull(
+          requestBuilder::autoMinorVersionUpgrade, instanceConfig.getAutoMinorVersionUpgrade());
 
-    ApplicationUtil.setIfNotNull(
-        requestBuilder::deletionProtection, instanceConfig.getDeletionProtection());
+      ApplicationUtil.setIfNotNull(
+          requestBuilder::deletionProtection, instanceConfig.getDeletionProtection());
 
-    ApplicationUtil.setIfNotNull(
-        requestBuilder::enablePerformanceInsights, instanceConfig.getEnablePerformanceInsights());
+      ApplicationUtil.setIfNotNull(
+          requestBuilder::enablePerformanceInsights, instanceConfig.getEnablePerformanceInsights());
 
-    ApplicationUtil.setIfNotNull(
-        requestBuilder::availabilityZone, instanceConfig.getAvailabilityZone());
+      ApplicationUtil.setIfNotNull(
+          requestBuilder::availabilityZone, instanceConfig.getAvailabilityZone());
 
-    ApplicationUtil.setIfNotNull(
-        requestBuilder::performanceInsightsKMSKeyId,
-        instanceConfig.getPerformanceInsightsKmsKeyId());
+      ApplicationUtil.setIfNotNull(
+          requestBuilder::performanceInsightsKMSKeyId,
+          instanceConfig.getPerformanceInsightsKmsKeyId());
 
-    ApplicationUtil.setIfNotNull(
-        requestBuilder::performanceInsightsRetentionPeriod,
-        instanceConfig.getPerformanceInsightsRetentionPeriod());
+      ApplicationUtil.setIfNotNull(
+          requestBuilder::performanceInsightsRetentionPeriod,
+          instanceConfig.getPerformanceInsightsRetentionPeriod());
 
-    if (instanceConfig.getEnhancedMonitoring().getEnabled()) {
-      requestBuilder
-          .monitoringInterval(instanceConfig.getEnhancedMonitoring().getInterval())
-          .monitoringRoleArn(instanceConfig.getEnhancedMonitoring().getMonitoringRoleArn());
+      if (instanceConfig.getEnhancedMonitoring().getEnabled()) {
+        requestBuilder
+            .monitoringInterval(instanceConfig.getEnhancedMonitoring().getInterval())
+            .monitoringRoleArn(instanceConfig.getEnhancedMonitoring().getMonitoringRoleArn());
+      }
     }
 
     CreateDbInstanceRequest request = requestBuilder.build();

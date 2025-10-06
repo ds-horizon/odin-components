@@ -6,6 +6,6 @@
     },
     "stateConfig": {
       "provider": "S3",
-      "uri": "https://components-state-odin-dsl.s3.amazonaws.com/aws_rds/${ENV}/${COMPONENT}"
+      "uri": "https://components-state-odin-dsl.s3.amazonaws.com/aws_rds/${ENV_NAME}/${COMPONENT_NAME}"
     }
 }

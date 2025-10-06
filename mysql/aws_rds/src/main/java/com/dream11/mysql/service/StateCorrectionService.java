@@ -25,20 +25,6 @@ public class StateCorrectionService {
   public void correctState() {
     State state = Application.getState();
 
-    if (state.getClusterIdentifier() != null) {
-      try {
-        DBCluster cluster = this.rdsClient.getDBCluster(state.getClusterIdentifier());
-        populateStateFromCluster(cluster, state);
-        log.debug("Found cluster: {}", state.getClusterIdentifier());
-      } catch (DBClusterNotFoundException ex) {
-        log.warn(
-            "DB cluster:[{}] from state does not exist. Updating state.",
-            state.getClusterIdentifier());
-        state.setClusterIdentifier(null);
-        return;
-      }
-    }
-
     if (state.getClusterParameterGroupName() != null) {
       try {
         this.rdsClient.getDBClusterParameterGroup(state.getClusterParameterGroupName());
@@ -60,6 +46,20 @@ public class StateCorrectionService {
             "DB instance parameter group:[{}] from state does not exist. Updating state.",
             state.getInstanceParameterGroupName());
         state.setInstanceParameterGroupName(null);
+      }
+    }
+
+    if (state.getClusterIdentifier() != null) {
+      try {
+        DBCluster cluster = this.rdsClient.getDBCluster(state.getClusterIdentifier());
+        populateStateFromCluster(cluster, state);
+        log.debug("Found cluster: {}", state.getClusterIdentifier());
+      } catch (DBClusterNotFoundException ex) {
+        log.warn(
+            "DB cluster:[{}] from state does not exist. Updating state.",
+            state.getClusterIdentifier());
+        state.setClusterIdentifier(null);
+        return;
       }
     }
   }

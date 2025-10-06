@@ -153,15 +153,12 @@ public class Application {
           case UNDEPLOY -> Undeploy.class;
         };
 
-    Operation operation =
-        this.initializeGuiceModules(this.getGuiceModules()).getInstance(operationClass);
-    log.debug("Executing operation:[{}]", Operations.fromValue(this.operationName));
     if (Operations.fromValue(this.operationName).equals(Operations.UNDEPLOY)) {
       log.info("Deleting all created resources");
     } else {
       log.info("Executing operation:[{}]", Operations.fromValue(this.operationName));
     }
-    operation.execute();
+    this.initializeGuiceModules(this.getGuiceModules()).getInstance(operationClass).execute();
     Application.getState().setDeployConfig(this.deployConfig);
     log.info("Executed operation:[{}]", Operations.fromValue(this.operationName));
   }

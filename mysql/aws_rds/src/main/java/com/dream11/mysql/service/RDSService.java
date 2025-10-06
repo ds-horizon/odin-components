@@ -7,6 +7,7 @@ import com.dream11.mysql.config.metadata.aws.AwsAccountData;
 import com.dream11.mysql.config.metadata.aws.RDSData;
 import com.dream11.mysql.config.user.ClusterParameterGroupConfig;
 import com.dream11.mysql.config.user.DeployConfig;
+import com.dream11.mysql.config.user.InstanceConfig;
 import com.dream11.mysql.config.user.InstanceParameterGroupConfig;
 import com.dream11.mysql.constant.Constants;
 import com.dream11.mysql.util.ApplicationUtil;
@@ -31,8 +32,6 @@ public class RDSService {
 
   public void deployService() {
     List<Callable<Void>> tasks = new ArrayList<>();
-
-    log.info("Starting with mysql deployment");
     String name =
         ApplicationUtil.joinByHyphen(
             this.componentMetadata.getComponentName(), this.componentMetadata.getEnvName());
@@ -78,8 +77,8 @@ public class RDSService {
           clusterParameterGroupName, this.deployConfig.getVersion(), tags);
       ClusterParameterGroupConfig clusterParameterGroupConfig =
           this.deployConfig.getClusterParameterGroupConfig();
-      log.info("Configuring cluster parameter group: {}", clusterParameterGroupName);
       if (clusterParameterGroupConfig != null) {
+        log.info("Configuring cluster parameter group: {}", clusterParameterGroupName);
         this.rdsClient.configureDBClusterParameters(
             clusterParameterGroupName, clusterParameterGroupConfig);
       }
@@ -96,10 +95,11 @@ public class RDSService {
       log.info("Creating instance parameter group: {}", instanceParameterGroupName);
       this.rdsClient.createDBInstanceParameterGroup(
           instanceParameterGroupName, this.deployConfig.getVersion(), tags);
-      log.info("Configuring instance parameter group: {}", instanceParameterGroupName);
+      InstanceConfig instanceConfig = this.deployConfig.getInstanceConfig();
       InstanceParameterGroupConfig instanceParameterGroupConfig =
-          this.deployConfig.getInstanceConfig().getInstanceParameterGroupConfig();
+          instanceConfig != null ? instanceConfig.getInstanceParameterGroupConfig() : null;
       if (instanceParameterGroupConfig != null) {
+        log.info("Configuring instance parameter group: {}", instanceParameterGroupName);
         this.rdsClient.configureDBInstanceParameters(
             instanceParameterGroupName, instanceParameterGroupConfig);
       }
@@ -139,7 +139,7 @@ public class RDSService {
       Application.getState().setClusterIdentifier(clusterIdentifier);
       Application.getState().setWriterEndpoint(endpoints.get(0));
       Application.getState().setReaderEndpoint(endpoints.get(1));
-      log.info("Waiting for DB cluster to be available: {}", clusterIdentifier);
+      log.info("Waiting for DB cluster to become available: {}", clusterIdentifier);
       this.rdsClient.waitUntilDBClusterAvailable(clusterIdentifier);
       log.info("DB cluster is now available: {}", clusterIdentifier);
     }
@@ -170,7 +170,7 @@ public class RDSService {
       tasks.add(
           () -> {
             log.info(
-                "Waiting for DB writer instance to be available: {}", writerInstanceIdentifier);
+                "Waiting for DB writer instance to become available: {}", writerInstanceIdentifier);
             this.rdsClient.waitUntilDBInstanceAvailable(writerInstanceIdentifier);
             log.info("DB writer instance is now available: {}", writerInstanceIdentifier);
             return null;
@@ -221,7 +221,8 @@ public class RDSService {
           tasks.add(
               () -> {
                 log.info(
-                    "Waiting for DB reader instance to be available: {}", readerInstanceIdentifier);
+                    "Waiting for DB reader instance to become available: {}",
+                    readerInstanceIdentifier);
                 this.rdsClient.waitUntilDBInstanceAvailable(readerInstanceIdentifier);
                 log.info("DB reader instance is now available: {}", readerInstanceIdentifier);
                 return null;
@@ -234,7 +235,6 @@ public class RDSService {
   }
 
   public void undeployService() {
-    log.info("Starting with mysql undeployment");
     List<Callable<Void>> tasks = new ArrayList<>();
 
     tasks.addAll(this.deleteReaderInstancesAndWaitTasks());
@@ -265,7 +265,8 @@ public class RDSService {
           tasks.add(
               () -> {
                 log.info(
-                    "Waiting for DB reader instance to be deleted: {}", readerInstanceIdentifier);
+                    "Waiting for DB reader instance to become deleted: {}",
+                    readerInstanceIdentifier);
                 this.rdsClient.waitUntilDBInstanceDeleted(readerInstanceIdentifier);
                 log.info("DB reader instance is now deleted: {}", readerInstanceIdentifier);
                 Application.getState().getReaderInstanceIdentifiers().remove(key);
@@ -288,7 +289,7 @@ public class RDSService {
       tasks.add(
           () -> {
             log.info(
-                "Waiting for DB writer instance to be deleted: {}",
+                "Waiting for DB writer instance to become deleted: {}",
                 Application.getState().getWriterInstanceIdentifier());
             this.rdsClient.waitUntilDBInstanceDeleted(
                 Application.getState().getWriterInstanceIdentifier());
@@ -309,7 +310,7 @@ public class RDSService {
           Application.getState().getClusterIdentifier(),
           Application.getState().getDeployConfig().getDeletionConfig());
       log.info(
-          "Waiting for DB cluster to be deleted: {}",
+          "Waiting for DB cluster to become deleted: {}",
           Application.getState().getClusterIdentifier());
       this.rdsClient.waitUntilDBClusterDeleted(Application.getState().getClusterIdentifier());
       log.info("DB cluster is now deleted: {}", Application.getState().getClusterIdentifier());

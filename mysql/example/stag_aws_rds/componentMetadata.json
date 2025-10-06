@@ -1,6 +1,6 @@
 {
-    "name": "${COMPONENT}",
-    "envName": "${ENV}",
+    "name": "${COMPONENT_NAME}",
+    "envName": "${ENV_NAME}",
     "cloudProviderDetails": {
         "account": {
             "name": "stag",
