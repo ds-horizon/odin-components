@@ -153,7 +153,8 @@ public class Application {
           case UNDEPLOY -> Undeploy.class;
         };
 
-    Operation operation = this.initializeGuiceModules(this.getGuiceModules()).getInstance(operationClass);
+    Operation operation =
+        this.initializeGuiceModules(this.getGuiceModules()).getInstance(operationClass);
     log.debug("Executing operation:[{}]", Operations.fromValue(this.operationName));
     if (Operations.fromValue(this.operationName).equals(Operations.UNDEPLOY)) {
       log.info("Deleting all created resources");
@@ -199,10 +200,10 @@ public class Application {
                 AwsAccountData.class);
     this.awsAccountData.validate();
     this.rdsData =
-    ApplicationUtil.getServiceWithCategory(
-        this.componentMetadata.getCloudProviderDetails().getAccount().getServices(),
-        Constants.RDS_CATEGORY,
-        RDSData.class);
+        ApplicationUtil.getServiceWithCategory(
+            this.componentMetadata.getCloudProviderDetails().getAccount().getServices(),
+            Constants.RDS_CATEGORY,
+            RDSData.class);
     this.rdsData.validate();
     this.config = System.getenv(Constants.CONFIG);
   }

@@ -65,28 +65,29 @@ public class StateCorrectionService {
   }
 
   private void populateStateFromCluster(DBCluster cluster, State state) {
-    
+
     if (state.getReaderInstanceIdentifiers() == null) {
       state.setReaderInstanceIdentifiers(new HashMap<>());
     }
-    
+
     state.setWriterInstanceIdentifier(null);
     state.getReaderInstanceIdentifiers().clear();
-    
+
     for (DBClusterMember member : cluster.dbClusterMembers()) {
       String instanceIdentifier = member.dbInstanceIdentifier();
-      
+
       if (member.isClusterWriter()) {
         state.setWriterInstanceIdentifier(instanceIdentifier);
         log.debug("Found writer instance: {}", instanceIdentifier);
       } else {
-          DBInstance instance = this.rdsClient.getDBInstance(instanceIdentifier);
-          String instanceType = instance.dbInstanceClass();
-          state.getReaderInstanceIdentifiers()
-              .computeIfAbsent(instanceType, k -> new ArrayList<>())
-              .add(instanceIdentifier);
-          log.debug("Found reader instance: {} of type: {}", instanceIdentifier, instanceType);
+        DBInstance instance = this.rdsClient.getDBInstance(instanceIdentifier);
+        String instanceType = instance.dbInstanceClass();
+        state
+            .getReaderInstanceIdentifiers()
+            .computeIfAbsent(instanceType, k -> new ArrayList<>())
+            .add(instanceIdentifier);
+        log.debug("Found reader instance: {} of type: {}", instanceIdentifier, instanceType);
       }
     }
-}
+  }
 }

@@ -11,7 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor(onConstructor = @__({@Inject}))
 public class Undeploy implements Operation {
   @NonNull final RDSService rdsService;
-  @NonNull final StateCorrectionService stateCorrectionService; 
+  @NonNull final StateCorrectionService stateCorrectionService;
 
   @Override
   public void execute() {

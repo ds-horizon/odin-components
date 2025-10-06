@@ -22,7 +22,7 @@ public class State {
 
   String clusterParameterGroupName;
   String instanceParameterGroupName;
-  
+
   String writerEndpoint;
   String readerEndpoint;
 

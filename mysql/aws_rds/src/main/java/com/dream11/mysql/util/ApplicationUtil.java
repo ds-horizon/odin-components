@@ -1,6 +1,7 @@
 package com.dream11.mysql.util;
 
 import com.dream11.mysql.Application;
+import com.dream11.mysql.annotation.ParameterName;
 import com.dream11.mysql.config.metadata.Account;
 import com.dream11.mysql.constant.Constants;
 import com.dream11.mysql.error.ApplicationError;
@@ -11,6 +12,7 @@ import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
 import java.io.InputStream;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -27,8 +29,6 @@ import lombok.SneakyThrows;
 import lombok.experimental.UtilityClass;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.RandomStringUtils;
-import com.dream11.mysql.annotation.ParameterName;
-import java.lang.reflect.Field;
 
 @UtilityClass
 @Slf4j
@@ -148,26 +148,26 @@ public class ApplicationUtil {
   @SneakyThrows
   public Map<String, Object> extractParameters(Object config) {
     Map<String, Object> parameters = new HashMap<>();
-    
+
     if (config == null) {
       return parameters;
     }
-    
+
     Class<?> clazz = config.getClass();
     Field[] fields = clazz.getDeclaredFields();
-    
+
     for (Field field : fields) {
       ParameterName parameterAnnotation = field.getAnnotation(ParameterName.class);
       if (parameterAnnotation != null) {
         field.setAccessible(true);
         Object value = field.get(config);
-        
+
         if (value != null) {
           parameters.put(parameterAnnotation.value(), value);
         }
       }
     }
-    
+
     return parameters;
   }
 }

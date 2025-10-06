@@ -1,9 +1,7 @@
 package com.dream11.mysql.constant;
 
-import java.util.Map;
-
 import com.dream11.mysql.util.ApplicationUtil;
-
+import java.util.Map;
 import lombok.experimental.UtilityClass;
 
 @UtilityClass
@@ -15,9 +13,7 @@ public class Constants {
   public final String CONFIG = "CONFIG";
 
   public final Map<String, String> COMPONENT_TAGS =
-  Map.of(
-      "component:mysql:version",
-      ApplicationUtil.getProjectVersion());
+      Map.of("component:mysql:version", ApplicationUtil.getProjectVersion());
   public final String ENGINE_TYPE = "aurora-mysql";
   public final String CLUSTER_PARAMETER_GROUP_SUFFIX = "cpg";
   public final String INSTANCE_PARAMETER_GROUP_SUFFIX = "ipg";

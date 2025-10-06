@@ -14,12 +14,10 @@ import com.dream11.mysql.exception.DBInstanceNotFoundException;
 import com.dream11.mysql.exception.DBParameterGroupNotFoundException;
 import com.dream11.mysql.exception.GenericApplicationException;
 import com.dream11.mysql.util.ApplicationUtil;
-
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.regions.Region;
@@ -144,21 +142,25 @@ public class RDSClient {
 
     ApplicationUtil.setIfNotNull(createBuilder::databaseName, deployConfig.getDbName());
 
-    ApplicationUtil.setIfNotNull(createBuilder::backupRetentionPeriod, deployConfig.getBackupRetentionPeriod());
+    ApplicationUtil.setIfNotNull(
+        createBuilder::backupRetentionPeriod, deployConfig.getBackupRetentionPeriod());
 
-    ApplicationUtil.setIfNotNull(createBuilder::preferredBackupWindow, deployConfig.getPreferredBackupWindow());
+    ApplicationUtil.setIfNotNull(
+        createBuilder::preferredBackupWindow, deployConfig.getPreferredBackupWindow());
 
     ApplicationUtil.setIfNotNull(
         createBuilder::preferredMaintenanceWindow, deployConfig.getPreferredMaintenanceWindow());
 
-    ApplicationUtil.setIfNotNull(createBuilder::storageEncrypted, deployConfig.getEncryptionAtRest());
+    ApplicationUtil.setIfNotNull(
+        createBuilder::storageEncrypted, deployConfig.getEncryptionAtRest());
 
     ApplicationUtil.setIfNotNull(
         createBuilder::replicationSourceIdentifier, deployConfig.getReplicationSourceIdentifier());
 
     ApplicationUtil.setIfNotNull(createBuilder::sourceRegion, deployConfig.getSourceRegion());
 
-    ApplicationUtil.setIfNotNull(createBuilder::globalClusterIdentifier, deployConfig.getGlobalClusterIdentifier());
+    ApplicationUtil.setIfNotNull(
+        createBuilder::globalClusterIdentifier, deployConfig.getGlobalClusterIdentifier());
 
     CreateDbClusterRequest request = createBuilder.build();
 
@@ -240,22 +242,25 @@ public class RDSClient {
             .dbParameterGroupName(instanceParameterGroupName)
             .engine(Constants.ENGINE_TYPE)
             .tags(convertMapToTags(tags));
-    
+
     if (promotionTier != null) {
       requestBuilder.promotionTier(promotionTier);
     }
 
-    ApplicationUtil.setIfNotNull(requestBuilder::publiclyAccessible, instanceConfig.getPubliclyAccessible());
+    ApplicationUtil.setIfNotNull(
+        requestBuilder::publiclyAccessible, instanceConfig.getPubliclyAccessible());
 
     ApplicationUtil.setIfNotNull(
         requestBuilder::autoMinorVersionUpgrade, instanceConfig.getAutoMinorVersionUpgrade());
 
-    ApplicationUtil.setIfNotNull(requestBuilder::deletionProtection, instanceConfig.getDeletionProtection());
+    ApplicationUtil.setIfNotNull(
+        requestBuilder::deletionProtection, instanceConfig.getDeletionProtection());
 
     ApplicationUtil.setIfNotNull(
         requestBuilder::enablePerformanceInsights, instanceConfig.getEnablePerformanceInsights());
 
-    ApplicationUtil.setIfNotNull(requestBuilder::availabilityZone, instanceConfig.getAvailabilityZone());
+    ApplicationUtil.setIfNotNull(
+        requestBuilder::availabilityZone, instanceConfig.getAvailabilityZone());
 
     ApplicationUtil.setIfNotNull(
         requestBuilder::performanceInsightsKMSKeyId,
@@ -347,27 +352,28 @@ public class RDSClient {
     Map<String, Object> parameterMap = ApplicationUtil.extractParameters(config);
 
     if (!parameterMap.isEmpty()) {
-        List<Parameter> parameters = parameterMap.entrySet().stream()
-            .map(entry -> Parameter.builder()
-                .parameterName(entry.getKey())
-                .parameterValue(entry.getValue().toString())
-                .build())
-            .toList();
+      List<Parameter> parameters =
+          parameterMap.entrySet().stream()
+              .map(
+                  entry ->
+                      Parameter.builder()
+                          .parameterName(entry.getKey())
+                          .parameterValue(entry.getValue().toString())
+                          .build())
+              .toList();
 
-        ModifyDbClusterParameterGroupRequest request =
-            ModifyDbClusterParameterGroupRequest.builder()
-                .dbClusterParameterGroupName(clusterParameterGroupName)
-                .parameters(parameters)
-                .build();
+      ModifyDbClusterParameterGroupRequest request =
+          ModifyDbClusterParameterGroupRequest.builder()
+              .dbClusterParameterGroupName(clusterParameterGroupName)
+              .parameters(parameters)
+              .build();
 
-        this.dbClient.modifyDBClusterParameterGroup(request);
+      this.dbClient.modifyDBClusterParameterGroup(request);
     }
   }
 
   public void createDBInstanceParameterGroup(
-      String instanceParameterGroupName,
-      String version,
-      Map<String, String> tags) {
+      String instanceParameterGroupName, String version, Map<String, String> tags) {
     CreateDbParameterGroupRequest request =
         CreateDbParameterGroupRequest.builder()
             .dbParameterGroupName(instanceParameterGroupName)
@@ -384,20 +390,23 @@ public class RDSClient {
     Map<String, Object> parameterMap = ApplicationUtil.extractParameters(config);
 
     if (!parameterMap.isEmpty()) {
-        List<Parameter> parameters = parameterMap.entrySet().stream()
-            .map(entry -> Parameter.builder()
-                .parameterName(entry.getKey())
-                .parameterValue(entry.getValue().toString())
-                .build())
-            .toList();
+      List<Parameter> parameters =
+          parameterMap.entrySet().stream()
+              .map(
+                  entry ->
+                      Parameter.builder()
+                          .parameterName(entry.getKey())
+                          .parameterValue(entry.getValue().toString())
+                          .build())
+              .toList();
 
-        ModifyDbParameterGroupRequest request =
-            ModifyDbParameterGroupRequest.builder()
-                .dbParameterGroupName(instanceParameterGroupName)
-                .parameters(parameters)
-                .build();
+      ModifyDbParameterGroupRequest request =
+          ModifyDbParameterGroupRequest.builder()
+              .dbParameterGroupName(instanceParameterGroupName)
+              .parameters(parameters)
+              .build();
 
-        this.dbClient.modifyDBParameterGroup(request);
+      this.dbClient.modifyDBParameterGroup(request);
     }
   }
 
@@ -407,9 +416,7 @@ public class RDSClient {
         .dbClusters()
         .stream()
         .findFirst()
-        .orElseThrow(
-            () ->
-                new DBClusterNotFoundException(clusterIdentifier));
+        .orElseThrow(() -> new DBClusterNotFoundException(clusterIdentifier));
   }
 
   public DBInstance getDBInstance(String instanceIdentifier) {
@@ -418,9 +425,7 @@ public class RDSClient {
         .dbInstances()
         .stream()
         .findFirst()
-        .orElseThrow(
-            () ->
-                new DBInstanceNotFoundException(instanceIdentifier));
+        .orElseThrow(() -> new DBInstanceNotFoundException(instanceIdentifier));
   }
 
   public DBClusterParameterGroup getDBClusterParameterGroup(String clusterParameterGroupName) {
@@ -430,9 +435,7 @@ public class RDSClient {
         .dbClusterParameterGroups()
         .stream()
         .findFirst()
-        .orElseThrow(
-            () ->
-                new DBClusterParameterGroupNotFoundException(clusterParameterGroupName));
+        .orElseThrow(() -> new DBClusterParameterGroupNotFoundException(clusterParameterGroupName));
   }
 
   public DBParameterGroup getDBParameterGroup(String instanceParameterGroupName) {
@@ -442,9 +445,7 @@ public class RDSClient {
         .dbParameterGroups()
         .stream()
         .findFirst()
-        .orElseThrow(
-            () ->
-                new DBParameterGroupNotFoundException(instanceParameterGroupName));
+        .orElseThrow(() -> new DBParameterGroupNotFoundException(instanceParameterGroupName));
   }
 
   public void deleteDBCluster(String clusterIdentifier, DeletionConfig deletionConfig) {
@@ -452,7 +453,9 @@ public class RDSClient {
         request -> {
           request.dbClusterIdentifier(clusterIdentifier);
           if (!deletionConfig.getSkipFinalSnapshot()) {
-            request.skipFinalSnapshot(false).finalDBSnapshotIdentifier(deletionConfig.getFinalSnapshotIdentifier());
+            request
+                .skipFinalSnapshot(false)
+                .finalDBSnapshotIdentifier(deletionConfig.getFinalSnapshotIdentifier());
           } else {
             request.skipFinalSnapshot(true);
           }
@@ -464,7 +467,9 @@ public class RDSClient {
         request -> {
           request.dbInstanceIdentifier(instanceIdentifier);
           if (!deletionConfig.getSkipFinalSnapshot()) {
-            request.skipFinalSnapshot(false).finalDBSnapshotIdentifier(deletionConfig.getFinalSnapshotIdentifier());
+            request
+                .skipFinalSnapshot(false)
+                .finalDBSnapshotIdentifier(deletionConfig.getFinalSnapshotIdentifier());
           } else {
             request.skipFinalSnapshot(true);
           }
