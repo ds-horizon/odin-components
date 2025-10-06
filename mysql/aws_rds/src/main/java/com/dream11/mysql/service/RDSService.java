@@ -206,14 +206,14 @@ if (clusterParameterGroupName == null) {
     log.info("Starting with mysql undeployment");
     List<Callable<Void>> tasks = new ArrayList<>();
 
-    tasks.addAll(deleteReaderInstancesAndWaitTasks());
-    tasks.addAll(deleteWriterInstanceAndWaitTasks());
+    tasks.addAll(this.deleteReaderInstancesAndWaitTasks());
+    tasks.addAll(this.deleteWriterInstanceAndWaitTasks());
 
     ApplicationUtil.runOnExecutorService(tasks);
 
-    deleteClusterAndWait();
+    this.deleteClusterAndWait();
 
-    deleteParameterGroups();
+    this.deleteParameterGroups();
 
     log.info("MySQL cluster undeployment completed successfully");
   }
