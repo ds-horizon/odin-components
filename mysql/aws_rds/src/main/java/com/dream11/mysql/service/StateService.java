@@ -22,12 +22,12 @@ import software.amazon.awssdk.services.rds.model.DBInstance;
 
 @Slf4j
 @RequiredArgsConstructor(onConstructor = @__({@Inject}))
-public class StateCorrectionService {
+public class StateService {
 
   @NonNull final RDSClient rdsClient;
   @NonNull DeployConfig deployConfig;
 
-  public void correctState() {
+  public void reconcileState() {
     State state = Application.getState();
 
     if (state.getClusterParameterGroupName() != null) {

@@ -1,8 +1,3 @@
 {
-    "readersToRemove": [
-        {
-            "instanceType": "db.r6g.large",
-            "instanceCount": 1
-        }
-    ]
+    "readerInstanceIdentifier": "mysql-rah-foto1-writer-nhbh"
 }

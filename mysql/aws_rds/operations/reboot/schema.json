@@ -1,0 +1,19 @@
+{
+  "title": "Reboot operation schema",
+  "type": "object",
+  "properties": {
+    "instanceIdentifiers": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "description": "Identifier of the instance to reboot"
+      },
+      "description": "Identifiers of the instances to reboot"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "instanceIdentifiers"
+  ]
+}

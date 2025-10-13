@@ -1,0 +1,14 @@
+{
+  "title": "Failover operation schema",
+  "type": "object",
+  "properties": {
+    "readerInstanceIdentifier": {
+      "type": "string",
+      "description": "Identifier of the reader instance to failover"
+    }
+  },
+  "required": [
+    "readerInstanceIdentifier"
+  ],
+  "additionalProperties": false
+}

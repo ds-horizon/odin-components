@@ -8,9 +8,11 @@ import com.dream11.mysql.config.metadata.aws.RDSData;
 import com.dream11.mysql.config.user.AddReadersConfig;
 import com.dream11.mysql.config.user.ClusterParameterGroupConfig;
 import com.dream11.mysql.config.user.DeployConfig;
+import com.dream11.mysql.config.user.FailoverConfig;
 import com.dream11.mysql.config.user.InstanceConfig;
 import com.dream11.mysql.config.user.InstanceParameterGroupConfig;
 import com.dream11.mysql.config.user.ReaderConfig;
+import com.dream11.mysql.config.user.RebootConfig;
 import com.dream11.mysql.config.user.RemoveReadersConfig;
 import com.dream11.mysql.constant.Constants;
 import com.dream11.mysql.error.ApplicationError;
@@ -24,6 +26,7 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -36,6 +39,8 @@ public class RDSService {
   @NonNull final RDSData rdsData;
   @NonNull final AddReadersConfig addReadersConfig;
   @NonNull final RemoveReadersConfig removeReadersConfig;
+  @NonNull final FailoverConfig failoverConfig;
+  @NonNull final RebootConfig rebootConfig;
 
   public void deploy() {
     List<Callable<Void>> tasks = new ArrayList<>();
@@ -123,7 +128,7 @@ public class RDSService {
       String name, String identifier, Map<String, String> tags, String clusterParameterGroupName) {
     String clusterIdentifier = Application.getState().getClusterIdentifier();
     if (clusterIdentifier == null) {
-      clusterIdentifier = ApplicationUtil.joinByHyphen(name, Constants.CLUSTER_SUFFIX, identifier);
+      clusterIdentifier = ApplicationUtil.joinByHyphen(name, identifier);
       List<String> endpoints;
       String snapshotIdentifier = this.deployConfig.getSnapshotIdentifier();
       if (snapshotIdentifier != null) {
@@ -166,8 +171,9 @@ public class RDSService {
     List<Callable<Void>> tasks = new ArrayList<>();
 
     if (Application.getState().getWriterInstanceIdentifier() == null) {
+      String instanceId = ApplicationUtil.generateRandomId(4);
       String writerInstanceIdentifier =
-          ApplicationUtil.joinByHyphen(name, Constants.WRITER_INSTANCE_SUFFIX, identifier);
+          ApplicationUtil.joinByHyphen(name, instanceId, identifier);
       log.info("Creating DB writer instance: {}", writerInstanceIdentifier);
       this.rdsClient.createDBInstance(
           writerInstanceIdentifier,
@@ -215,7 +221,7 @@ public class RDSService {
           String instanceId = ApplicationUtil.generateRandomId(4);
           String readerInstanceIdentifier =
               ApplicationUtil.joinByHyphen(
-                  name, Constants.READER_INSTANCE_SUFFIX, instanceId, identifier);
+                  name, instanceId, identifier);
           log.info("Creating MySQL reader instance: {}", readerInstanceIdentifier);
           this.rdsClient.createDBInstance(
               readerInstanceIdentifier,
@@ -282,7 +288,7 @@ public class RDSService {
           String instanceId = ApplicationUtil.generateRandomId(4);
           String readerInstanceIdentifier =
               ApplicationUtil.joinByHyphen(
-                  name, Constants.READER_INSTANCE_SUFFIX, instanceId, identifier);
+                  name, instanceId, identifier);
           log.info("Creating DB reader instance: {}", readerInstanceIdentifier);
           this.rdsClient.createDBInstance(
               readerInstanceIdentifier,
@@ -292,23 +298,6 @@ public class RDSService {
               instanceType,
               promotionTier,
               deployConfig.getInstanceConfig());
-          Application.getState()
-              .getReaderInstanceIdentifiers()
-              .computeIfAbsent(instanceType, k -> new ArrayList<>())
-              .add(readerInstanceIdentifier);
-          if (readersMap.containsKey(instanceType)) {
-            readersMap
-                .get(instanceType)
-                .setInstanceCount(readersMap.get(instanceType).getInstanceCount() + 1);
-          } else {
-            readersMap.put(
-                instanceType,
-                ReaderConfig.builder()
-                    .instanceCount(1)
-                    .instanceType(instanceType)
-                    .promotionTier(promotionTier)
-                    .build());
-          }
 
           tasks.add(
               () -> {
@@ -371,17 +360,6 @@ public class RDSService {
           String instanceToRemove = existingInstances.get(existingInstanceCount - 1);
           log.info("Removing DB reader instance: {}", instanceToRemove);
           this.rdsClient.deleteDBInstance(instanceToRemove, deployConfig.getDeletionConfig());
-          existingInstances.remove(existingInstanceCount - 1);
-          if (existingInstances.isEmpty()) {
-            readerInstances.remove(instanceType);
-          }
-          readersMap
-              .get(instanceType)
-              .setInstanceCount(readersMap.get(instanceType).getInstanceCount() - 1);
-          if (readersMap.get(instanceType).getInstanceCount() <= 0) {
-            readersMap.remove(instanceType);
-          }
-
           tasks.add(
               () -> {
                 log.info("Waiting for DB reader instance to be deleted: {}", instanceToRemove);
@@ -397,6 +375,55 @@ public class RDSService {
 
     ApplicationUtil.runOnExecutorService(tasks);
     log.info("MySQL remove reader instances operation completed successfully");
+  }
+
+  @SneakyThrows
+  private void waitUntilDBClusterFailover(String clusterIdentifier) {
+    int maxAttempts = Constants.DB_WAIT_RETRY_COUNT;
+    int attemptCount = 0;
+    while (attemptCount < maxAttempts) {
+      String status = this.rdsClient.getDBCluster(clusterIdentifier).status();
+      log.debug("DB cluster {} status: {}", clusterIdentifier, status);
+      if ("failing-over".equals(status)) {
+        return;
+      }
+      Thread.sleep(1000);
+      attemptCount++;
+    }
+    throw new GenericApplicationException(
+        ApplicationError.DB_WAIT_TIMEOUT, "cluster", clusterIdentifier, "failover");
+  }
+
+  public void failover() {
+    String clusterIdentifier = Application.getState().getClusterIdentifier();
+    String readerInstanceIdentifier = this.failoverConfig.getReaderInstanceIdentifier();
+    log.info("Failing over DB reader instance as writer: {}", readerInstanceIdentifier);
+    this.rdsClient.failoverDBCluster(clusterIdentifier, readerInstanceIdentifier);
+    log.info("Waiting for DB cluster to become failover: {}", clusterIdentifier);
+    this.waitUntilDBClusterFailover(clusterIdentifier);
+    log.info("DB cluster has entered failover state: {}", clusterIdentifier);
+    log.info("Waiting for DB cluster to become available: {}", clusterIdentifier);
+    this.rdsClient.waitUntilDBClusterAvailable(clusterIdentifier);
+    log.info("DB cluster is now available: {}", clusterIdentifier);
+    log.info("MySQL failover operation completed successfully");
+  }
+
+  public void reboot() {
+    List<Callable<Void>> tasks = new ArrayList<>();
+    List<String> instanceIdentifiers = this.rebootConfig.getInstanceIdentifiers();
+    for (String instanceIdentifier : instanceIdentifiers) {
+      log.info("Rebooting DB instance: {}", instanceIdentifier);
+      this.rdsClient.rebootDBInstance(instanceIdentifier);
+      tasks.add(
+          () -> {
+            log.info("Waiting for DB instance to become available: {}", instanceIdentifier);
+            this.rdsClient.waitUntilDBInstanceAvailable(instanceIdentifier);
+            log.info("DB instance is now available: {}", instanceIdentifier);
+            return null;
+          });
+    }
+    ApplicationUtil.runOnExecutorService(tasks);
+    log.info("MySQL reboot operation completed successfully");
   }
 
   public void undeploy() {
