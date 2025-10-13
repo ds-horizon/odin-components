@@ -34,7 +34,6 @@ import software.amazon.awssdk.services.rds.model.FailoverDbClusterRequest;
 import software.amazon.awssdk.services.rds.model.ModifyDbClusterParameterGroupRequest;
 import software.amazon.awssdk.services.rds.model.ModifyDbParameterGroupRequest;
 import software.amazon.awssdk.services.rds.model.Parameter;
-import software.amazon.awssdk.services.rds.model.RebootDbClusterRequest;
 import software.amazon.awssdk.services.rds.model.RebootDbInstanceRequest;
 import software.amazon.awssdk.services.rds.model.RestoreDbClusterFromSnapshotRequest;
 import software.amazon.awssdk.services.rds.model.ServerlessV2ScalingConfiguration;

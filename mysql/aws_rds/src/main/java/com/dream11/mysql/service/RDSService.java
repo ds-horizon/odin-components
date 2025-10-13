@@ -172,8 +172,7 @@ public class RDSService {
 
     if (Application.getState().getWriterInstanceIdentifier() == null) {
       String instanceId = ApplicationUtil.generateRandomId(4);
-      String writerInstanceIdentifier =
-          ApplicationUtil.joinByHyphen(name, instanceId, identifier);
+      String writerInstanceIdentifier = ApplicationUtil.joinByHyphen(name, instanceId, identifier);
       log.info("Creating DB writer instance: {}", writerInstanceIdentifier);
       this.rdsClient.createDBInstance(
           writerInstanceIdentifier,
@@ -220,8 +219,7 @@ public class RDSService {
         for (int j = stateInstanceCount; j < instanceCount; j++) {
           String instanceId = ApplicationUtil.generateRandomId(4);
           String readerInstanceIdentifier =
-              ApplicationUtil.joinByHyphen(
-                  name, instanceId, identifier);
+              ApplicationUtil.joinByHyphen(name, instanceId, identifier);
           log.info("Creating MySQL reader instance: {}", readerInstanceIdentifier);
           this.rdsClient.createDBInstance(
               readerInstanceIdentifier,
@@ -287,8 +285,7 @@ public class RDSService {
         for (int j = 0; j < instanceCount; j++) {
           String instanceId = ApplicationUtil.generateRandomId(4);
           String readerInstanceIdentifier =
-              ApplicationUtil.joinByHyphen(
-                  name, instanceId, identifier);
+              ApplicationUtil.joinByHyphen(name, instanceId, identifier);
           log.info("Creating DB reader instance: {}", readerInstanceIdentifier);
           this.rdsClient.createDBInstance(
               readerInstanceIdentifier,
