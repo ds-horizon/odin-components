@@ -2,9 +2,13 @@
 
 Deploy and perform operations on your application in AWS RDS
 
+## Operations
+- [add-readers](operations/add-readers)
+- [remove-readers](operation/remove-readers)
+
 {{ .Markdown 3 }}
 
-### Running Application
+### Running Mysql
 
 * Create an Intellij Run configuration
 * Pass operation name as command line argument

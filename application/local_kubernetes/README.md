@@ -147,3 +147,5 @@ The resource requests for the container
 |----------|--------|----------|---------------------------------------------------------------|
 | `cpu`    | string | **Yes**  | The amount of CPU to request for the container, e.g. 0.5      |
 | `memory` | string | **Yes**  | The amount of memory to request for the container, e.g. 512Mi |
+
+

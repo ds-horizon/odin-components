@@ -107,3 +107,5 @@ Discovery config for the artifact
 |-----------|--------|----------|----------------------------------------------------|
 | `private` | string | No       | The private discovery endpoint for the application |
 | `public`  | string | No       | The public discovery endpoint for the application  |
+
+

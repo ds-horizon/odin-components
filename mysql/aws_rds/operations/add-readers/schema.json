@@ -1,0 +1,41 @@
+{
+  "title": "Add readers operation schema",
+  "type": "object",
+  "properties": {
+    "readersToAdd": {
+      "type": "array",
+      "description": "List of configuration of New Reader DB instance to be added",
+      "items": {
+        "type": "object",
+        "description": "Configuration of New Reader DB instance to be added",
+        "properties": {
+          "instanceType": {
+            "type": "string",
+            "description": "e.g., db.r6g.large or db.serverless",
+            "pattern": "^(db\\.(?:[trm][0-9][a-z]?\\.(?:micro|small|medium|large|xlarge|\\d+x?large))|db\\.serverless)$"
+          },
+          "instanceCount": {
+            "type": "integer",
+            "description": "Number of reader instances",
+            "minimum": 1
+          },
+          "promotionTier": {
+            "type": "integer",
+            "description": "Promotion tier for the reader instance",
+            "minimum": 0,
+            "maximum": 15
+          }
+        },
+        "required": [
+          "instanceType",
+          "instanceCount"
+        ]
+      },
+      "minItems": 1
+    }
+  },
+  "required": [
+    "readersToAdd"
+  ],
+  "additionalProperties": false
+}

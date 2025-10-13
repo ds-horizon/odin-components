@@ -14,6 +14,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class State {
   long version;
+  String identifier;
   DeployConfig deployConfig;
 
   String clusterIdentifier;

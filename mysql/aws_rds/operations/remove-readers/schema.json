@@ -1,0 +1,36 @@
+{
+  "title": "Remove readers operation schema",
+  "type": "object",
+  "properties": {
+    "readersToRemove": {
+      "type": "array",
+      "description": "List of configuration of Reader DB instances to be removed",
+      "items": {
+        "type": "object",
+        "description": "Configuration of Reader DB instance to be removed",
+        "properties": {
+          "instanceType": {
+            "type": "string",
+            "description": "e.g., db.r6g.large or db.serverless",
+            "pattern": "^(db\\.(?:[trm][0-9][a-z]?\\.(?:micro|small|medium|large|xlarge|\\d+x?large))|db\\.serverless)$"
+          },
+          "instanceCount": {
+            "type": "integer",
+            "description": "Number of reader instances",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "instanceType",
+          "instanceCount"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1
+    }
+  },
+  "required": [
+    "readersToRemove"
+  ],
+  "additionalProperties": false
+}

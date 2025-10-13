@@ -1,1 +1,8 @@
-{}
+{
+    "readersToRemove": [
+        {
+            "instanceType": "db.r6g.large",
+            "instanceCount": 1
+        }
+    ]
+}

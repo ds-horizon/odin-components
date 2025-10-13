@@ -16,6 +16,6 @@ public class Deploy implements Operation {
   @Override
   public void execute() {
     this.stateCorrectionService.correctState();
-    this.rdsService.deployService();
+    this.rdsService.deploy();
   }
 }

@@ -36,6 +36,28 @@ Odin.component {
             }
         }
 
+        operate {
+            name "add-readers"
+            healthcheck false
+            String lastState = getLastState()
+            if (lastState != null && !lastState.isEmpty()) {
+                run "echo '${lastState}' > state.json"
+            }
+            run "CONFIG='${getOperationConfigWithDefaults()}' bash execute.sh add-readers"
+            out "cat state.json"
+        }
+
+        operate {
+            name "remove-readers"
+            healthcheck false
+            String lastState = getLastState()
+            if (lastState != null && !lastState.isEmpty()) {
+                run "echo '${lastState}' > state.json"
+            }
+            run "CONFIG='${getOperationConfigWithDefaults()}' bash execute.sh remove-readers"
+            out "cat state.json"
+        }
+
         undeploy {
             String lastState = getLastState()
             if (lastState != null && !lastState.isEmpty()) {

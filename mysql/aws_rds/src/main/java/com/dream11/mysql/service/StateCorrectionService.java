@@ -87,6 +87,15 @@ public class StateCorrectionService {
 
       if (member.isClusterWriter()) {
         state.setWriterInstanceIdentifier(instanceIdentifier);
+        if (state.getDeployConfig() != null) {
+          state
+              .getDeployConfig()
+              .setWriter(
+                  WriterConfig.builder()
+                      .instanceType(instanceType)
+                      .promotionTier(promotionTier)
+                      .build());
+        }
         this.deployConfig.setWriter(
             WriterConfig.builder().instanceType(instanceType).promotionTier(promotionTier).build());
         log.debug("Found writer instance: {}", instanceIdentifier);
@@ -110,6 +119,9 @@ public class StateCorrectionService {
         }
         log.debug("Found reader instance: {} of type: {}", instanceIdentifier, instanceType);
       }
+    }
+    if (state.getDeployConfig() != null) {
+      state.getDeployConfig().setReaders(new ArrayList<>(readers.values()));
     }
     this.deployConfig.setReaders(new ArrayList<>(readers.values()));
   }
