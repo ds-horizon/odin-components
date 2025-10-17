@@ -14,6 +14,7 @@ import com.dream11.mysql.config.user.InstanceParameterGroupConfig;
 import com.dream11.mysql.config.user.ReaderConfig;
 import com.dream11.mysql.config.user.RebootConfig;
 import com.dream11.mysql.config.user.RemoveReadersConfig;
+import com.dream11.mysql.config.user.UpdateClusterConfig;
 import com.dream11.mysql.constant.Constants;
 import com.dream11.mysql.error.ApplicationError;
 import com.dream11.mysql.exception.GenericApplicationException;
@@ -41,6 +42,7 @@ public class RDSService {
   @NonNull final RemoveReadersConfig removeReadersConfig;
   @NonNull final FailoverConfig failoverConfig;
   @NonNull final RebootConfig rebootConfig;
+  @NonNull final UpdateClusterConfig updateClusterConfig;
 
   public void deploy() {
     List<Callable<Void>> tasks = new ArrayList<>();
@@ -376,16 +378,14 @@ public class RDSService {
 
   @SneakyThrows
   private void waitUntilDBClusterFailover(String clusterIdentifier) {
-    int maxAttempts = Constants.DB_WAIT_RETRY_COUNT;
-    int attemptCount = 0;
-    while (attemptCount < maxAttempts) {
+    long startTime = System.currentTimeMillis();
+    while (System.currentTimeMillis() < startTime + Constants.DB_WAIT_RETRY_TIMEOUT.toMillis()) {
       String status = this.rdsClient.getDBCluster(clusterIdentifier).status();
       log.debug("DB cluster {} status: {}", clusterIdentifier, status);
       if ("failing-over".equals(status)) {
         return;
       }
-      Thread.sleep(1000);
-      attemptCount++;
+      Thread.sleep(Constants.DB_WAIT_RETRY_INTERVAL.toMillis());
     }
     throw new GenericApplicationException(
         ApplicationError.DB_WAIT_TIMEOUT, "cluster", clusterIdentifier, "failover");
@@ -421,6 +421,234 @@ public class RDSService {
     }
     ApplicationUtil.runOnExecutorService(tasks);
     log.info("MySQL reboot operation completed successfully");
+  }
+
+  public void updateCluster() {
+    String clusterIdentifier = Application.getState().getClusterIdentifier();
+
+    String updatedClusterParameterGroupName = null;
+    String updatedInstanceParameterGroupName = null;
+    String updatedEngineVersion = null;
+
+    if (this.updateClusterConfig.getClusterParameterGroupName() != null
+        || this.updateClusterConfig.getClusterParameterGroupConfig() != null) {
+      updatedClusterParameterGroupName = this.handleClusterParameterGroupUpdate(clusterIdentifier);
+    }
+    if (this.updateClusterConfig.getInstanceConfig() != null
+        || this.updateClusterConfig.getInstanceConfig().getInstanceParameterGroupName() != null
+        || this.updateClusterConfig.getInstanceConfig().getInstanceParameterGroupConfig() != null) {
+      updatedInstanceParameterGroupName = this.handleInstanceParameterGroupUpdate();
+    }
+
+    if (this.updateClusterConfig.getEngineVersion() != null) {
+      updatedEngineVersion =
+          Application.getState().getDeployConfig().getVersion()
+              + ".mysql_aurora."
+              + this.updateClusterConfig.getEngineVersion();
+    }
+
+    log.info("Updating cluster: {}", clusterIdentifier);
+    this.rdsClient.updateDBCluster(
+        clusterIdentifier,
+        this.updateClusterConfig,
+        updatedEngineVersion,
+        updatedClusterParameterGroupName);
+    if (this.updateClusterConfig.getApplyImmediately()) {
+      log.info("Waiting for cluster to become available after update: {}", clusterIdentifier);
+      this.rdsClient.waitUntilDBClusterAvailable(clusterIdentifier);
+      log.info("Cluster is now available: {}", clusterIdentifier);
+    }
+
+    if (this.updateClusterConfig.getInstanceConfig() != null) {
+      List<Callable<Void>> tasks = new ArrayList<>();
+
+      String writerInstanceIdentifier = Application.getState().getWriterInstanceIdentifier();
+      if (writerInstanceIdentifier != null) {
+        log.info("Updating writer instance: {}", writerInstanceIdentifier);
+        this.rdsClient.updateDBInstance(
+            writerInstanceIdentifier,
+            this.updateClusterConfig.getInstanceConfig(),
+            updatedInstanceParameterGroupName,
+            this.updateClusterConfig.getApplyImmediately());
+        if (this.updateClusterConfig.getApplyImmediately()) {
+          tasks.add(
+              () -> {
+                log.info(
+                    "Waiting for writer instance to become available: {}",
+                    writerInstanceIdentifier);
+                this.rdsClient.waitUntilDBInstanceAvailable(writerInstanceIdentifier);
+                log.info("Writer instance update completed: {}", writerInstanceIdentifier);
+                return null;
+              });
+        }
+      }
+
+      Map<String, List<String>> readerInstanceIdentifiers =
+          Application.getState().getReaderInstanceIdentifiers();
+      if (readerInstanceIdentifiers != null) {
+        for (Map.Entry<String, List<String>> entry : readerInstanceIdentifiers.entrySet()) {
+          for (String readerInstanceIdentifier : entry.getValue()) {
+            log.info("Updating reader instance: {}", readerInstanceIdentifier);
+            this.rdsClient.updateDBInstance(
+                readerInstanceIdentifier,
+                this.updateClusterConfig.getInstanceConfig(),
+                updatedInstanceParameterGroupName,
+                this.updateClusterConfig.getApplyImmediately());
+            if (this.updateClusterConfig.getApplyImmediately()) {
+              tasks.add(
+                  () -> {
+                    log.info(
+                        "Waiting for reader instance to become available: {}",
+                        readerInstanceIdentifier);
+                    this.rdsClient.waitUntilDBInstanceAvailable(readerInstanceIdentifier);
+                    log.info("Reader instance update completed: {}", readerInstanceIdentifier);
+                    return null;
+                  });
+            }
+          }
+        }
+      }
+      ApplicationUtil.runOnExecutorService(tasks);
+    }
+
+    if (this.updateClusterConfig.getTags() != null
+        && !this.updateClusterConfig.getTags().isEmpty()) {
+      this.handleTagUpdates(clusterIdentifier);
+    }
+
+    log.info("MySQL update cluster operation completed successfully");
+  }
+
+  private String handleClusterParameterGroupUpdate(String clusterIdentifier) {
+    if (Application.getState().getDeployConfig().getClusterParameterGroupName() != null) {
+      if (this.updateClusterConfig.getClusterParameterGroupName() != null) {
+        log.info(
+            "Switching cluster parameter group from {} to {}",
+            Application.getState().getDeployConfig().getClusterParameterGroupName(),
+            this.updateClusterConfig.getClusterParameterGroupName());
+        Application.getState()
+            .setClusterParameterGroupName(this.updateClusterConfig.getClusterParameterGroupName());
+        return this.updateClusterConfig.getClusterParameterGroupName();
+      } else {
+        throw new GenericApplicationException(
+            ApplicationError.CANNOT_MODIFY_PARAMETER_GROUP_CONFIG);
+      }
+    } else {
+      if (this.updateClusterConfig.getClusterParameterGroupConfig() != null) {
+        log.info(
+            "Updating cluster parameter group configuration: {}",
+            Application.getState().getClusterParameterGroupName());
+        this.rdsClient.configureDBClusterParameters(
+            Application.getState().getClusterParameterGroupName(),
+            this.updateClusterConfig.getClusterParameterGroupConfig());
+        return null;
+      } else if (this.updateClusterConfig.getClusterParameterGroupName() != null
+          && !this.updateClusterConfig
+              .getClusterParameterGroupName()
+              .equals(Application.getState().getClusterParameterGroupName())) {
+        log.info(
+            "Switching cluster parameter group from {} to {}",
+            Application.getState().getClusterParameterGroupName(),
+            this.updateClusterConfig.getClusterParameterGroupName());
+        Application.getState()
+            .setClusterParameterGroupName(this.updateClusterConfig.getClusterParameterGroupName());
+        return this.updateClusterConfig.getClusterParameterGroupName();
+      }
+    }
+
+    return null;
+  }
+
+  private String handleInstanceParameterGroupUpdate() {
+    String oldParameterGroupName =
+        Application.getState().getDeployConfig().getInstanceConfig() != null
+            ? Application.getState()
+                .getDeployConfig()
+                .getInstanceConfig()
+                .getInstanceParameterGroupName()
+            : null;
+    String newParameterGroupName =
+        this.updateClusterConfig.getInstanceConfig() != null
+            ? this.updateClusterConfig.getInstanceConfig().getInstanceParameterGroupName()
+            : null;
+    InstanceParameterGroupConfig newParameterGroupConfig =
+        this.updateClusterConfig.getInstanceConfig() != null
+            ? this.updateClusterConfig.getInstanceConfig().getInstanceParameterGroupConfig()
+            : null;
+
+    if (oldParameterGroupName != null) {
+      if (newParameterGroupName != null) {
+        log.info(
+            "Switching instance parameter group from {} to {}",
+            oldParameterGroupName,
+            newParameterGroupName);
+        Application.getState().setInstanceParameterGroupName(newParameterGroupName);
+        return newParameterGroupName;
+      } else {
+        throw new GenericApplicationException(
+            ApplicationError.CANNOT_MODIFY_PARAMETER_GROUP_CONFIG);
+      }
+    } else {
+      if (newParameterGroupConfig != null) {
+        log.info(
+            "Updating instance parameter group configuration: {}",
+            Application.getState().getInstanceParameterGroupName());
+        this.rdsClient.configureDBInstanceParameters(
+            Application.getState().getInstanceParameterGroupName(), newParameterGroupConfig);
+        return null;
+      } else if (newParameterGroupName != null
+          && !newParameterGroupName.equals(
+              Application.getState().getInstanceParameterGroupName())) {
+        log.info(
+            "Switching instance parameter group from {} to {}",
+            Application.getState().getInstanceParameterGroupName(),
+            newParameterGroupName);
+        Application.getState().setInstanceParameterGroupName(newParameterGroupName);
+        return newParameterGroupName;
+      }
+    }
+
+    return null;
+  }
+
+  private void handleTagUpdates(String clusterIdentifier) {
+    Map<String, String> tags = this.updateClusterConfig.getTags();
+
+    String clusterArn = this.rdsClient.getDBCluster(clusterIdentifier).dbClusterArn();
+    this.rdsClient.mergeTagsForResource(clusterArn, tags);
+
+    String writerInstanceIdentifier = Application.getState().getWriterInstanceIdentifier();
+    if (writerInstanceIdentifier != null) {
+      String writerArn = this.rdsClient.getDBInstance(writerInstanceIdentifier).dbInstanceArn();
+      this.rdsClient.mergeTagsForResource(writerArn, tags);
+    }
+
+    Map<String, List<String>> readerInstanceIdentifiers =
+        Application.getState().getReaderInstanceIdentifiers();
+    if (readerInstanceIdentifiers != null) {
+      for (Map.Entry<String, List<String>> entry : readerInstanceIdentifiers.entrySet()) {
+        for (String readerInstanceIdentifier : entry.getValue()) {
+          String readerArn = this.rdsClient.getDBInstance(readerInstanceIdentifier).dbInstanceArn();
+          this.rdsClient.mergeTagsForResource(readerArn, tags);
+        }
+      }
+    }
+
+    String clusterParameterGroupName = Application.getState().getClusterParameterGroupName();
+    if (clusterParameterGroupName != null) {
+      String clusterParamGroupArn =
+          this.rdsClient
+              .getDBClusterParameterGroup(clusterParameterGroupName)
+              .dbClusterParameterGroupArn();
+      this.rdsClient.mergeTagsForResource(clusterParamGroupArn, tags);
+    }
+
+    String instanceParameterGroupName = Application.getState().getInstanceParameterGroupName();
+    if (instanceParameterGroupName != null) {
+      String instanceParamGroupArn =
+          this.rdsClient.getDBParameterGroup(instanceParameterGroupName).dbParameterGroupArn();
+      this.rdsClient.mergeTagsForResource(instanceParamGroupArn, tags);
+    }
   }
 
   public void undeploy() {

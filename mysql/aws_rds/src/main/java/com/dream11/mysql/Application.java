@@ -9,6 +9,7 @@ import com.dream11.mysql.config.user.DeployConfig;
 import com.dream11.mysql.config.user.FailoverConfig;
 import com.dream11.mysql.config.user.RebootConfig;
 import com.dream11.mysql.config.user.RemoveReadersConfig;
+import com.dream11.mysql.config.user.UpdateClusterConfig;
 import com.dream11.mysql.constant.Constants;
 import com.dream11.mysql.constant.Operations;
 import com.dream11.mysql.error.ApplicationError;
@@ -197,6 +198,18 @@ public class Application {
                     .build());
             yield Reboot.class;
           }
+          case UPDATE_CLUSTER -> {
+            this.deployConfig = Application.getState().getDeployConfig();
+            this.deployConfig = this.deployConfig.mergeWith(this.config);
+            UpdateClusterConfig updateConfigConfig =
+                Application.getObjectMapper().readValue(this.config, UpdateClusterConfig.class);
+            modules.add(
+                OptionalConfigModule.<UpdateClusterConfig>builder()
+                    .clazz(UpdateClusterConfig.class)
+                    .config(updateConfigConfig)
+                    .build());
+            yield UpdateCluster.class;
+          }
           case UNDEPLOY -> Undeploy.class;
         };
 
@@ -207,7 +220,8 @@ public class Application {
     }
     modules.addAll(this.getGuiceModules());
     this.initializeGuiceModules(modules).getInstance(operationClass).execute();
-    if (Operations.fromValue(this.operationName).equals(Operations.DEPLOY)) {
+    if (Operations.fromValue(this.operationName).equals(Operations.DEPLOY)
+        || Operations.fromValue(this.operationName).equals(Operations.UPDATE_CLUSTER)) {
       Application.getState().setDeployConfig(this.deployConfig);
     }
     log.info("Executed operation:[{}]", Operations.fromValue(this.operationName));

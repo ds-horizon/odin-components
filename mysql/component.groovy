@@ -80,6 +80,17 @@ Odin.component {
             out "cat state.json"
         }
 
+        operate {
+            name "update-cluster"
+            healthcheck true
+            String lastState = getLastState()
+            if (lastState != null && !lastState.isEmpty()) {
+                run "echo '${lastState}' > state.json"
+            }
+            run "CONFIG='${getOperationConfigWithDefaults()}' bash execute.sh update-cluster"
+            out "cat state.json"
+        }
+
         undeploy {
             String lastState = getLastState()
             if (lastState != null && !lastState.isEmpty()) {

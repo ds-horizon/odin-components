@@ -1,0 +1,426 @@
+{
+  "title": "Update config operation schema",
+  "type": "object",
+  "properties": {
+    "engineVersion": {
+      "type": "string",
+      "description": "Aurora MySQL engine version, e.g. 3.04.2"
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1150,
+      "maximum": 65535
+    },
+    "storageType": {
+      "type": "string",
+      "enum": [
+        "aurora",
+        "aurora-iopt1"
+      ],
+      "description": "Storage type for rds cluster"
+    },
+    "backupRetentionPeriod": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 35
+    },
+    "preferredBackupWindow": {
+      "type": "string",
+      "description": "UTC, hh24:mi-hh24:mi, 30-min granularity",
+      "pattern": "^\\d{2}:\\d{2}-\\d{2}:\\d{2}$"
+    },
+    "preferredMaintenanceWindow": {
+      "type": "string",
+      "description": "UTC, ddd:hh24:mi-ddd:hh24:mi",
+      "pattern": "^(mon|tue|wed|thu|fri|sat|sun):\\d{2}:\\d{2}-(mon|tue|wed|thu|fri|sat|sun):\\d{2}:\\d{2}$"
+    },
+    "copyTagsToSnapshot": {
+      "type": "boolean"
+    },
+    "deletionProtection": {
+      "type": "boolean"
+    },
+    "enableIAMDatabaseAuthentication": {
+      "type": "boolean",
+      "description": "Enable IAM DB authentication for the cluster"
+    },
+    "serverlessV2ScalingConfiguration": {
+      "type": "object",
+      "properties": {
+        "minCapacity": {
+          "type": "number",
+          "minimum": 0.5
+        },
+        "maxCapacity": {
+          "type": "number",
+          "minimum": 0.5
+        }
+      },
+      "required": [
+        "minCapacity",
+        "maxCapacity"
+      ],
+      "additionalProperties": false
+    },
+    "backtrackWindow": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Aurora Backtrack window in seconds (if supported by engine version)"
+    },
+    "tags": {
+      "type": "object",
+      "description": "Tags for rds cluster as per AWS",
+      "patternProperties": {
+        "^(?!aws:).+": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "applyImmediately": {
+      "type": "boolean",
+      "description": "Apply changes immediately or during next maintenance window"
+    },
+    "instanceConfig": {
+      "type": "object",
+      "description": "DB Instance Configuration for updates",
+      "properties": {
+        "autoMinorVersionUpgrade": {
+          "type": "boolean"
+        },
+        "deletionProtection": {
+          "type": "boolean"
+        },
+        "enablePerformanceInsights": {
+          "type": "boolean"
+        },
+        "performanceInsightsKmsKeyId": {
+          "type": "string",
+          "pattern": "^arn:(aws|aws-cn|aws-us-gov):kms:[a-z0-9-]+:\\d{12}:key\\/[0-9a-fA-F-]{36}$"
+        },
+        "performanceInsightsRetentionPeriod": {
+          "type": "integer",
+          "enum": [
+            7,
+            731
+          ]
+        },
+        "enhancedMonitoring": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "interval": {
+              "type": "integer",
+              "enum": [
+                1,
+                5,
+                10,
+                15,
+                30,
+                60
+              ]
+            },
+            "monitoringRoleArn": {
+              "type": "string",
+              "pattern": "^arn:(aws|aws-cn|aws-us-gov):iam::\\d{12}:role\\/.+"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "enabled": {
+                    "const": true
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "interval",
+                  "monitoringRoleArn"
+                ]
+              }
+            }
+          ],
+          "additionalProperties": false
+        },
+        "instanceParameterGroupName": {
+          "type": "string"
+        },
+        "instanceParameterGroupConfig": {
+          "type": "object",
+          "description": "Inline instance parameters (Aurora MySQL)",
+          "properties": {
+            "interactiveTimeout": {
+              "type": "integer"
+            },
+            "waitTimeout": {
+              "type": "integer"
+            },
+            "lockWaitTimeout": {
+              "type": "integer"
+            },
+            "longQueryTime": {
+              "type": "integer"
+            },
+            "maxAllowedPacket": {
+              "type": "integer"
+            },
+            "slowQueryLog": {
+              "type": "integer"
+            },
+            "tmpTableSize": {
+              "type": "integer"
+            },
+            "maxHeapTableSize": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "allOf": [
+        {
+          "not": {
+            "allOf": [
+              {
+                "required": [
+                  "instanceParameterGroupName"
+                ]
+              },
+              {
+                "required": [
+                  "instanceParameterGroupConfig"
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "clusterParameterGroupName": {
+      "type": "string",
+      "description": "Use an existing cluster parameter group"
+    },
+    "clusterParameterGroupConfig": {
+      "type": "object",
+      "description": "Inline cluster parameter overrides (Aurora MySQL)",
+      "properties": {
+        "binlogFormat": {
+          "type": "string",
+          "enum": [
+            "ROW",
+            "OFF"
+          ]
+        },
+        "innodbPrintAllDeadlocks": {
+          "type": "string"
+        },
+        "awsDefaultLambdaRole": {
+          "type": "string"
+        },
+        "awsDefaultS3Role": {
+          "type": "string"
+        },
+        "awsDefaultLogsRole": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "credentials": {
+      "type": "object",
+      "description": "Update credentials for the cluster",
+      "properties": {
+        "masterUserPassword": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        },
+        "masterUserSecretKmsKeyId": {
+          "type": "string",
+          "pattern": "^arn:(aws|aws-cn|aws-us-gov):kms:[a-z0-9-]+:\\d{12}:key\\/[0-9a-fA-F-]{36}$"
+        },
+        "manageMasterUserPassword": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "required": [
+            "masterUserPassword"
+          ]
+        },
+        {
+          "required": [
+            "masterUserSecretKmsKeyId"
+          ]
+        },
+        {
+          "required": [
+            "manageMasterUserPassword"
+          ],
+          "properties": {
+            "manageMasterUserPassword": {
+              "const": true
+            }
+          }
+        }
+      ],
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "masterUserPassword"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "masterUserSecretKmsKeyId"
+                  ]
+                },
+                {
+                  "properties": {
+                    "manageMasterUserPassword": {
+                      "const": true
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "masterUserSecretKmsKeyId"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "masterUserPassword"
+                  ]
+                },
+                {
+                  "properties": {
+                    "manageMasterUserPassword": {
+                      "const": true
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "manageMasterUserPassword": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "masterUserPassword"
+                  ]
+                },
+                {
+                  "required": [
+                    "masterUserSecretKmsKeyId"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "deletionConfig": {
+      "type": "object",
+      "description": "Preferences used when deleting this cluster",
+      "properties": {
+        "skipFinalSnapshot": {
+          "type": "boolean",
+          "description": "If false, a final snapshot is required on delete"
+        },
+        "finalSnapshotIdentifier": {
+          "type": "string",
+          "description": "Name for the final DB cluster snapshot when deleting"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "skipFinalSnapshot": {
+                "const": false
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "finalSnapshotIdentifier"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "skipFinalSnapshot": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "finalSnapshotIdentifier"
+              ]
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "not": {
+        "allOf": [
+          {
+            "required": [
+              "clusterParameterGroupName"
+            ]
+          },
+          {
+  "required": [
+              "clusterParameterGroupConfig"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "additionalProperties": false,
+  "required": [
+    "applyImmediately"
+  ]
+}

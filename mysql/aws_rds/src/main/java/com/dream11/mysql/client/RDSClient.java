@@ -6,6 +6,8 @@ import com.dream11.mysql.config.user.DeletionConfig;
 import com.dream11.mysql.config.user.DeployConfig;
 import com.dream11.mysql.config.user.InstanceConfig;
 import com.dream11.mysql.config.user.InstanceParameterGroupConfig;
+import com.dream11.mysql.config.user.UpdateClusterConfig;
+import com.dream11.mysql.config.user.UpdateInstanceConfig;
 import com.dream11.mysql.constant.Constants;
 import com.dream11.mysql.error.ApplicationError;
 import com.dream11.mysql.exception.DBClusterNotFoundException;
@@ -22,6 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.rds.RdsClient;
+import software.amazon.awssdk.services.rds.model.AddTagsToResourceRequest;
 import software.amazon.awssdk.services.rds.model.CreateDbClusterParameterGroupRequest;
 import software.amazon.awssdk.services.rds.model.CreateDbClusterRequest;
 import software.amazon.awssdk.services.rds.model.CreateDbInstanceRequest;
@@ -31,10 +34,14 @@ import software.amazon.awssdk.services.rds.model.DBClusterParameterGroup;
 import software.amazon.awssdk.services.rds.model.DBInstance;
 import software.amazon.awssdk.services.rds.model.DBParameterGroup;
 import software.amazon.awssdk.services.rds.model.FailoverDbClusterRequest;
+import software.amazon.awssdk.services.rds.model.ListTagsForResourceRequest;
 import software.amazon.awssdk.services.rds.model.ModifyDbClusterParameterGroupRequest;
+import software.amazon.awssdk.services.rds.model.ModifyDbClusterRequest;
+import software.amazon.awssdk.services.rds.model.ModifyDbInstanceRequest;
 import software.amazon.awssdk.services.rds.model.ModifyDbParameterGroupRequest;
 import software.amazon.awssdk.services.rds.model.Parameter;
 import software.amazon.awssdk.services.rds.model.RebootDbInstanceRequest;
+import software.amazon.awssdk.services.rds.model.RemoveTagsFromResourceRequest;
 import software.amazon.awssdk.services.rds.model.RestoreDbClusterFromSnapshotRequest;
 import software.amazon.awssdk.services.rds.model.ServerlessV2ScalingConfiguration;
 import software.amazon.awssdk.services.rds.model.Tag;
@@ -284,12 +291,113 @@ public class RDSClient {
     this.dbClient.createDBInstance(request);
   }
 
+  public void updateDBCluster(
+      String clusterIdentifier,
+      UpdateClusterConfig updateClusterConfig,
+      String engineVersion,
+      String clusterParameterGroupName) {
+    ModifyDbClusterRequest.Builder requestBuilder =
+        ModifyDbClusterRequest.builder().dbClusterIdentifier(clusterIdentifier);
+
+    ApplicationUtil.setIfNotNull(
+        requestBuilder::dbClusterParameterGroupName, clusterParameterGroupName);
+
+    ApplicationUtil.setIfNotNull(requestBuilder::engineVersion, engineVersion);
+    ApplicationUtil.setIfNotNull(requestBuilder::port, updateClusterConfig.getPort());
+    ApplicationUtil.setIfNotNull(requestBuilder::storageType, updateClusterConfig.getStorageType());
+    ApplicationUtil.setIfNotNull(
+        requestBuilder::backupRetentionPeriod, updateClusterConfig.getBackupRetentionPeriod());
+    ApplicationUtil.setIfNotNull(
+        requestBuilder::preferredBackupWindow, updateClusterConfig.getPreferredBackupWindow());
+    ApplicationUtil.setIfNotNull(
+        requestBuilder::preferredMaintenanceWindow,
+        updateClusterConfig.getPreferredMaintenanceWindow());
+    ApplicationUtil.setIfNotNull(
+        requestBuilder::copyTagsToSnapshot, updateClusterConfig.getCopyTagsToSnapshot());
+    ApplicationUtil.setIfNotNull(
+        requestBuilder::deletionProtection, updateClusterConfig.getDeletionProtection());
+    ApplicationUtil.setIfNotNull(
+        requestBuilder::enableIAMDatabaseAuthentication,
+        updateClusterConfig.getEnableIAMDatabaseAuthentication());
+    ApplicationUtil.setIfNotNull(
+        requestBuilder::backtrackWindow, updateClusterConfig.getBacktrackWindow());
+    if (updateClusterConfig.getServerlessV2ScalingConfiguration() != null) {
+      requestBuilder.serverlessV2ScalingConfiguration(
+          ServerlessV2ScalingConfiguration.builder()
+              .minCapacity(
+                  updateClusterConfig.getServerlessV2ScalingConfiguration().getMinCapacity())
+              .maxCapacity(
+                  updateClusterConfig.getServerlessV2ScalingConfiguration().getMaxCapacity())
+              .build());
+    }
+
+    if (updateClusterConfig.getCredentials() != null) {
+      ApplicationUtil.setIfNotNull(
+          requestBuilder::masterUserPassword,
+          updateClusterConfig.getCredentials().getMasterUserPassword());
+      ApplicationUtil.setIfNotNull(
+          requestBuilder::masterUserSecretKmsKeyId,
+          updateClusterConfig.getCredentials().getMasterUserSecretKmsKeyId());
+      ApplicationUtil.setIfNotNull(
+          requestBuilder::manageMasterUserPassword,
+          updateClusterConfig.getCredentials().getManageMasterUserPassword());
+    }
+
+    ApplicationUtil.setIfNotNull(
+        requestBuilder::applyImmediately, updateClusterConfig.getApplyImmediately());
+
+    this.dbClient.modifyDBCluster(requestBuilder.build());
+  }
+
+  public void updateDBInstance(
+      String instanceIdentifier,
+      UpdateInstanceConfig instanceUpdateConfig,
+      String instanceParameterGroupName,
+      Boolean applyImmediately) {
+    ModifyDbInstanceRequest.Builder requestBuilder =
+        ModifyDbInstanceRequest.builder().dbInstanceIdentifier(instanceIdentifier);
+
+    ApplicationUtil.setIfNotNull(requestBuilder::dbParameterGroupName, instanceParameterGroupName);
+
+    if (instanceUpdateConfig != null) {
+      ApplicationUtil.setIfNotNull(
+          requestBuilder::autoMinorVersionUpgrade,
+          instanceUpdateConfig.getAutoMinorVersionUpgrade());
+      ApplicationUtil.setIfNotNull(
+          requestBuilder::deletionProtection, instanceUpdateConfig.getDeletionProtection());
+      ApplicationUtil.setIfNotNull(
+          requestBuilder::enablePerformanceInsights,
+          instanceUpdateConfig.getEnablePerformanceInsights());
+      ApplicationUtil.setIfNotNull(
+          requestBuilder::performanceInsightsKMSKeyId,
+          instanceUpdateConfig.getPerformanceInsightsKmsKeyId());
+      ApplicationUtil.setIfNotNull(
+          requestBuilder::performanceInsightsRetentionPeriod,
+          instanceUpdateConfig.getPerformanceInsightsRetentionPeriod());
+
+      if (instanceUpdateConfig.getEnhancedMonitoring() != null) {
+        if (Boolean.TRUE.equals(instanceUpdateConfig.getEnhancedMonitoring().getEnabled())) {
+          requestBuilder
+              .monitoringInterval(instanceUpdateConfig.getEnhancedMonitoring().getInterval())
+              .monitoringRoleArn(
+                  instanceUpdateConfig.getEnhancedMonitoring().getMonitoringRoleArn());
+        } else {
+          requestBuilder.monitoringInterval(0);
+        }
+      }
+    }
+
+    ApplicationUtil.setIfNotNull(requestBuilder::applyImmediately, applyImmediately);
+
+    this.dbClient.modifyDBInstance(requestBuilder.build());
+  }
+
   private void performWait(
       String identifier, String type, String waitType, Consumer<RdsWaiter> waitAction) {
     try (RdsWaiter waiter =
         RdsWaiter.builder()
             .client(this.dbClient)
-            .overrideConfiguration(config -> config.maxAttempts(Constants.DB_WAIT_RETRY_COUNT))
+            .overrideConfiguration(config -> config.waitTimeout(Constants.DB_WAIT_RETRY_TIMEOUT))
             .build()) {
       waitAction.accept(waiter);
     } catch (Exception e) {
@@ -380,6 +488,7 @@ public class RDSClient {
                       Parameter.builder()
                           .parameterName(entry.getKey())
                           .parameterValue(entry.getValue().toString())
+                          .applyMethod("pending-reboot")
                           .build())
               .toList();
 
@@ -418,6 +527,7 @@ public class RDSClient {
                       Parameter.builder()
                           .parameterName(entry.getKey())
                           .parameterValue(entry.getValue().toString())
+                          .applyMethod("pending-reboot")
                           .build())
               .toList();
 
@@ -505,6 +615,33 @@ public class RDSClient {
   public void deleteDBParameterGroup(String instanceParameterGroupName) {
     this.dbClient.deleteDBParameterGroup(
         request -> request.dbParameterGroupName(instanceParameterGroupName));
+  }
+
+  public void mergeTagsForResource(String resourceArn, Map<String, String> newTags) {
+    ListTagsForResourceRequest listRequest =
+        ListTagsForResourceRequest.builder().resourceName(resourceArn).build();
+    Map<String, String> existingTags =
+        this.dbClient.listTagsForResource(listRequest).tagList().stream()
+            .collect(java.util.stream.Collectors.toMap(Tag::key, Tag::value));
+
+    List<String> tagsToRemove =
+        existingTags.keySet().stream().filter(key -> !newTags.containsKey(key)).toList();
+
+    if (!tagsToRemove.isEmpty()) {
+      RemoveTagsFromResourceRequest removeRequest =
+          RemoveTagsFromResourceRequest.builder()
+              .resourceName(resourceArn)
+              .tagKeys(tagsToRemove)
+              .build();
+      this.dbClient.removeTagsFromResource(removeRequest);
+    }
+
+    AddTagsToResourceRequest addRequest =
+        AddTagsToResourceRequest.builder()
+            .resourceName(resourceArn)
+            .tags(convertMapToTags(newTags))
+            .build();
+    this.dbClient.addTagsToResource(addRequest);
   }
 
   private List<Tag> convertMapToTags(Map<String, String> tagMap) {

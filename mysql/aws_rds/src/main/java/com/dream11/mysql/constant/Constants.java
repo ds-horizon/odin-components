@@ -1,6 +1,7 @@
 package com.dream11.mysql.constant;
 
 import com.dream11.mysql.util.ApplicationUtil;
+import java.time.Duration;
 import java.util.Map;
 import lombok.experimental.UtilityClass;
 
@@ -17,5 +18,6 @@ public class Constants {
   public final String ENGINE_TYPE = "aurora-mysql";
   public final String CLUSTER_PARAMETER_GROUP_SUFFIX = "cpg";
   public final String INSTANCE_PARAMETER_GROUP_SUFFIX = "ipg";
-  public final Integer DB_WAIT_RETRY_COUNT = 60;
+  public final Duration DB_WAIT_RETRY_TIMEOUT = Duration.ofMinutes(20);
+  public final Duration DB_WAIT_RETRY_INTERVAL = Duration.ofMillis(1000);
 }
