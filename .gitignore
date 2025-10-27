@@ -44,5 +44,6 @@ application/**/manifest.json
 application/*/image.pkr.hcl
 application/**/*.zip
 application/**/response.json
-application/local_kubernetes/values.yaml
+application/local_k8s/values.yaml
+application/**/ami.pkr.hcl
 application/**/*.jar

@@ -1,0 +1,73 @@
+{
+  "extraEnvVars": {
+  },
+  "stacks": 1,
+  "asg": {
+    "desiredInstances": 1,
+    "initialCapacity": 1,
+    "maxInstances": 1000,
+    "onDemandBaseCapacity": 0,
+    "onDemandPercentageAboveBaseCapacity": 0,
+    "healthcheckGracePeriod": 120,
+    "spotAllocationStrategy": "price-capacity-optimized",
+    "terminationPolicies": [
+      "OldestInstance"
+    ],
+    "suspendProcesses": [
+      "AZRebalance"
+    ],
+    "capacityRebalance": true,
+    "instanceMaintenancePolicy": {
+      "minHealthyPercentage": 100,
+      "maxHealthyPercentage": 110
+    },
+    "imdsv2": "required"
+  },
+  "loadBalancer": {
+    "type": "alb",
+    "lcus": {
+      "internal": 0,
+      "external": 0
+    },
+    "listeners": [
+      {
+        "protocol": "HTTP",
+        "port": 80,
+        "targetPort": 8080,
+        "targetProtocol": "HTTP",
+        "healthchecks": {
+          "interval": 10,
+          "healthyThreshold": 5,
+          "unhealthyThreshold": 2,
+          "timeout": 5,
+          "path": "/healthcheck"
+        }
+      }
+    ]
+  },
+  "strategy": {
+    "name": "blue-green",
+    "config": {
+      "autoRouting": true,
+      "canary": {
+        "enabled": true,
+        "errorThreshold": {
+          "metric": "absolute",
+          "value": 0
+        },
+        "steps": {
+          "weight": 20,
+          "count": 2,
+          "duration": 180
+        }
+      },
+      "passiveDownscale": {
+        "enabled": true
+      }
+    }
+  },
+  "tags": {},
+  "ebs": {
+    "size": 50
+  }
+}

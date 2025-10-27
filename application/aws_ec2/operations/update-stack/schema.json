@@ -1,0 +1,18 @@
+{
+    "title": "Update stack operation schema",
+    "type": "object",
+    "properties": {
+        "stacks": {
+            "type": "integer",
+            "maximum": 10,
+            "description": "New number of stacks"
+        },
+        "autoRouting": {
+          "type": "boolean"
+        }
+    },
+    "required": [
+        "stacks"
+    ],
+    "additionalProperties": false
+}

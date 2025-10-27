@@ -107,3 +107,13 @@ Discovery config for the artifact
 |-----------|--------|----------|----------------------------------------------------|
 | `private` | string | No       | The private discovery endpoint for the application |
 | `public`  | string | No       | The public discovery endpoint for the application  |
+
+
+
+### Running Application
+
+* Create an Intellij Run configuration
+* Pass operation name as command line argument
+* Pass following environment variables
+  * `ODIN_COMPONENT_METADATA`
+  * `CONFIG`
