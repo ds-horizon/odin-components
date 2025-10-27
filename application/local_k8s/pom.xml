@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>com.dream11</groupId>
-  <artifactId>odin-application-component-local-kubernetes</artifactId>
+  <artifactId>odin-application-component-local-k8s</artifactId>
   <version>0.0.1-SNAPSHOT</version>
   <packaging>jar</packaging>
 

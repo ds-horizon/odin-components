@@ -5,7 +5,7 @@ Odin.component {
     dslVersion "v0.0.1"
 
     flavour {
-        name "local_kubernetes"
+        name "local_k8s"
 
         deploy {
             String lastState = getLastState()

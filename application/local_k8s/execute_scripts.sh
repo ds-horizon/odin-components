@@ -57,7 +57,7 @@ if [[ ${enabled} == true ]]; then
     # shellcheck disable=SC1064,SC1065,SC1073,SC1072,SC1083,SC1054
     {% set env_variables = k8s_data.data.environmentVariables | default({}, true) %}
     env_variables="{{ env_variables | tojson | replace('"', '\\"') }}"
-    env_variables=$(echo "${env_variables}" | jq '. + {"APP_DIR": "/tmp/'"${ARTIFACT_NAME}"'", "DEPLOYMENT_TYPE": "local_kubernetes"}')
+    env_variables=$(echo "${env_variables}" | jq '. + {"APP_DIR": "/tmp/'"${ARTIFACT_NAME}"'", "DEPLOYMENT_TYPE": "local_k8s"}')
     if [[ -f "state.json" && $(jq -r '.deployConfig' state.json) != null ]]; then
         env_variables=$(echo "${env_variables}" | jq --argjson vars "$(jq -r '.deployConfig.extraEnvVars' state.json)" '. * $vars')
     fi

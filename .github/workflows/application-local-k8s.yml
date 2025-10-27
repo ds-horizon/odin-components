@@ -6,8 +6,8 @@ on:
       - synchronize
       - opened
     paths:
-      - application/local_kubernetes/src/**
-      - application/local_kubernetes/pom.xml
+      - application/local_k8s/src/**
+      - application/local_k8s/pom.xml
   push:
     branches:
       - master
@@ -29,7 +29,7 @@ jobs:
           overwrite-settings: false
 
       - name: Run fmt-plugin check goal
-        working-directory: application/local_kubernetes
+        working-directory: application/local_k8s
         run: mvn --no-transfer-progress com.spotify.fmt:fmt-maven-plugin:2.20:check
 
       - name: Provide format fix instructions if check fails
@@ -39,5 +39,5 @@ jobs:
           echo "mvn com.spotify.fmt:fmt-maven-plugin:2.20:format"
 
       - name: Tests
-        working-directory: application/local_kubernetes
+        working-directory: application/local_k8s
         run: mvn --no-transfer-progress clean verify

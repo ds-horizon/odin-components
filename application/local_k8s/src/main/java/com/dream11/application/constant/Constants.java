@@ -14,7 +14,7 @@ public class Constants {
   public final Integer UUID_LENGTH = 4;
   public final String DOCKER_REGISTRY_SERVICE = "DOCKER_REGISTRY";
   public final String BASE_DIR = "/app";
-  public final String DEPLOYMENT_TYPE = "local_kubernetes";
+  public final String DEPLOYMENT_TYPE = "local_k8s";
   public final UnaryOperator<String> APPLICATION_DIRECTORY =
       artifactName -> String.format("%s/%s", BASE_DIR, artifactName);
   public final String HELM_VALUES_FILE = "helm/values.yaml";
