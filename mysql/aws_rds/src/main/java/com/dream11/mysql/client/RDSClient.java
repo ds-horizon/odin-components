@@ -57,7 +57,6 @@ public class RDSClient {
 
   public List<String> restoreDBClusterFromSnapshot(
       String clusterIdentifier,
-      String snapshotIdentifier,
       Map<String, String> tags,
       DeployConfig deployConfig,
       String clusterParameterGroupName,
@@ -88,10 +87,7 @@ public class RDSClient {
         tags,
         deployConfig,
         rdsData);
-
-    RestoreDbClusterFromSnapshotRequest request = restoreBuilder.build();
-
-    DBCluster cluster = this.dbClient.restoreDBClusterFromSnapshot(request).dbCluster();
+    DBCluster cluster = this.dbClient.restoreDBClusterFromSnapshot(restoreBuilder.build()).dbCluster();
     return List.of(cluster.endpoint(), cluster.readerEndpoint());
   }
 
