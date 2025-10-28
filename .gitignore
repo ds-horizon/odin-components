@@ -50,3 +50,6 @@ application/**/*.zip
 application/**/response.json
 application/local_kubernetes/values.yaml
 application/**/*.jar
+
+**/example
+run.sh
