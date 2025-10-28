@@ -1,13 +1,6 @@
 {
-    "engineVersion": "3.09.0",
     "tags": {
-       "dummy": "dummy"
-    },
-    "instanceConfig": {
-        "autoMinorVersionUpgrade": false
-    },
-    "clusterParameterGroupConfig": {
-        "binlogFormat": "ROW"
+       "dummy1": "dummy1"
     },
     "applyImmediately": true
 }

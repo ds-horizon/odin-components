@@ -435,8 +435,9 @@ public class RDSService {
       updatedClusterParameterGroupName = this.handleClusterParameterGroupUpdate(clusterIdentifier);
     }
     if (this.updateClusterConfig.getInstanceConfig() != null
-        || this.updateClusterConfig.getInstanceConfig().getInstanceParameterGroupName() != null
-        || this.updateClusterConfig.getInstanceConfig().getInstanceParameterGroupConfig() != null) {
+        && (this.updateClusterConfig.getInstanceConfig().getInstanceParameterGroupName() != null
+            || this.updateClusterConfig.getInstanceConfig().getInstanceParameterGroupConfig()
+                != null)) {
       updatedInstanceParameterGroupName = this.handleInstanceParameterGroupUpdate();
     }
 

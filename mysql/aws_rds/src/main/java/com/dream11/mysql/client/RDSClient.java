@@ -625,7 +625,7 @@ public class RDSClient {
             .collect(java.util.stream.Collectors.toMap(Tag::key, Tag::value));
 
     List<String> tagsToRemove =
-        existingTags.keySet().stream().filter(key -> !newTags.containsKey(key)).toList();
+        existingTags.keySet().stream().filter(key -> newTags.containsKey(key)).toList();
 
     if (!tagsToRemove.isEmpty()) {
       RemoveTagsFromResourceRequest removeRequest =
