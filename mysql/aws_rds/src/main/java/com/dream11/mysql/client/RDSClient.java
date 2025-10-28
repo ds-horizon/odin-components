@@ -87,7 +87,8 @@ public class RDSClient {
         tags,
         deployConfig,
         rdsData);
-    DBCluster cluster = this.dbClient.restoreDBClusterFromSnapshot(restoreBuilder.build()).dbCluster();
+    DBCluster cluster =
+        this.dbClient.restoreDBClusterFromSnapshot(restoreBuilder.build()).dbCluster();
     return List.of(cluster.endpoint(), cluster.readerEndpoint());
   }
 
