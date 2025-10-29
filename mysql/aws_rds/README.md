@@ -1,9 +1,6 @@
 ## aws_rds Flavour
 
-Deploy and perform operations on your application in AWS EC2
-
-## Operations
-- [redeploy](operations/redeploy)
+Deploy and perform operations on your application in AWS RDS
 
 ### aws_rds provisioning configuration
 
@@ -12,7 +9,7 @@ Deploy and perform operations on your application in AWS EC2
 | Property                           | Type                                        | Required | Description                                                                                    |
 |------------------------------------|---------------------------------------------|----------|------------------------------------------------------------------------------------------------|
 | `engineVersion`                    | string                                      | **Yes**  | Aurora MySQL engine version, e.g. 3.04.2                                                       |
-| `writer`                           | [object](#writer)                           | **Yes**  | Writer DB instance (compute node)                                                              |
+| `writer`                           | [object](#writer)                           | **Yes**  | Writer DB instance specific configuration                                                      |
 | `backtrackWindow`                  | integer                                     | No       | Aurora Backtrack window in seconds (if supported by engine version)                            |
 | `backupRetentionPeriod`            | integer                                     | No       |                                                                                                |
 | `clusterParameterGroupConfig`      | [object](#clusterparametergroupconfig)      | No       | Inline cluster parameter overrides (Aurora MySQL)                                              |
@@ -20,17 +17,18 @@ Deploy and perform operations on your application in AWS EC2
 | `copyTagsToSnapshot`               | boolean                                     | No       |                                                                                                |
 | `credentials`                      | [object](#credentials)                      | No       | Choose static username/password OR Secrets Manager–managed                                     |
 | `dbName`                           | string                                      | No       | Initial database name                                                                          |
+| `deletionConfig`                   | [object](#deletionconfig)                   | No       | Preferences used when deleting this cluster                                                    |
 | `deletionProtection`               | boolean                                     | No       |                                                                                                |
-| `deletion`                         | [object](#deletion)                         | No       | Preferences used when deleting this cluster                                                    |
 | `enableCloudwatchLogsExports`      | string[]                                    | No       |                                                                                                |
 | `enableIAMDatabaseAuthentication`  | boolean                                     | No       | Enable IAM DB authentication for the cluster                                                   |
 | `encryptionAtRest`                 | boolean                                     | No       | Controls cluster storage encryption                                                            |
 | `globalClusterIdentifier`          | string                                      | No       | Join/create Global Database                                                                    |
+| `instanceConfig`                   | [object](#instanceconfig)                   | No       | DB Instance Configuration                                                                      |
 | `kmsKeyId`                         | string                                      | No       | KMS key to use when encryptionAtRest = true (optional; default RDS KMS key is used if omitted) |
 | `port`                             | integer                                     | No       |                                                                                                |
 | `preferredBackupWindow`            | string                                      | No       | UTC, hh24:mi-hh24:mi, 30-min granularity                                                       |
 | `preferredMaintenanceWindow`       | string                                      | No       | UTC, hh24:mi-hh24:mi                                                                           |
-| `readers`                          | [object](#readers)[]                        | No       |                                                                                                |
+| `readers`                          | [object](#readers)[]                        | No       | List of Reader DB instance specific configuration                                              |
 | `replicationSourceIdentifier`      | string                                      | No       | Aurora replica source cluster ARN/ID                                                           |
 | `serverlessV2ScalingConfiguration` | [object](#serverlessv2scalingconfiguration) | No       |                                                                                                |
 | `snapshotIdentifier`               | string                                      | No       | Restore from snapshot                                                                          |
@@ -65,7 +63,7 @@ Choose static username/password OR Secrets Manager–managed
 | `masterUserPassword`       | string  | No       |             |
 | `masterUserSecretKmsKeyId` | string  | No       |             |
 
-#### deletion
+#### deletionConfig
 
 Preferences used when deleting this cluster
 
@@ -76,71 +74,9 @@ Preferences used when deleting this cluster
 | `finalSnapshotIdentifier` | string  | No       | Name for the final DB cluster snapshot when deleting |
 | `skipFinalSnapshot`       | boolean | No       | If false, a final snapshot is required on delete     |
 
-#### readers
+#### instanceConfig
 
-##### Properties
-
-| Property                             | Type                                    | Required | Description                          |
-|--------------------------------------|-----------------------------------------|----------|--------------------------------------|
-| `instanceCount`                      | integer                                 | **Yes**  |                                      |
-| `instanceType`                       | string                                  | **Yes**  | e.g., db.r6g.large or db.serverless  |
-| `autoMinorVersionUpgrade`            | boolean                                 | No       |                                      |
-| `availabilityZone`                   | string                                  | No       |                                      |
-| `deletionProtection`                 | boolean                                 | No       |                                      |
-| `enablePerformanceInsights`          | boolean                                 | No       |                                      |
-| `enhancedMonitoring`                 | [object](#enhancedmonitoring)           | No       |                                      |
-| `instanceParameterGroupConfig`       | [object](#instanceparametergroupconfig) | No       |                                      |
-| `instanceParameterGroupName`         | string                                  | No       |                                      |
-| `networkType`                        | string                                  | No       | Possible values are: `IPV4`, `DUAL`. |
-| `performanceInsightsKmsKeyId`        | string                                  | No       |                                      |
-| `performanceInsightsRetentionPeriod` | integer                                 | No       | Possible values are: `7`, `731`.     |
-| `promotionTier`                      | integer                                 | No       |                                      |
-| `publiclyAccessible`                 | boolean                                 | No       |                                      |
-
-##### enhancedMonitoring
-
-###### Properties
-
-| Property            | Type    | Required | Description                                            |
-|---------------------|---------|----------|--------------------------------------------------------|
-| `enabled`           | boolean | No       |                                                        |
-| `interval`          | integer | No       | Possible values are: `1`, `5`, `10`, `15`, `30`, `60`. |
-| `monitoringRoleArn` | string  | No       |                                                        |
-
-##### instanceParameterGroupConfig
-
-###### Properties
-
-| Property             | Type    | Required | Description |
-|----------------------|---------|----------|-------------|
-| `interactiveTimeout` | integer | No       |             |
-| `lockWaitTimeout`    | integer | No       |             |
-| `longQueryTime`      | integer | No       |             |
-| `maxAllowedPacket`   | integer | No       |             |
-| `maxHeapTableSize`   | integer | No       |             |
-| `slowQueryLog`       | integer | No       |             |
-| `tmpTableSize`       | integer | No       |             |
-| `waitTimeout`        | integer | No       |             |
-
-#### serverlessV2ScalingConfiguration
-
-##### Properties
-
-| Property      | Type   | Required | Description |
-|---------------|--------|----------|-------------|
-| `maxCapacity` | number | **Yes**  |             |
-| `minCapacity` | number | **Yes**  |             |
-
-#### tags
-
-Tags for rds cluster as per AWS
-
-| Property | Type | Required | Description |
-|----------|------|----------|-------------|
-
-#### writer
-
-Writer DB instance (compute node)
+DB Instance Configuration
 
 ##### Properties
 
@@ -185,6 +121,45 @@ Inline instance parameters (Aurora MySQL)
 | `slowQueryLog`       | integer | No       |             |
 | `tmpTableSize`       | integer | No       |             |
 | `waitTimeout`        | integer | No       |             |
+
+#### readers
+
+Reader DB instance specific configuration
+
+##### Properties
+
+| Property        | Type    | Required | Description                            |
+|-----------------|---------|----------|----------------------------------------|
+| `instanceCount` | integer | **Yes**  | Number of reader instances             |
+| `instanceType`  | string  | **Yes**  | e.g., db.r6g.large or db.serverless    |
+| `promotionTier` | integer | No       | Promotion tier for the reader instance |
+
+#### serverlessV2ScalingConfiguration
+
+##### Properties
+
+| Property      | Type   | Required | Description |
+|---------------|--------|----------|-------------|
+| `maxCapacity` | number | **Yes**  |             |
+| `minCapacity` | number | **Yes**  |             |
+
+#### tags
+
+Tags for rds cluster as per AWS
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+
+#### writer
+
+Writer DB instance specific configuration
+
+##### Properties
+
+| Property        | Type    | Required | Description                            |
+|-----------------|---------|----------|----------------------------------------|
+| `instanceType`  | string  | **Yes**  | e.g., db.r6g.large or db.serverless    |
+| `promotionTier` | integer | No       | Promotion tier for the writer instance |
 
 
 

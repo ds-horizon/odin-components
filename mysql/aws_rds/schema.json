@@ -476,6 +476,7 @@
     },
     "writer": {
       "description": "Writer DB instance specific configuration",
+      "type": "object",
       "properties": {
         "instanceType": {
           "type": "string",
@@ -487,11 +488,11 @@
           "description": "Promotion tier for the writer instance",
           "minimum": 0,
           "maximum": 15
-        },
+        }
+      },
       "required": [
         "instanceType"
       ]
-    }
     },
     "readers": {
       "type": "array",
