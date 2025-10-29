@@ -41,7 +41,7 @@ public class RollingRestartService {
                                     .commands(
                                         this.deploymentService.createApplicationRestartCommands(
                                             mode, asgName))
-                                    .description("rr")
+                                    .description("rolling-restart")
                                     .batchSizePercentage(
                                         this.rollingRestartConfig.getBatchSizePercentage())
                                     .errorTolerancePercentage(

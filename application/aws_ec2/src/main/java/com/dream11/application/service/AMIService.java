@@ -8,12 +8,9 @@ import com.dream11.application.config.metadata.aws.NetworkData;
 import com.dream11.application.config.user.AMIConfig;
 import com.dream11.application.config.user.DeployConfig;
 import com.dream11.application.constant.Constants;
-import com.dream11.application.error.ApplicationError;
-import com.dream11.application.exception.GenericApplicationException;
 import com.dream11.application.util.ApplicationUtil;
 import com.google.inject.Inject;
 import java.io.File;
-import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.List;
@@ -27,7 +24,6 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
 
 @Slf4j
 @RequiredArgsConstructor(onConstructor = @__({@Inject}))
@@ -107,16 +103,8 @@ public class AMIService {
 
   @SneakyThrows
   private String generatePackerTemplate(Map<String, AMIConfig> amiConfigToCreate) {
-    try (InputStream inputStream =
-        this.getClass().getClassLoader().getResourceAsStream(Constants.PACKER_TEMPLATE_FILE)) {
-      if (Objects.isNull(inputStream)) {
-        throw new GenericApplicationException(
-            ApplicationError.TEMPLATE_FILE_NOT_FOUND, Constants.PACKER_TEMPLATE_FILE);
-      }
-      String content = IOUtils.toString(inputStream, Charset.defaultCharset());
-      return ApplicationUtil.substituteValues(
-          "ami", content, this.buildTemplateData(amiConfigToCreate));
-    }
+    return ApplicationUtil.readTemplateFile(
+        Constants.PACKER_TEMPLATE_FILE, this.buildTemplateData(amiConfigToCreate));
   }
 
   @SneakyThrows

@@ -44,5 +44,5 @@ public class AutoScalingGroupConfig {
 
   @NotNull Integer defaultCooldown = 300;
   @NotNull Integer defaultInstanceWarmup = 0;
-  @NotNull String imdsv2 = "optional";
+  @NotNull String imdsv2 = "required";
 }

@@ -3,8 +3,8 @@
 Deploy and perform operations on your application across different flavors
 
 ## Flavors
-- [local_kubernetes](local_kubernetes)
-
+- [local_k8s](local_k8s)
+- [aws_ec2](aws_ec2)
 {{ .Markdown 2 }}
 
 ### Running Application

@@ -1,7 +1,6 @@
 package com.dream11.application.service;
 
 import com.dream11.application.aws.SystemsManagerClient;
-import com.dream11.application.config.metadata.ComponentMetadata;
 import com.dream11.application.constant.Constants;
 import com.dream11.application.entity.SSMCommand;
 import com.dream11.application.error.ApplicationError;
@@ -25,7 +24,6 @@ public class SystemsManagerService {
 
   @NonNull final SystemsManagerClient systemsManagerClient;
   @NonNull final AutoscalingGroupService autoscalingGroupService;
-  @NonNull final ComponentMetadata componentMetadata;
 
   public Command sendShellCommandWithTags(
       String comment,

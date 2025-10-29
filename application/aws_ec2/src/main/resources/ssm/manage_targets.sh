@@ -29,11 +29,11 @@ function manage_targets {
   for i in ${r"${!load_balancer_names[@]}"};
   do
     if [[ $1 == "deregister" ]]; then
-      echo "Deregistering instance $instance_id from load balancer: $load_balancer_name"
+      echo "Deregistering instance $instance_id from load balancer: ${r"${load_balancer_names[i]}"}"
       aws elb deregister-instances-from-load-balancer --load-balancer-name ${r"${load_balancer_names[i]}"} --instances $instance_id || exit 1
     fi
     if [[ $1 == "register" ]]; then
-      echo "Registering instance $instance_id to load balancer: $load_balancer_name"
+      echo "Registering instance $instance_id to load balancer: ${r"${load_balancer_names[i]}"}"
       aws elb register-instances-with-load-balancer --load-balancer-name ${r"${load_balancer_names[i]}"} --instances $instance_id || exit 1
     fi
   done

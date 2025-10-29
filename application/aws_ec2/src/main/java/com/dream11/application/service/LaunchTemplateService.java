@@ -15,18 +15,14 @@ import com.dream11.application.state.AMIState;
 import com.dream11.application.state.State;
 import com.dream11.application.util.ApplicationUtil;
 import com.google.inject.Inject;
-import java.io.InputStream;
-import java.nio.charset.Charset;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.IOUtils;
 import software.amazon.awssdk.services.ec2.model.LaunchTemplate;
 
 @Slf4j
@@ -121,18 +117,11 @@ public class LaunchTemplateService {
 
   @SneakyThrows
   private String generateUserdata(Map<String, String> envVars) {
-    try (InputStream inputStream =
-        this.getClass().getClassLoader().getResourceAsStream(Constants.USERDATA_TEMPLATE_FILE)) {
-      if (Objects.isNull(inputStream)) {
-        throw new GenericApplicationException(
-            ApplicationError.TEMPLATE_FILE_NOT_FOUND, Constants.USERDATA_TEMPLATE_FILE);
-      }
-      String content = IOUtils.toString(inputStream, Charset.defaultCharset());
-      return Base64.getEncoder()
-          .encodeToString(
-              ApplicationUtil.substituteValues("userdata", content, this.buildTemplateData(envVars))
-                  .getBytes());
-    }
+    return Base64.getEncoder()
+        .encodeToString(
+            ApplicationUtil.readTemplateFile(
+                    Constants.USERDATA_TEMPLATE_FILE, this.buildTemplateData(envVars))
+                .getBytes());
   }
 
   private Map<String, Object> buildTemplateData(Map<String, String> envVars) {
