@@ -69,11 +69,6 @@ public class StateCorrectionService {
   }
 
   private void populateStateFromCluster(DBCluster cluster, State state) {
-
-    if (state.getReaderInstanceIdentifiers() == null) {
-      state.setReaderInstanceIdentifiers(new HashMap<>());
-    }
-
     state.setWriterInstanceIdentifier(null);
     state.getReaderInstanceIdentifiers().clear();
     Map<String, ReaderConfig> readers = new HashMap<>();
