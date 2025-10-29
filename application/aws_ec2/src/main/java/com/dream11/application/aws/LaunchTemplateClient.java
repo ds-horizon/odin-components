@@ -6,8 +6,8 @@ import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
-import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.retries.api.RetryStrategy;
 import software.amazon.awssdk.services.ec2.Ec2Client;
 import software.amazon.awssdk.services.ec2.model.CreateLaunchTemplateRequest;
 import software.amazon.awssdk.services.ec2.model.Ec2Exception;
@@ -25,12 +25,12 @@ public class LaunchTemplateClient {
 
   final Ec2Client ec2Client;
 
-  public LaunchTemplateClient(String region, RetryPolicy retryPolicy) {
+  public LaunchTemplateClient(String region, RetryStrategy retryStrategy) {
     this.ec2Client =
         Ec2Client.builder()
             .region(Region.of(region))
-            .credentialsProvider(DefaultCredentialsProvider.create())
-            .overrideConfiguration(overrideConfig -> overrideConfig.retryPolicy(retryPolicy))
+            .credentialsProvider(DefaultCredentialsProvider.builder().build())
+            .overrideConfiguration(overrideConfig -> overrideConfig.retryStrategy(retryStrategy))
             .build();
   }
 

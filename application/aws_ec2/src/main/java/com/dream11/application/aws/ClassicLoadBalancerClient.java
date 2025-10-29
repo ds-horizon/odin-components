@@ -12,8 +12,8 @@ import java.util.Objects;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
-import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.retries.api.RetryStrategy;
 import software.amazon.awssdk.services.elasticloadbalancing.ElasticLoadBalancingClient;
 import software.amazon.awssdk.services.elasticloadbalancing.model.CreateLoadBalancerRequest;
 import software.amazon.awssdk.services.elasticloadbalancing.model.HealthCheck;
@@ -27,12 +27,12 @@ public class ClassicLoadBalancerClient {
 
   final ElasticLoadBalancingClient loadBalancingClient;
 
-  public ClassicLoadBalancerClient(String region, RetryPolicy retryPolicy) {
+  public ClassicLoadBalancerClient(String region, RetryStrategy retryStrategy) {
     this.loadBalancingClient =
         ElasticLoadBalancingClient.builder()
             .region(Region.of(region))
-            .credentialsProvider(DefaultCredentialsProvider.create())
-            .overrideConfiguration(overrideConfig -> overrideConfig.retryPolicy(retryPolicy))
+            .credentialsProvider(DefaultCredentialsProvider.builder().build())
+            .overrideConfiguration(overrideConfig -> overrideConfig.retryStrategy(retryStrategy))
             .build();
   }
 

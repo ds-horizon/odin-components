@@ -7,8 +7,8 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
-import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.retries.api.RetryStrategy;
 import software.amazon.awssdk.services.ssm.SsmClient;
 import software.amazon.awssdk.services.ssm.model.Command;
 import software.amazon.awssdk.services.ssm.model.CommandInvocation;
@@ -23,12 +23,12 @@ public class SystemsManagerClient {
 
   final SsmClient ssmClient;
 
-  public SystemsManagerClient(String region, RetryPolicy retryPolicy) {
+  public SystemsManagerClient(String region, RetryStrategy retryStrategy) {
     this.ssmClient =
         SsmClient.builder()
             .region(Region.of(region))
-            .credentialsProvider(DefaultCredentialsProvider.create())
-            .overrideConfiguration(overrideConfig -> overrideConfig.retryPolicy(retryPolicy))
+            .credentialsProvider(DefaultCredentialsProvider.builder().build())
+            .overrideConfiguration(overrideConfig -> overrideConfig.retryStrategy(retryStrategy))
             .build();
   }
 

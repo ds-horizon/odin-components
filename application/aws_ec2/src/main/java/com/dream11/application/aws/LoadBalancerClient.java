@@ -7,8 +7,8 @@ import java.util.Map;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
-import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.retries.api.RetryStrategy;
 import software.amazon.awssdk.services.elasticloadbalancingv2.ElasticLoadBalancingV2Client;
 import software.amazon.awssdk.services.elasticloadbalancingv2.model.Action;
 import software.amazon.awssdk.services.elasticloadbalancingv2.model.ActionTypeEnum;
@@ -29,12 +29,12 @@ public class LoadBalancerClient {
 
   final ElasticLoadBalancingV2Client loadBalancingV2Client;
 
-  public LoadBalancerClient(String region, RetryPolicy retryPolicy) {
+  public LoadBalancerClient(String region, RetryStrategy retryStrategy) {
     this.loadBalancingV2Client =
         ElasticLoadBalancingV2Client.builder()
             .region(Region.of(region))
-            .credentialsProvider(DefaultCredentialsProvider.create())
-            .overrideConfiguration(overrideConfig -> overrideConfig.retryPolicy(retryPolicy))
+            .credentialsProvider(DefaultCredentialsProvider.builder().build())
+            .overrideConfiguration(overrideConfig -> overrideConfig.retryStrategy(retryStrategy))
             .build();
   }
 

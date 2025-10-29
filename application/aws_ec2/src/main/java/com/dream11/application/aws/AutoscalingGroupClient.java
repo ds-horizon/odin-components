@@ -12,9 +12,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
-import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.core.waiters.WaiterResponse;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.retries.api.RetryStrategy;
 import software.amazon.awssdk.services.autoscaling.AutoScalingClient;
 import software.amazon.awssdk.services.autoscaling.model.AutoScalingException;
 import software.amazon.awssdk.services.autoscaling.model.AutoScalingGroup;
@@ -31,12 +31,12 @@ public class AutoscalingGroupClient {
 
   final AutoScalingClient autoScalingClient;
 
-  public AutoscalingGroupClient(String region, RetryPolicy retryPolicy) {
+  public AutoscalingGroupClient(String region, RetryStrategy retryStrategy) {
     this.autoScalingClient =
         AutoScalingClient.builder()
             .region(Region.of(region))
-            .credentialsProvider(DefaultCredentialsProvider.create())
-            .overrideConfiguration(overrideConfig -> overrideConfig.retryPolicy(retryPolicy))
+            .credentialsProvider(DefaultCredentialsProvider.builder().build())
+            .overrideConfiguration(overrideConfig -> overrideConfig.retryStrategy(retryStrategy))
             .build();
   }
 

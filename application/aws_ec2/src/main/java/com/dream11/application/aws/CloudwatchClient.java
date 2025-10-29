@@ -4,8 +4,8 @@ import com.dream11.application.entity.CloudWatchMetric;
 import java.time.Instant;
 import java.util.List;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
-import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.retries.api.RetryStrategy;
 import software.amazon.awssdk.services.cloudwatch.CloudWatchClient;
 import software.amazon.awssdk.services.cloudwatch.model.Dimension;
 import software.amazon.awssdk.services.cloudwatch.model.GetMetricDataRequest;
@@ -15,12 +15,12 @@ import software.amazon.awssdk.services.cloudwatch.model.MetricDataResult;
 public class CloudwatchClient {
   final CloudWatchClient client;
 
-  public CloudwatchClient(String region, RetryPolicy retryPolicy) {
+  public CloudwatchClient(String region, RetryStrategy retryStrategy) {
     this.client =
         CloudWatchClient.builder()
             .region(Region.of(region))
-            .credentialsProvider(DefaultCredentialsProvider.create())
-            .overrideConfiguration(overrideConfig -> overrideConfig.retryPolicy(retryPolicy))
+            .credentialsProvider(DefaultCredentialsProvider.builder().build())
+            .overrideConfiguration(overrideConfig -> overrideConfig.retryStrategy(retryStrategy))
             .build();
   }
 

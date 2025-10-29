@@ -66,11 +66,11 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
-import software.amazon.awssdk.core.retry.RetryMode;
-import software.amazon.awssdk.core.retry.RetryPolicy;
-import software.amazon.awssdk.core.retry.backoff.EqualJitterBackoffStrategy;
+import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
+import software.amazon.awssdk.retries.api.BackoffStrategy;
+import software.amazon.awssdk.retries.api.RetryStrategy;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -314,32 +314,30 @@ public class Application {
       throw new GenericApplicationException(ApplicationError.INVALID_CLOUD_PROVIDER, cloudProvider);
     }
 
-    // TODO use RetryStrategy
-    RetryPolicy retryPolicy =
-        RetryPolicy.builder(RetryMode.STANDARD)
-            .numRetries(Constants.MAX_RETRIES)
+    RetryStrategy retryStrategy =
+        AwsRetryStrategy.standardRetryStrategy().toBuilder()
+            .maxAttempts(Constants.MAX_ATTEMPTS)
             .throttlingBackoffStrategy(
-                EqualJitterBackoffStrategy.builder()
-                    .baseDelay(Duration.ofSeconds(Constants.RETRY_DELAY))
-                    .maxBackoffTime(Duration.ofSeconds(Constants.RETRY_MAX_BACKOFF))
-                    .build())
+                BackoffStrategy.exponentialDelayHalfJitter(
+                    Duration.ofSeconds(Constants.RETRY_DELAY),
+                    Duration.ofSeconds(Constants.RETRY_MAX_BACKOFF)))
             .build();
 
     // Configure HTTP client for AWS
     SdkHttpClient httpClient =
         ApacheHttpClient.builder().socketTimeout(Constants.AWS_API_READ_TIMEOUT).build();
     String region = this.awsAccountData.getRegion();
-    this.ec2Client = new EC2Client(region, retryPolicy, httpClient);
+    this.ec2Client = new EC2Client(region, retryStrategy, httpClient);
 
     // TODO use http client for all clients
-    this.loadBalancerClient = new LoadBalancerClient(region, retryPolicy);
-    this.classicLoadBalancerClient = new ClassicLoadBalancerClient(region, retryPolicy);
-    this.autoscalingGroupClient = new AutoscalingGroupClient(region, retryPolicy);
-    this.targetGroupClient = new TargetGroupClient(region, retryPolicy);
-    this.route53Client = new Route53Client(region, retryPolicy);
-    this.launchTemplateClient = new LaunchTemplateClient(region, retryPolicy);
-    this.cloudwatchClient = new CloudwatchClient(region, retryPolicy);
-    this.systemsManagerClient = new SystemsManagerClient(region, retryPolicy);
+    this.loadBalancerClient = new LoadBalancerClient(region, retryStrategy);
+    this.classicLoadBalancerClient = new ClassicLoadBalancerClient(region, retryStrategy);
+    this.autoscalingGroupClient = new AutoscalingGroupClient(region, retryStrategy);
+    this.targetGroupClient = new TargetGroupClient(region, retryStrategy);
+    this.route53Client = new Route53Client(region, retryStrategy);
+    this.launchTemplateClient = new LaunchTemplateClient(region, retryStrategy);
+    this.cloudwatchClient = new CloudwatchClient(region, retryStrategy);
+    this.systemsManagerClient = new SystemsManagerClient(region, retryStrategy);
   }
 
   private Injector initializeGuiceModules(List<Module> modules) {

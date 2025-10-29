@@ -10,7 +10,7 @@ import lombok.experimental.UtilityClass;
 @UtilityClass
 public class Constants {
 
-  public final Integer MAX_RETRIES = 10;
+  public final Integer MAX_ATTEMPTS = 10;
   public final Integer RETRY_DELAY = 3;
   public final Duration AWS_API_READ_TIMEOUT = Duration.ofSeconds(120);
   public final Integer RETRY_MAX_BACKOFF = 120;

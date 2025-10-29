@@ -5,8 +5,8 @@ import com.dream11.application.constant.Protocol;
 import java.util.List;
 import java.util.Map;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
-import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.retries.api.RetryStrategy;
 import software.amazon.awssdk.services.elasticloadbalancingv2.ElasticLoadBalancingV2Client;
 import software.amazon.awssdk.services.elasticloadbalancingv2.model.CreateTargetGroupRequest;
 import software.amazon.awssdk.services.elasticloadbalancingv2.model.Matcher;
@@ -20,12 +20,12 @@ public class TargetGroupClient {
 
   final ElasticLoadBalancingV2Client loadBalancingV2Client;
 
-  public TargetGroupClient(String region, RetryPolicy retryPolicy) {
+  public TargetGroupClient(String region, RetryStrategy retryStrategy) {
     this.loadBalancingV2Client =
         ElasticLoadBalancingV2Client.builder()
             .region(Region.of(region))
-            .credentialsProvider(DefaultCredentialsProvider.create())
-            .overrideConfiguration(overrideConfig -> overrideConfig.retryPolicy(retryPolicy))
+            .credentialsProvider(DefaultCredentialsProvider.builder().build())
+            .overrideConfiguration(overrideConfig -> overrideConfig.retryStrategy(retryStrategy))
             .build();
   }
 
