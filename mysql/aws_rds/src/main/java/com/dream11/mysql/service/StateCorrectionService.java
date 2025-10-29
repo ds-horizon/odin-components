@@ -64,7 +64,6 @@ public class StateCorrectionService {
             "DB cluster:[{}] from state does not exist. Updating state.",
             state.getClusterIdentifier());
         state.setClusterIdentifier(null);
-        return;
       }
     }
   }
@@ -85,7 +84,7 @@ public class StateCorrectionService {
       String instanceType = instance.dbInstanceClass();
       Integer promotionTier = instance.promotionTier();
 
-      if (member.isClusterWriter()) {
+      if (member.isClusterWriter().equals(Boolean.TRUE)) {
         state.setWriterInstanceIdentifier(instanceIdentifier);
         this.deployConfig.setWriter(
             WriterConfig.builder().instanceType(instanceType).promotionTier(promotionTier).build());
@@ -95,19 +94,16 @@ public class StateCorrectionService {
             .getReaderInstanceIdentifiers()
             .computeIfAbsent(instanceType, k -> new ArrayList<>())
             .add(instanceIdentifier);
-        if (readers.containsKey(instanceType)) {
-          readers
-              .get(instanceType)
-              .setInstanceCount(readers.get(instanceType).getInstanceCount() + 1);
-        } else {
-          readers.put(
-              instanceType,
-              ReaderConfig.builder()
-                  .instanceCount(1)
-                  .instanceType(instanceType)
-                  .promotionTier(promotionTier)
-                  .build());
-        }
+        readers
+            .computeIfAbsent(
+                instanceType,
+                type ->
+                    ReaderConfig.builder()
+                        .instanceCount(0)
+                        .instanceType(type)
+                        .promotionTier(promotionTier)
+                        .build())
+            .setInstanceCount(readers.get(instanceType).getInstanceCount() + 1);
         log.debug("Found reader instance: {} of type: {}", instanceIdentifier, instanceType);
       }
     }

@@ -19,8 +19,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
-import software.amazon.awssdk.core.retry.RetryMode;
+import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.retries.api.BackoffStrategy;
 import software.amazon.awssdk.services.rds.RdsClient;
 import software.amazon.awssdk.services.rds.model.CreateDbClusterParameterGroupRequest;
 import software.amazon.awssdk.services.rds.model.CreateDbClusterRequest;
@@ -49,7 +50,14 @@ public class RDSClient {
             .overrideConfiguration(
                 overrideConfig ->
                     overrideConfig
-                        .retryStrategy(RetryMode.STANDARD)
+                        .retryStrategy(
+                            AwsRetryStrategy.standardRetryStrategy().toBuilder()
+                                .maxAttempts(Constants.MAX_ATTEMPTS)
+                                .throttlingBackoffStrategy(
+                                    BackoffStrategy.exponentialDelayHalfJitter(
+                                        Duration.ofSeconds(Constants.RETRY_DELAY),
+                                        Duration.ofSeconds(Constants.RETRY_MAX_BACKOFF)))
+                                .build())
                         .apiCallTimeout(Duration.ofMinutes(2))
                         .apiCallAttemptTimeout(Duration.ofSeconds(30)))
             .build();

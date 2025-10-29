@@ -11,6 +11,9 @@ public class Constants {
   public final String PROJECT_PROPERTIES = "project.properties";
   public final String RDS_CATEGORY = "RELATIONAL_DATABASE";
   public final String CONFIG = "CONFIG";
+  public final int MAX_ATTEMPTS = 10;
+  public final int RETRY_DELAY = 3;
+  public final int RETRY_MAX_BACKOFF = 120;
 
   public final Map<String, String> COMPONENT_TAGS =
       Map.of("component:mysql:version", ApplicationUtil.getProjectVersion());
