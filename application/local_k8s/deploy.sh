@@ -36,7 +36,8 @@ bash download_artifact.sh 2> >(log_errors_with_timestamp) | log_with_timestamp
 # Extract docker registry data
 # shellcheck disable=SC2155
 export DOCKER_REGISTRIES=$(echo "${ODIN_COMPONENT_METADATA}" | jq '[.cloudProviderDetails.account.services[], (.cloudProviderDetails.linked_accounts[].services[])] | map(select(.category=="DOCKER_REGISTRY"))')
-
+# shellcheck disable=SC2155
+export DOCKER_REGISTRY_FOR_PUBLISHING=$(echo "${DOCKER_REGISTRIES}" | jq '[.[] | select(.data.allowPush == true)]')
 # Docker login
 export DOCKER_CONFIG=/tmp
 bash docker_login.sh 2> >(log_errors_with_timestamp) | log_with_timestamp

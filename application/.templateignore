@@ -1,10 +1,10 @@
 ./README.md.tpl
 
-./local_kubernetes/README.md.tpl
-./local_kubernetes/operations/redeploy/README.md.tpl
-./local_kubernetes/chart/charts/common-1.17.1.tgz
-./local_kubernetes/chart/templates/deployment.yaml
-./local_kubernetes/chart/templates/service.yaml
+./local_k8s/README.md.tpl
+./local_k8s/operations/redeploy/README.md.tpl
+./local_k8s/chart/charts/common-1.17.1.tgz
+./local_k8s/chart/templates/deployment.yaml
+./local_k8s/chart/templates/service.yaml
 
 ./aws_ec2/README.md.tpl
 ./aws_ec2/operations/redeploy/README.md.tpl
