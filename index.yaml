@@ -1,1 +1,6 @@
-components: {}
+components:
+  example:
+    - name: example
+      description: Example component
+      version: 0.0.1
+      downloadUrl: https://github.com/ds-horizon/odin-components/releases/download/example-0.0.1/example-0.0.1.tar.gz
