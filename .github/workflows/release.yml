@@ -77,7 +77,7 @@ jobs:
           git config user.name "release-bot"
           git config user.email "<>"
 
-      - name: Commit & push
+      - name: Update index.yaml
         run : |
           set -euo pipefail
 
@@ -91,7 +91,12 @@ jobs:
             "version": "${{steps.extract_component_details.outputs.VERSION}}",
             "downloadUrl": strenv(url)})' "${INDEX_FILE}"
 
-          git add "${INDEX_FILE}"
+      - name: Generate README
+        run : bash generate-readme.sh
+
+      - name: Commit & Push
+        run : |
+          git add "${INDEX_FILE}" README.md components
 
           if ! git diff --cached --quiet -- "${INDEX_FILE}"; then
             git commit -m "chore: update ${INDEX_FILE} via workflow"
