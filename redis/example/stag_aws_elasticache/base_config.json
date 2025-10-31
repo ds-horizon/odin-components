@@ -1,0 +1,10 @@
+{
+    "redisVersion": "7.1",
+    "authentication": {
+        "enabled": false
+    },
+    "discovery": {
+        "primary": "${COMPONENT}-${ENV}.dream11-stag.local",
+        "reader": "${COMPONENT}-${ENV}-reader.dream11-stag.local"
+    }
+}

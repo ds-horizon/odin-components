@@ -5,14 +5,20 @@
     {
       "if": {
         "properties": {
-          "automaticFailoverEnabled": { "const": true }
-        }
+          "replicasPerNodeGroup": { "minimum": 1 }
+          }
       },
       "then": {
         "properties": {
-          "replicasPerNodeGroup": { "minimum": 1 }
+          "automaticFailoverEnabled": { "const": true }
         },
-        "errorMessage": "automaticFailoverEnabled requires at least 1 replica (replicasPerNodeGroup must be >= 1)"
+        "errorMessage": "automaticFailoverEnabled should be enabled when replicas are required(i.e. when replicasPerNodeGroup > 0)"
+      },
+      "else": {
+        "properties": {
+          "automaticFailoverEnabled": { "const": false }
+        },
+        "errorMessage": "automaticFailoverEnabled should be enabled when replicas are required(i.e. when replicasPerNodeGroup > 0)"
       }
     },
     {

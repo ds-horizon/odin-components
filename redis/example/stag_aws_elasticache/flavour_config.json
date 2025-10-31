@@ -1,0 +1,5 @@
+{
+    "numNodeGroups": 1,
+    "replicasPerNodeGroup": 1,
+    "automaticFailoverEnabled": true
+}
