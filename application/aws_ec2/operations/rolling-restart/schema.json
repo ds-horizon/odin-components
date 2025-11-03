@@ -1,0 +1,32 @@
+{
+  "title": "Passive downscale operation schema",
+  "type": "object",
+  "properties": {
+    "batchSizePercentage": {
+      "type": "integer",
+      "description": "Percentage of instances where this operation will run in parallel",
+      "minimum": 1,
+      "maximum": 100
+    },
+    "errorTolerancePercentage": {
+      "type": "integer",
+      "description": "Allowed percentage of instances that fail during this operation",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "mode": {
+      "type": "string",
+      "description": "The mode of the operation",
+      "enum": [
+        "FORCEKILL",
+        "GRACEFUL"
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "batchSizePercentage",
+    "errorTolerancePercentage",
+    "mode"
+  ]
+}

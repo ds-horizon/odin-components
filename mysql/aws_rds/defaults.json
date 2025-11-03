@@ -1,1 +1,19 @@
-{}
+{
+  "port": 3306,
+  "storageType": "aurora",
+  "backupRetentionPeriod": 7,
+  "copyTagsToSnapshot": true,
+  "deletionProtection": false,
+  "encryptionAtRest": false,
+  "enableIAMDatabaseAuthentication": false,
+  "deletionConfig": {
+    "skipFinalSnapshot": false
+  },
+  "instanceConfig": {
+    "publiclyAccessible": false,
+    "autoMinorVersionUpgrade": true,
+    "deletionProtection": false,
+    "enablePerformanceInsights": false,
+    "networkType": "IPV4"
+  }
+}

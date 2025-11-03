@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Installs readme generator tool
-go install github.com/marcusolsson/json-schema-docs@v0.2.1
+# Install the fixed json-schema-docs from forked repository
+# until https://github.com/marcusolsson/json-schema-docs/pull/5 is merged, we will use fork
+echo "Installing json-schema-docs from https://github.com/yogesh-badke/json-schema-docs (commit: 14220ff)..."
+go install github.com/yogesh-badke/json-schema-docs@14220ff34122155951a3f6693cb6e9460d1c017f
 
 echo "Starting README generation..."
 

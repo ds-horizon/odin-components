@@ -1,0 +1,14 @@
+{
+  "title": "AWS flavour level schema",
+  "type": "object",
+  "properties": {
+    "error": {
+      "type": "boolean",
+      "description": "Whether to raise error on component execution?"
+    }
+  },
+  "required": [
+    "error"
+  ],
+  "additionalProperties": false
+}

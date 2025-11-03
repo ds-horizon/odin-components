@@ -1,0 +1,6 @@
+{
+    "passiveDownscale": {
+        "enabled": true,
+        "delay": 60
+    }
+}

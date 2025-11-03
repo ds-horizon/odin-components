@@ -1,0 +1,75 @@
+{
+  "deployment": {
+    "mode": "standalone",
+    "config": {}
+  },
+  "master": {
+    "resources": {
+      "requests": {
+        "cpu": "500m",
+        "memory": "1Gi"
+      },
+      "limits": {
+        "cpu": "1000m",
+        "memory": "2Gi"
+      }
+    }
+  },
+  "persistence": {
+    "enabled": true,
+    "storageClass": "",
+    "size": "10Gi",
+    "rdb": {
+      "enabled": true,
+      "saveInterval": "900 1 300 10 60 10000"
+    },
+    "aof": {
+      "enabled": false,
+      "fsyncPolicy": "everysec"
+    }
+  },
+  "antiAffinity": "soft",
+  "metrics": {
+    "enabled": false,
+    "serviceMonitor": {
+      "enabled": false,
+      "interval": "30s",
+      "namespace": "monitoring"
+    }
+  },
+  "backup": {
+    "enabled": false,
+    "schedule": "0 2 * * *",
+    "s3Region": "us-east-1",
+    "retention": 7
+  },
+  "service": {
+    "type": "ClusterIP",
+    "annotations": {}
+  },
+  "networkPolicy": {
+    "enabled": false,
+    "allowedNamespaces": []
+  },
+  "topologySpreadConstraints": [],
+  "updateStrategy": {
+    "type": "RollingUpdate",
+    "rollingUpdate": {
+      "maxUnavailable": 1
+    }
+  },
+  "podDisruptionBudget": {
+    "enabled": true,
+    "minAvailable": 1
+  },
+  "serviceAccount": "default",
+  "nodeSelector": {},
+  "tolerations": [],
+  "priorityClassName": "",
+  "securityContext": {
+    "runAsNonRoot": true,
+    "runAsUser": 1000,
+    "fsGroup": 1000
+  },
+  "additionalConfig": {}
+}

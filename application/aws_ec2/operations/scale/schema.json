@@ -1,0 +1,50 @@
+{
+  "title": "Scale operation schema",
+  "type": "object",
+  "properties": {
+    "asg": {
+      "type": "object",
+      "description": "AWS autoscaling group configuration",
+      "properties": {
+        "desiredInstances": {
+          "type": "number",
+          "description": "Desired number of instances. If using more than one stack specify total number of instances"
+        },
+        "maxInstances": {
+          "type": "number",
+          "description": "Maximum number of instances in ASG"
+        }
+      },
+      "additionalProperties": false,
+      "required": []
+    },
+    "loadBalancer": {
+      "type": "object",
+      "description": "Load balancer configuration. Applicable only when discovery is not 'none'",
+      "properties": {
+        "lcus": {
+          "type": "object",
+          "description": "Load balancer capacity units",
+          "properties": {
+            "internal": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Load balancer capacity units for internal load balancer, not applicable for clb"
+            },
+            "external": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Load balancer capacity units for external load balancer, not applicable for clb"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "lcus"
+      ]
+    }
+  },
+  "additionalProperties": false
+}

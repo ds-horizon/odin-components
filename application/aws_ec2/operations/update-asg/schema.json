@@ -1,0 +1,131 @@
+{
+  "title": "Update ASG operation schema",
+  "type": "object",
+  "properties": {
+    "asg": {
+      "type": "object",
+      "description": "AWS autoscaling group configuration",
+      "properties": {
+        "instances": {
+          "type": "array",
+          "description": "ASG instance pool configuration",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "description": "Instance types for architecture",
+            "properties": {
+              "architecture": {
+                "type": "string",
+                "description": "Architecture of the instances"
+              },
+              "types": {
+                "type": "array",
+                "description": "Instances types",
+                "minItems": 1,
+                "items": {
+                  "type": "string",
+                  "description": "Instance type"
+                }
+              }
+            },
+            "additionalProperties": true,
+            "required": [
+              "architecture",
+              "types"
+            ]
+          }
+        },
+        "onDemandBaseCapacity": {
+          "type": "number",
+          "description": "On demand base capacity in ASG"
+        },
+        "onDemandPercentageAboveBaseCapacity": {
+          "type": "number",
+          "description": "On demand percentage above base capacity in ASG"
+        },
+        "healthcheckGracePeriod": {
+          "type": "number",
+          "description": "ASG healthcheck grace period"
+        },
+        "spotAllocationStrategy": {
+          "type": "string",
+          "description": "ASG spot allocation strategy",
+          "enum": [
+            "capacity-optimized",
+            "price-capacity-optimized",
+            "diversified",
+            "lowest-price"
+          ]
+        },
+        "terminationPolicies": {
+          "type": "array",
+          "description": "ASG termination policy",
+          "items": {
+            "type": "string",
+            "enum": [
+              "OldestInstance",
+              "OldestLaunchConfiguration",
+              "NewestInstance",
+              "ClosestToNextInstanceHour",
+              "Default",
+              "OldestLaunchTemplate",
+              "AllocationStrategy"
+            ]
+          }
+        },
+        "suspendProcesses": {
+          "type": "array",
+          "description": "Processes to suspend in ASG",
+          "items": {
+            "type": "string",
+            "enum": [
+              "Launch",
+              "Terminate",
+              "AddToLoadBalancer",
+              "AlarmNotification",
+              "AZRebalance",
+              "HealthCheck",
+              "InstanceRefresh",
+              "ReplaceUnhealthy",
+              "ScheduledActions"
+            ]
+          }
+        },
+        "capacityRebalance": {
+          "type": "boolean",
+          "description": "Whether to enable capacityRebalance in ASG"
+        },
+        "instanceMaintenancePolicy": {
+          "type": "object",
+          "description": "Instance maintenance policy of the ASG",
+          "properties": {
+            "minHealthyPercentage": {
+              "type": "number",
+              "description": "Minimum healthy instance percentage"
+            },
+            "maxHealthyPercentage": {
+              "type": "number",
+              "description": "Maximum healthy instance percentage"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "minHealthyPercentage",
+            "maxHealthyPercentage"
+          ]
+        },
+        "defaultCooldown": {
+          "type": "number",
+          "description": "Time between scaling actions (seconds)"
+        },
+        "defaultInstanceWarmup": {
+          "type": "number",
+          "description": "number of seconds that newly launched instances are considered as warming up, before they are counted toward the desired capacity"
+        }
+      },
+      "additionalProperties": false,
+      "required": []
+    }
+  },
+  "additionalProperties": false
+}

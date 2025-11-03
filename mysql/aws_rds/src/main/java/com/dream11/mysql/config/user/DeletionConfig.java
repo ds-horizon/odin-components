@@ -1,9 +1,10 @@
 package com.dream11.mysql.config.user;
 
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 @Data
 public class DeletionConfig {
-  private Boolean skipFinalSnapshot = true;
+  @NotNull private Boolean skipFinalSnapshot;
   private String finalSnapshotIdentifier;
 }

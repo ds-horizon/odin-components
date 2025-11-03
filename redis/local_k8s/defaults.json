@@ -1,0 +1,29 @@
+{
+  "deployment": {
+    "mode": "standalone",
+    "config": {}
+  },
+  "master": {
+    "resources": {
+      "requests": {
+        "cpu": "100m",
+        "memory": "100Mi"
+      }
+    }
+  },
+  "persistence": {
+    "enabled": false
+  },
+  "service": {
+    "type": "ClusterIP",
+    "annotations": {}
+  },
+  "updateStrategy": {
+    "type": "RollingUpdate",
+    "rollingUpdate": {
+      "maxUnavailable": 1
+    }
+  },
+  "nodeSelector": {},
+  "additionalConfig": {}
+}

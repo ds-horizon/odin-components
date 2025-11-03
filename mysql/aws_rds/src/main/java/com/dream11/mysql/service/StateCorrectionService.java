@@ -64,17 +64,11 @@ public class StateCorrectionService {
             "DB cluster:[{}] from state does not exist. Updating state.",
             state.getClusterIdentifier());
         state.setClusterIdentifier(null);
-        return;
       }
     }
   }
 
   private void populateStateFromCluster(DBCluster cluster, State state) {
-
-    if (state.getReaderInstanceIdentifiers() == null) {
-      state.setReaderInstanceIdentifiers(new HashMap<>());
-    }
-
     state.setWriterInstanceIdentifier(null);
     state.getReaderInstanceIdentifiers().clear();
     Map<String, ReaderConfig> readers = new HashMap<>();
@@ -85,44 +79,34 @@ public class StateCorrectionService {
       String instanceType = instance.dbInstanceClass();
       Integer promotionTier = instance.promotionTier();
 
-      if (member.isClusterWriter()) {
+
+      if (member.isClusterWriter().equals(Boolean.TRUE)) {
         state.setWriterInstanceIdentifier(instanceIdentifier);
         if (state.getDeployConfig() != null) {
-          state
-              .getDeployConfig()
-              .setWriter(
-                  WriterConfig.builder()
-                      .instanceType(instanceType)
-                      .promotionTier(promotionTier)
-                      .build());
+          this.deployConfig.setWriter(
+              WriterConfig.builder().instanceType(instanceType).promotionTier(promotionTier).build());
         }
-        this.deployConfig.setWriter(
-            WriterConfig.builder().instanceType(instanceType).promotionTier(promotionTier).build());
         log.debug("Found writer instance: {}", instanceIdentifier);
       } else {
         state
             .getReaderInstanceIdentifiers()
             .computeIfAbsent(instanceType, k -> new ArrayList<>())
             .add(instanceIdentifier);
-        if (readers.containsKey(instanceType)) {
-          readers
-              .get(instanceType)
-              .setInstanceCount(readers.get(instanceType).getInstanceCount() + 1);
-        } else {
-          readers.put(
-              instanceType,
-              ReaderConfig.builder()
-                  .instanceCount(1)
-                  .instanceType(instanceType)
-                  .promotionTier(promotionTier)
-                  .build());
-        }
+        readers
+            .computeIfAbsent(
+                instanceType,
+                type ->
+                    ReaderConfig.builder()
+                        .instanceCount(0)
+                        .instanceType(type)
+                        .promotionTier(promotionTier)
+                        .build())
+            .setInstanceCount(readers.get(instanceType).getInstanceCount() + 1);
         log.debug("Found reader instance: {} of type: {}", instanceIdentifier, instanceType);
       }
     }
     if (state.getDeployConfig() != null) {
       state.getDeployConfig().setReaders(new ArrayList<>(readers.values()));
     }
-    this.deployConfig.setReaders(new ArrayList<>(readers.values()));
   }
 }

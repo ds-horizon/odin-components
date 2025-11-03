@@ -1,0 +1,9 @@
+[default]
+extend-ignore-re = [
+  # Opstree Helm repository name
+  "ot-helm",
+]
+
+[default.extend-words]
+# Opstree (OT) - company/organization name
+ot = "ot"

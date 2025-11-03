@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>com.dream11</groupId>
-  <artifactId>mysql-aws_rds</artifactId>
+  <artifactId>mysql-aws-rds</artifactId>
   <version>0.0.1-SNAPSHOT</version>
   <packaging>jar</packaging>
 
@@ -164,6 +164,7 @@
           </descriptorRefs>
           <outputDirectory>${project.basedir}</outputDirectory>
           <finalName>${fat-jar.name}</finalName>
+          <appendAssemblyId>false</appendAssemblyId>
           <archive>
             <manifest>
               <addClasspath>true</addClasspath>

@@ -1,6 +1,7 @@
 package com.dream11.mysql.state;
 
 import com.dream11.mysql.config.user.DeployConfig;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.AllArgsConstructor;
@@ -19,7 +20,7 @@ public class State {
 
   String clusterIdentifier;
   String writerInstanceIdentifier;
-  Map<String, List<String>> readerInstanceIdentifiers;
+  @Builder.Default Map<String, List<String>> readerInstanceIdentifiers = new HashMap<>();
 
   String clusterParameterGroupName;
   String instanceParameterGroupName;

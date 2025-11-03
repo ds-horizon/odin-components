@@ -1,0 +1,25 @@
+{
+    "title": "Revert operation schema",
+    "type": "object",
+    "properties": {
+        "passiveDownscale": {
+            "type": "object",
+            "description": "Whether to downscale passive ASG/LCU after successful traffic routing?",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "description": "Enable passive ASG/LCU downscaling?"
+              },
+              "delay": {
+                "type": "number",
+                "description": "Time to wait before downscaling passive ASG/LCU"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "enabled"
+            ]
+        }
+    },
+    "additionalProperties": false
+}

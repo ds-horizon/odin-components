@@ -1,0 +1,5 @@
+{
+  "mode": "FORCEKILL",
+  "errorTolerancePercentage": 5,
+  "batchSizePercentage": 10
+}
