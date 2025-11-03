@@ -18,7 +18,6 @@ import com.dream11.mysql.exception.GenericApplicationException;
 import com.dream11.mysql.util.ApplicationUtil;
 import com.google.inject.Inject;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -261,17 +260,10 @@ public class RDSService {
     List<Callable<Void>> tasks = new ArrayList<>();
     if (this.addReadersConfig.getReaders() != null
         && !this.addReadersConfig.getReaders().isEmpty()) {
-      if (Application.getState().getReaderInstanceIdentifiers() == null) {
-        Application.getState().setReaderInstanceIdentifiers(new HashMap<>());
-      }
-
-      Map<String, ReaderConfig> readersMap = new HashMap<>();
-      deployConfig.getReaders().forEach(reader -> readersMap.put(reader.getInstanceType(), reader));
-
-      for (int i = 0; i < this.addReadersConfig.getReaders().size(); i++) {
-        String instanceType = this.addReadersConfig.getReaders().get(i).getInstanceType();
-        Integer promotionTier = this.addReadersConfig.getReaders().get(i).getPromotionTier();
-        Integer instanceCount = this.addReadersConfig.getReaders().get(i).getInstanceCount();
+      for (ReaderConfig readerConfig : this.addReadersConfig.getReaders()) {
+        String instanceType = readerConfig.getInstanceType();
+        Integer promotionTier = readerConfig.getPromotionTier();
+        Integer instanceCount = readerConfig.getInstanceCount();
 
         for (int j = 0; j < instanceCount; j++) {
           String instanceId = ApplicationUtil.generateRandomId(4);
@@ -287,18 +279,18 @@ public class RDSService {
               promotionTier,
               deployConfig.getInstanceConfig());
 
+          final String finalReaderInstanceIdentifier = readerInstanceIdentifier;
           tasks.add(
               () -> {
                 log.info(
                     "Waiting for DB reader instance to become available: {}",
-                    readerInstanceIdentifier);
-                this.rdsClient.waitUntilDBInstanceAvailable(readerInstanceIdentifier);
-                log.info("DB reader instance is now available: {}", readerInstanceIdentifier);
+                    finalReaderInstanceIdentifier);
+                this.rdsClient.waitUntilDBInstanceAvailable(finalReaderInstanceIdentifier);
+                log.info("DB reader instance is now available: {}", finalReaderInstanceIdentifier);
                 return null;
               });
         }
       }
-      deployConfig.setReaders(new ArrayList<>(readersMap.values()));
     }
     ApplicationUtil.runOnExecutorService(tasks);
     log.info("MySQL add reader instances operation completed successfully");
@@ -317,9 +309,6 @@ public class RDSService {
         throw new GenericApplicationException(
             ApplicationError.CONSTRAINT_VIOLATION, "No DB reader instances exist to remove");
       }
-
-      Map<String, ReaderConfig> readersMap = new HashMap<>();
-      deployConfig.getReaders().forEach(reader -> readersMap.put(reader.getInstanceType(), reader));
 
       for (ReaderConfig removeConfig : this.removeReadersConfig.getReaders()) {
         String instanceType = removeConfig.getInstanceType();
@@ -347,17 +336,16 @@ public class RDSService {
           log.info("Removing DB reader instance: {}", instanceToRemove);
           this.rdsClient.deleteDBInstance(instanceToRemove, deployConfig.getDeletionConfig());
 
+          final String finalInstanceToRemove = instanceToRemove;
           tasks.add(
               () -> {
-                log.info("Waiting for DB reader instance to be deleted: {}", instanceToRemove);
-                this.rdsClient.waitUntilDBInstanceDeleted(instanceToRemove);
-                log.info("DB reader instance has been deleted: {}", instanceToRemove);
+                log.info("Waiting for DB reader instance to be deleted: {}", finalInstanceToRemove);
+                this.rdsClient.waitUntilDBInstanceDeleted(finalInstanceToRemove);
+                log.info("DB reader instance has been deleted: {}", finalInstanceToRemove);
                 return null;
               });
         }
       }
-
-      deployConfig.setReaders(new ArrayList<>(readersMap.values()));
     }
 
     ApplicationUtil.runOnExecutorService(tasks);
