@@ -204,7 +204,7 @@ public class RDSService {
 
         List<String> existingInstances =
             Application.getState().getReaderInstanceIdentifiers().get(instanceType);
-        Integer stateInstanceCount = existingInstances != null ? existingInstances.size() : 0;
+        int stateInstanceCount = existingInstances != null ? existingInstances.size() : 0;
 
         for (int j = stateInstanceCount; j < instanceCount; j++) {
           String instanceId = ApplicationUtil.generateRandomId(4);
