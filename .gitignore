@@ -29,6 +29,7 @@ nbdist/
 
 logs/*
 .vscode
+**/.vscode
 # .secrets is where we keep secrets required for local development
 .secrets
 # .config is generated when mvn config:init is run
@@ -36,6 +37,9 @@ logs/*
 .env
 .tool-versions
 
+**/target
+**/state.json
+*.jar
 
 # Application
 application/**/target
@@ -47,3 +51,6 @@ application/**/response.json
 application/local_k8s/values.yaml
 application/**/ami.pkr.hcl
 application/**/*.jar
+
+**/example
+run.sh
