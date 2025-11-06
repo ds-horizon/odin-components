@@ -5,6 +5,8 @@ Deploy and perform operations on your application in AWS RDS
 ## Operations
 - [add-readers](operations/add-readers)
 - [remove-readers](operations/remove-readers)
+- [failover](operations/failover)
+- [reboot](operations/reboot)
 
 ### aws_rds provisioning configuration
 
@@ -159,16 +161,6 @@ Key-value pairs to tag the Aurora cluster and all its instances for organization
 
 #### writer
 
-<<<<<<< HEAD
-Writer DB instance specific configuration
-
-##### Properties
-
-| Property        | Type    | Required | Description                            |
-|-----------------|---------|----------|----------------------------------------|
-| `instanceType`  | string  | **Yes**  | e.g., db.r6g.large or db.serverless    |
-| `promotionTier` | integer | No       | Promotion tier for the writer instance |
-=======
 Configuration for the primary (writer) DB instance. The writer is the single read-write instance handling all write operations (INSERT, UPDATE, DELETE, DDL) and can also serve read queries. Only one writer exists per cluster at a time. Aurora automatically promotes a reader to writer during failover based on promotion tier (typically 1-3 minutes downtime). The writer is the single point of failure for writes, making its reliability and sizing critical. Inherits configuration from instanceConfig unless overridden here. **Production:** Size writer for peak write workload plus expected read traffic; use at least 1 reader for high availability.
 
 ##### Properties
@@ -177,7 +169,6 @@ Configuration for the primary (writer) DB instance. The writer is the single rea
 |-----------------|---------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `instanceType`  | string  | **Yes**  | The compute instance class for the writer instance. Determines CPU, memory, and network capacity for write operations and any reads served by the writer. Use 'db.serverless' for Aurora Serverless v2 (auto-scales based on load), or provisioned instances (fixed capacity). Writer should be sized for: (1) Peak write throughput, (2) Buffer pool for working set (InnoDB), (3) Connection overhead, (4) Any read traffic not offloaded to readers. Changing provisioned writer instance type requires brief downtime (1-3 minutes). Memory-optimized (r-class) instances recommended for production. Format: db.{family}{generation}{g?}.{size} or db.serverless. **Production:** Start with db.r6g.large or larger based on workload; use Serverless v2 for variable workloads. |
 | `promotionTier` | integer | No       | Failover priority for the writer instance. Although the writer is not promoted (it's already writer), this value is used if the cluster topology changes. Lower numbers indicate higher priority (0 = highest, 15 = lowest). During writer failure, Aurora promotes the reader with the lowest tier value. Typically set writer to tier 0 or 1 to maintain tier continuity. Ties are broken arbitrarily. Range: 0-15. **Production:** Set to 0 or 1 for consistency; ensure at least one reader has equal or lower tier for automatic failover.                                                                                                                                                                                                                                       |
->>>>>>> main
 
 
 

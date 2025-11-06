@@ -343,16 +343,14 @@ public class RDSService {
 
   @SneakyThrows
   private void waitUntilDBClusterFailover(String clusterIdentifier) {
-    int maxAttempts = Constants.DB_WAIT_RETRY_COUNT;
-    int attemptCount = 0;
-    while (attemptCount < maxAttempts) {
+    long startTime = System.currentTimeMillis();
+    while (System.currentTimeMillis() < startTime + Constants.DB_WAIT_RETRY_TIMEOUT.toMillis()) {
       String status = this.rdsClient.getDBCluster(clusterIdentifier).status();
       log.debug("DB cluster {} status: {}", clusterIdentifier, status);
       if ("failing-over".equals(status)) {
         return;
       }
-      Thread.sleep(1000);
-      attemptCount++;
+      Thread.sleep(Constants.DB_WAIT_RETRY_INTERVAL.toMillis());
     }
     throw new GenericApplicationException(
         ApplicationError.DB_WAIT_TIMEOUT, "cluster", clusterIdentifier, "failover");
