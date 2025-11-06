@@ -7,7 +7,7 @@
   "encryptionAtRest": false,
   "enableIAMDatabaseAuthentication": false,
   "deletionConfig": {
-    "skipFinalSnapshot": false
+    "skipFinalSnapshot": true
   },
   "instanceConfig": {
     "publiclyAccessible": false,

@@ -1,2 +1,4 @@
 ./README.md.tpl
 ./aws_rds/README.md.tpl
+./aws_rds/operations/add-readers/README.md.tpl
+./aws_rds/operations/remove-readers/README.md.tpl

@@ -4,7 +4,9 @@ import com.dream11.mysql.client.RDSClient;
 import com.dream11.mysql.config.metadata.ComponentMetadata;
 import com.dream11.mysql.config.metadata.aws.AwsAccountData;
 import com.dream11.mysql.config.metadata.aws.RDSData;
+import com.dream11.mysql.config.user.AddReadersConfig;
 import com.dream11.mysql.config.user.DeployConfig;
+import com.dream11.mysql.config.user.RemoveReadersConfig;
 import com.dream11.mysql.constant.Constants;
 import com.dream11.mysql.constant.Operations;
 import com.dream11.mysql.error.ApplicationError;
@@ -12,8 +14,11 @@ import com.dream11.mysql.error.ErrorCategory;
 import com.dream11.mysql.exception.GenericApplicationException;
 import com.dream11.mysql.inject.AwsModule;
 import com.dream11.mysql.inject.ConfigModule;
-import com.dream11.mysql.operation.*;
+import com.dream11.mysql.inject.OptionalConfigModule;
+import com.dream11.mysql.operation.AddReaders;
+import com.dream11.mysql.operation.Deploy;
 import com.dream11.mysql.operation.Operation;
+import com.dream11.mysql.operation.RemoveReaders;
 import com.dream11.mysql.operation.Undeploy;
 import com.dream11.mysql.state.State;
 import com.dream11.mysql.util.ApplicationUtil;
@@ -31,6 +36,7 @@ import java.io.File;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -143,12 +149,34 @@ public class Application {
   @SneakyThrows
   void executeOperation() {
     Class<? extends Operation> operationClass;
+    this.deployConfig = Application.getState().getDeployConfig();
+    List<Module> modules = new ArrayList<>();
     operationClass =
         switch (Operations.fromValue(this.operationName)) {
           case DEPLOY -> {
             this.deployConfig =
                 Application.getObjectMapper().readValue(this.config, DeployConfig.class);
             yield Deploy.class;
+          }
+          case ADD_READERS -> {
+            AddReadersConfig addReaderConfig =
+                Application.getObjectMapper().readValue(this.config, AddReadersConfig.class);
+            modules.add(
+                OptionalConfigModule.<AddReadersConfig>builder()
+                    .clazz(AddReadersConfig.class)
+                    .config(addReaderConfig)
+                    .build());
+            yield AddReaders.class;
+          }
+          case REMOVE_READERS -> {
+            RemoveReadersConfig removeReaderConfig =
+                Application.getObjectMapper().readValue(this.config, RemoveReadersConfig.class);
+            modules.add(
+                OptionalConfigModule.<RemoveReadersConfig>builder()
+                    .clazz(RemoveReadersConfig.class)
+                    .config(removeReaderConfig)
+                    .build());
+            yield RemoveReaders.class;
           }
           case UNDEPLOY -> Undeploy.class;
         };
@@ -158,8 +186,11 @@ public class Application {
     } else {
       log.info("Executing operation:[{}]", Operations.fromValue(this.operationName));
     }
-    this.initializeGuiceModules(this.getGuiceModules()).getInstance(operationClass).execute();
-    Application.getState().setDeployConfig(this.deployConfig);
+    modules.addAll(this.getGuiceModules());
+    this.initializeGuiceModules(modules).getInstance(operationClass).execute();
+    if (Operations.fromValue(this.operationName).equals(Operations.DEPLOY)) {
+      Application.getState().setDeployConfig(this.deployConfig);
+    }
     log.info("Executed operation:[{}]", Operations.fromValue(this.operationName));
   }
 
@@ -189,19 +220,16 @@ public class Application {
         Application.getObjectMapper().readTree(System.getenv(Constants.COMPONENT_METADATA));
     this.componentMetadata =
         Application.getObjectMapper().treeToValue(node, ComponentMetadata.class);
-    this.componentMetadata.validate();
     this.awsAccountData =
         Application.getObjectMapper()
             .convertValue(
                 this.componentMetadata.getCloudProviderDetails().getAccount().getData(),
                 AwsAccountData.class);
-    this.awsAccountData.validate();
     this.rdsData =
         ApplicationUtil.getServiceWithCategory(
             this.componentMetadata.getCloudProviderDetails().getAccount().getServices(),
             Constants.RDS_CATEGORY,
             RDSData.class);
-    this.rdsData.validate();
     this.config = System.getenv(Constants.CONFIG);
   }
 
