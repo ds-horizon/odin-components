@@ -40,7 +40,7 @@ public class RDSService {
     List<Callable<Void>> tasks = new ArrayList<>();
     String identifier = Application.getState().getIdentifier();
     if (identifier == null) {
-      identifier = ApplicationUtil.generateRandomId(4);
+      identifier = ApplicationUtil.generateRandomId(Constants.RANDOM_ID_LENGTH);
       Application.getState().setIdentifier(identifier);
     }
     String name =
@@ -164,7 +164,7 @@ public class RDSService {
     List<Callable<Void>> tasks = new ArrayList<>();
 
     if (Application.getState().getWriterInstanceIdentifier() == null) {
-      String instanceId = ApplicationUtil.generateRandomId(4);
+      String instanceId = ApplicationUtil.generateRandomId(Constants.RANDOM_ID_LENGTH);
       String writerInstanceIdentifier = ApplicationUtil.joinByHyphen(name, instanceId, identifier);
       log.info("Creating DB writer instance: {}", writerInstanceIdentifier);
       this.rdsClient.createDBInstance(
@@ -206,7 +206,7 @@ public class RDSService {
         for (int j = stateInstanceCount;
             j < this.deployConfig.getReaders().get(i).getInstanceCount();
             j++) {
-          String instanceId = ApplicationUtil.generateRandomId(4);
+          String instanceId = ApplicationUtil.generateRandomId(Constants.RANDOM_ID_LENGTH);
           final String readerInstanceIdentifier =
               ApplicationUtil.joinByHyphen(name, instanceId, identifier);
           log.info("Creating MySQL reader instance: {}", readerInstanceIdentifier);
@@ -261,7 +261,7 @@ public class RDSService {
     for (ReaderConfig readerConfig : this.addReadersConfig.getReaders()) {
 
       for (int j = 0; j < readerConfig.getInstanceCount(); j++) {
-        String instanceId = ApplicationUtil.generateRandomId(4);
+        String instanceId = ApplicationUtil.generateRandomId(Constants.RANDOM_ID_LENGTH);
         final String readerInstanceIdentifier =
             ApplicationUtil.joinByHyphen(name, instanceId, identifier);
         log.info("Creating DB reader instance: {}", readerInstanceIdentifier);

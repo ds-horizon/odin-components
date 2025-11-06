@@ -22,4 +22,5 @@ public class Constants {
   public final String ENGINE_TYPE = "aurora-mysql";
   public final String CLUSTER_PARAMETER_GROUP_SUFFIX = "cpg";
   public final String INSTANCE_PARAMETER_GROUP_SUFFIX = "ipg";
+  public final Integer RANDOM_ID_LENGTH = 4;
 }
