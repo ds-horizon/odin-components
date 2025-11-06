@@ -372,8 +372,7 @@ public class RDSService {
 
   public void reboot() {
     List<Callable<Void>> tasks = new ArrayList<>();
-    List<String> instanceIdentifiers = this.rebootConfig.getInstanceIdentifiers();
-    for (String instanceIdentifier : instanceIdentifiers) {
+    for (String instanceIdentifier : this.rebootConfig.getInstanceIdentifiers()) {
       log.info("Rebooting DB instance: {}", instanceIdentifier);
       this.rdsClient.rebootDBInstance(instanceIdentifier);
       tasks.add(
