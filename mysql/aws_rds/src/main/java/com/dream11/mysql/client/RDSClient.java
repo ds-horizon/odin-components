@@ -620,7 +620,7 @@ public class RDSClient {
         request -> request.dbParameterGroupName(instanceParameterGroupName));
   }
 
-  public void mergeTagsForResource(String resourceArn, Map<String, String> newTags) {
+  public void updateTagsForResource(String resourceArn, Map<String, String> newTags) {
     ListTagsForResourceRequest listRequest =
         ListTagsForResourceRequest.builder().resourceName(resourceArn).build();
     Map<String, String> existingTags =

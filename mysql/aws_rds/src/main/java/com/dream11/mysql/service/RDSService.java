@@ -582,12 +582,12 @@ public class RDSService {
     Map<String, String> tags = this.updateClusterConfig.getTags();
 
     String clusterArn = this.rdsClient.getDBCluster(clusterIdentifier).dbClusterArn();
-    this.rdsClient.mergeTagsForResource(clusterArn, tags);
+    this.rdsClient.updateTagsForResource(clusterArn, tags);
 
     String writerInstanceIdentifier = Application.getState().getWriterInstanceIdentifier();
     if (writerInstanceIdentifier != null) {
       String writerArn = this.rdsClient.getDBInstance(writerInstanceIdentifier).dbInstanceArn();
-      this.rdsClient.mergeTagsForResource(writerArn, tags);
+      this.rdsClient.updateTagsForResource(writerArn, tags);
     }
 
     Map<String, List<String>> readerInstanceIdentifiers =
@@ -596,7 +596,7 @@ public class RDSService {
       for (Map.Entry<String, List<String>> entry : readerInstanceIdentifiers.entrySet()) {
         for (String readerInstanceIdentifier : entry.getValue()) {
           String readerArn = this.rdsClient.getDBInstance(readerInstanceIdentifier).dbInstanceArn();
-          this.rdsClient.mergeTagsForResource(readerArn, tags);
+          this.rdsClient.updateTagsForResource(readerArn, tags);
         }
       }
     }
@@ -607,14 +607,14 @@ public class RDSService {
           this.rdsClient
               .getDBClusterParameterGroup(clusterParameterGroupName)
               .dbClusterParameterGroupArn();
-      this.rdsClient.mergeTagsForResource(clusterParamGroupArn, tags);
+      this.rdsClient.updateTagsForResource(clusterParamGroupArn, tags);
     }
 
     String instanceParameterGroupName = Application.getState().getInstanceParameterGroupName();
     if (instanceParameterGroupName != null) {
       String instanceParamGroupArn =
           this.rdsClient.getDBParameterGroup(instanceParameterGroupName).dbParameterGroupArn();
-      this.rdsClient.mergeTagsForResource(instanceParamGroupArn, tags);
+      this.rdsClient.updateTagsForResource(instanceParamGroupArn, tags);
     }
   }
 
@@ -671,7 +671,7 @@ public class RDSService {
           "Deleting DB writer instance: {}", Application.getState().getWriterInstanceIdentifier());
       this.rdsClient.deleteDBInstance(
           Application.getState().getWriterInstanceIdentifier(),
-          this.deployConfig.getDeletionConfig());
+          this.deployConfig != null ? this.deployConfig.getDeletionConfig() : null);
       tasks.add(
           () -> {
             log.info(
@@ -693,7 +693,8 @@ public class RDSService {
     if (Application.getState().getClusterIdentifier() != null) {
       log.info("Deleting DB cluster: {}", Application.getState().getClusterIdentifier());
       this.rdsClient.deleteDBCluster(
-          Application.getState().getClusterIdentifier(), this.deployConfig.getDeletionConfig());
+          Application.getState().getClusterIdentifier(),
+          this.deployConfig != null ? this.deployConfig.getDeletionConfig() : null);
       log.info(
           "Waiting for DB cluster to become deleted: {}",
           Application.getState().getClusterIdentifier());
