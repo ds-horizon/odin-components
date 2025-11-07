@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 source ./logging.sh
 setup_error_handling
 
