@@ -1,5 +1,5 @@
-## Failover operation
+## Reboot operation
 
-Failover a reader instance
+Reboot instances
 
 {{ .Markdown 3 }}
