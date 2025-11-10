@@ -5,6 +5,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
+import java.util.HashMap;
 import java.util.Map;
 import lombok.Data;
 
@@ -41,7 +42,7 @@ public class UpdateClusterConfig implements Config {
   @Min(0)
   private Long backtrackWindow;
 
-  private Map<String, String> tags;
+  private Map<String, String> tags = new HashMap<>();
 
   private Boolean applyImmediately;
 
@@ -54,9 +55,4 @@ public class UpdateClusterConfig implements Config {
   @Valid private CredentialsConfig credentials;
 
   @Valid private DeletionConfig deletionConfig;
-
-  @Override
-  public void validate() {
-    Config.super.validate();
-  }
 }

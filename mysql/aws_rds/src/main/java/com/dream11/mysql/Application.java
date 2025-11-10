@@ -155,7 +155,10 @@ public class Application {
   @SneakyThrows
   void executeOperation() {
     Class<? extends Operation> operationClass;
-    this.deployConfig = Application.getState().getDeployConfig();
+    this.deployConfig =
+        Objects.isNull(Application.getState().getDeployConfig())
+            ? null
+            : Application.getState().getDeployConfig().deepCopy();
     List<Module> modules = new ArrayList<>();
     operationClass =
         switch (Operations.fromValue(this.operationName)) {
@@ -205,7 +208,6 @@ public class Application {
             yield Reboot.class;
           }
           case UPDATE_CLUSTER -> {
-            this.deployConfig = Application.getState().getDeployConfig();
             this.deployConfig = this.deployConfig.mergeWith(this.config);
             UpdateClusterConfig updateConfigConfig =
                 Application.getObjectMapper().readValue(this.config, UpdateClusterConfig.class);

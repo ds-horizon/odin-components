@@ -476,8 +476,7 @@ public class RDSService {
       ApplicationUtil.runOnExecutorService(tasks);
     }
 
-    if (this.updateClusterConfig.getTags() != null
-        && !this.updateClusterConfig.getTags().isEmpty()) {
+    if (!this.updateClusterConfig.getTags().isEmpty()) {
       this.handleTagUpdates(clusterIdentifier);
     }
 

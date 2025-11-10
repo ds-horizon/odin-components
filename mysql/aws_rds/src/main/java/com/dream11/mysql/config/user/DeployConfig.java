@@ -91,6 +91,12 @@ public class DeployConfig implements Config {
   }
 
   @SneakyThrows
+  public DeployConfig deepCopy() {
+    return Application.getObjectMapper()
+        .readValue(Application.getObjectMapper().writeValueAsString(this), DeployConfig.class);
+  }
+
+  @SneakyThrows
   public DeployConfig mergeWith(String overrides) {
     ObjectMapper objectMapper = Application.getObjectMapper();
     JsonNode node = objectMapper.readValue(objectMapper.writeValueAsString(this), JsonNode.class);
