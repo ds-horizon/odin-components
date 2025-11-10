@@ -228,11 +228,9 @@ public class Application {
     }
     modules.addAll(this.getGuiceModules());
     this.initializeGuiceModules(modules).getInstance(operationClass).execute();
-    if (Operations.fromValue(this.operationName).equals(Operations.DEPLOY)) {
+    if (Arrays.asList(Operations.DEPLOY, Operations.UPDATE_CLUSTER)
+        .contains(Operations.fromValue(this.operationName))) {
       Application.getState().setDeployConfig(this.deployConfig);
-    }
-    if (Operations.fromValue(this.operationName).equals(Operations.UPDATE_CLUSTER)) {
-      Application.getState().getDeployConfig().mergeWith(this.config);
     }
     log.info("Executed operation:[{}]", Operations.fromValue(this.operationName));
   }

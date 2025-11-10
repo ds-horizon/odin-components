@@ -6,8 +6,6 @@ import com.dream11.mysql.config.user.DeletionConfig;
 import com.dream11.mysql.config.user.DeployConfig;
 import com.dream11.mysql.config.user.InstanceConfig;
 import com.dream11.mysql.config.user.InstanceParameterGroupConfig;
-import com.dream11.mysql.config.user.UpdateClusterConfig;
-import com.dream11.mysql.config.user.UpdateInstanceConfig;
 import com.dream11.mysql.constant.Constants;
 import com.dream11.mysql.error.ApplicationError;
 import com.dream11.mysql.exception.DBClusterNotFoundException;
@@ -35,14 +33,12 @@ import software.amazon.awssdk.services.rds.model.DBClusterParameterGroup;
 import software.amazon.awssdk.services.rds.model.DBInstance;
 import software.amazon.awssdk.services.rds.model.DBParameterGroup;
 import software.amazon.awssdk.services.rds.model.FailoverDbClusterRequest;
-import software.amazon.awssdk.services.rds.model.ListTagsForResourceRequest;
 import software.amazon.awssdk.services.rds.model.ModifyDbClusterParameterGroupRequest;
 import software.amazon.awssdk.services.rds.model.ModifyDbClusterRequest;
 import software.amazon.awssdk.services.rds.model.ModifyDbInstanceRequest;
 import software.amazon.awssdk.services.rds.model.ModifyDbParameterGroupRequest;
 import software.amazon.awssdk.services.rds.model.Parameter;
 import software.amazon.awssdk.services.rds.model.RebootDbInstanceRequest;
-import software.amazon.awssdk.services.rds.model.RemoveTagsFromResourceRequest;
 import software.amazon.awssdk.services.rds.model.RestoreDbClusterFromSnapshotRequest;
 import software.amazon.awssdk.services.rds.model.ServerlessV2ScalingConfiguration;
 import software.amazon.awssdk.services.rds.model.Tag;
@@ -296,9 +292,10 @@ public class RDSClient {
 
   public void updateDBCluster(
       String clusterIdentifier,
-      UpdateClusterConfig updateClusterConfig,
+      DeployConfig deployConfig,
       String engineVersion,
-      String clusterParameterGroupName) {
+      String clusterParameterGroupName,
+      Boolean applyImmediately) {
     ModifyDbClusterRequest.Builder requestBuilder =
         ModifyDbClusterRequest.builder().dbClusterIdentifier(clusterIdentifier);
 
@@ -306,55 +303,51 @@ public class RDSClient {
         requestBuilder::dbClusterParameterGroupName, clusterParameterGroupName);
 
     ApplicationUtil.setIfNotNull(requestBuilder::engineVersion, engineVersion);
-    ApplicationUtil.setIfNotNull(requestBuilder::port, updateClusterConfig.getPort());
-    ApplicationUtil.setIfNotNull(requestBuilder::storageType, updateClusterConfig.getStorageType());
+    ApplicationUtil.setIfNotNull(requestBuilder::port, deployConfig.getPort());
+    ApplicationUtil.setIfNotNull(requestBuilder::storageType, deployConfig.getStorageType());
     ApplicationUtil.setIfNotNull(
-        requestBuilder::backupRetentionPeriod, updateClusterConfig.getBackupRetentionPeriod());
+        requestBuilder::backupRetentionPeriod, deployConfig.getBackupRetentionPeriod());
     ApplicationUtil.setIfNotNull(
-        requestBuilder::preferredBackupWindow, updateClusterConfig.getPreferredBackupWindow());
+        requestBuilder::preferredBackupWindow, deployConfig.getPreferredBackupWindow());
     ApplicationUtil.setIfNotNull(
-        requestBuilder::preferredMaintenanceWindow,
-        updateClusterConfig.getPreferredMaintenanceWindow());
+        requestBuilder::preferredMaintenanceWindow, deployConfig.getPreferredMaintenanceWindow());
     ApplicationUtil.setIfNotNull(
-        requestBuilder::copyTagsToSnapshot, updateClusterConfig.getCopyTagsToSnapshot());
+        requestBuilder::copyTagsToSnapshot, deployConfig.getCopyTagsToSnapshot());
     ApplicationUtil.setIfNotNull(
-        requestBuilder::deletionProtection, updateClusterConfig.getDeletionProtection());
+        requestBuilder::deletionProtection, deployConfig.getDeletionProtection());
     ApplicationUtil.setIfNotNull(
         requestBuilder::enableIAMDatabaseAuthentication,
-        updateClusterConfig.getEnableIAMDatabaseAuthentication());
+        deployConfig.getEnableIAMDatabaseAuthentication());
     ApplicationUtil.setIfNotNull(
-        requestBuilder::backtrackWindow, updateClusterConfig.getBacktrackWindow());
-    if (updateClusterConfig.getServerlessV2ScalingConfiguration() != null) {
+        requestBuilder::backtrackWindow, deployConfig.getBacktrackWindow());
+    if (deployConfig.getServerlessV2ScalingConfiguration() != null) {
       requestBuilder.serverlessV2ScalingConfiguration(
           ServerlessV2ScalingConfiguration.builder()
-              .minCapacity(
-                  updateClusterConfig.getServerlessV2ScalingConfiguration().getMinCapacity())
-              .maxCapacity(
-                  updateClusterConfig.getServerlessV2ScalingConfiguration().getMaxCapacity())
+              .minCapacity(deployConfig.getServerlessV2ScalingConfiguration().getMinCapacity())
+              .maxCapacity(deployConfig.getServerlessV2ScalingConfiguration().getMaxCapacity())
               .build());
     }
 
-    if (updateClusterConfig.getCredentials() != null) {
+    if (deployConfig.getCredentials() != null) {
       ApplicationUtil.setIfNotNull(
           requestBuilder::masterUserPassword,
-          updateClusterConfig.getCredentials().getMasterUserPassword());
+          deployConfig.getCredentials().getMasterUserPassword());
       ApplicationUtil.setIfNotNull(
           requestBuilder::masterUserSecretKmsKeyId,
-          updateClusterConfig.getCredentials().getMasterUserSecretKmsKeyId());
+          deployConfig.getCredentials().getMasterUserSecretKmsKeyId());
       ApplicationUtil.setIfNotNull(
           requestBuilder::manageMasterUserPassword,
-          updateClusterConfig.getCredentials().getManageMasterUserPassword());
+          deployConfig.getCredentials().getManageMasterUserPassword());
     }
 
-    ApplicationUtil.setIfNotNull(
-        requestBuilder::applyImmediately, updateClusterConfig.getApplyImmediately());
+    ApplicationUtil.setIfNotNull(requestBuilder::applyImmediately, applyImmediately);
 
     this.dbClient.modifyDBCluster(requestBuilder.build());
   }
 
   public void updateDBInstance(
       String instanceIdentifier,
-      UpdateInstanceConfig instanceUpdateConfig,
+      InstanceConfig instanceConfig,
       String instanceParameterGroupName,
       Boolean applyImmediately) {
     ModifyDbInstanceRequest.Builder requestBuilder =
@@ -362,28 +355,23 @@ public class RDSClient {
 
     ApplicationUtil.setIfNotNull(requestBuilder::dbParameterGroupName, instanceParameterGroupName);
 
-    if (instanceUpdateConfig != null) {
+    if (instanceConfig != null) {
       ApplicationUtil.setIfNotNull(
-          requestBuilder::autoMinorVersionUpgrade,
-          instanceUpdateConfig.getAutoMinorVersionUpgrade());
+          requestBuilder::autoMinorVersionUpgrade, instanceConfig.getAutoMinorVersionUpgrade());
       ApplicationUtil.setIfNotNull(
-          requestBuilder::deletionProtection, instanceUpdateConfig.getDeletionProtection());
-      ApplicationUtil.setIfNotNull(
-          requestBuilder::enablePerformanceInsights,
-          instanceUpdateConfig.getEnablePerformanceInsights());
+          requestBuilder::enablePerformanceInsights, instanceConfig.getEnablePerformanceInsights());
       ApplicationUtil.setIfNotNull(
           requestBuilder::performanceInsightsKMSKeyId,
-          instanceUpdateConfig.getPerformanceInsightsKmsKeyId());
+          instanceConfig.getPerformanceInsightsKmsKeyId());
       ApplicationUtil.setIfNotNull(
           requestBuilder::performanceInsightsRetentionPeriod,
-          instanceUpdateConfig.getPerformanceInsightsRetentionPeriod());
+          instanceConfig.getPerformanceInsightsRetentionPeriod());
 
-      if (instanceUpdateConfig.getEnhancedMonitoring() != null) {
-        if (Boolean.TRUE.equals(instanceUpdateConfig.getEnhancedMonitoring().getEnabled())) {
+      if (instanceConfig.getEnhancedMonitoring() != null) {
+        if (Boolean.TRUE.equals(instanceConfig.getEnhancedMonitoring().getEnabled())) {
           requestBuilder
-              .monitoringInterval(instanceUpdateConfig.getEnhancedMonitoring().getInterval())
-              .monitoringRoleArn(
-                  instanceUpdateConfig.getEnhancedMonitoring().getMonitoringRoleArn());
+              .monitoringInterval(instanceConfig.getEnhancedMonitoring().getInterval())
+              .monitoringRoleArn(instanceConfig.getEnhancedMonitoring().getMonitoringRoleArn());
         } else {
           requestBuilder.monitoringInterval(0);
         }
@@ -620,29 +608,11 @@ public class RDSClient {
         request -> request.dbParameterGroupName(instanceParameterGroupName));
   }
 
-  public void updateTagsForResource(String resourceArn, Map<String, String> newTags) {
-    ListTagsForResourceRequest listRequest =
-        ListTagsForResourceRequest.builder().resourceName(resourceArn).build();
-    Map<String, String> existingTags =
-        this.dbClient.listTagsForResource(listRequest).tagList().stream()
-            .collect(java.util.stream.Collectors.toMap(Tag::key, Tag::value));
-
-    List<String> tagsToRemove =
-        existingTags.keySet().stream().filter(key -> newTags.containsKey(key)).toList();
-
-    if (!tagsToRemove.isEmpty()) {
-      RemoveTagsFromResourceRequest removeRequest =
-          RemoveTagsFromResourceRequest.builder()
-              .resourceName(resourceArn)
-              .tagKeys(tagsToRemove)
-              .build();
-      this.dbClient.removeTagsFromResource(removeRequest);
-    }
-
+  public void updateTagsForResource(String resourceArn, Map<String, String> tags) {
     AddTagsToResourceRequest addRequest =
         AddTagsToResourceRequest.builder()
             .resourceName(resourceArn)
-            .tags(convertMapToTags(newTags))
+            .tags(convertMapToTags(tags))
             .build();
     this.dbClient.addTagsToResource(addRequest);
   }

@@ -17,6 +17,7 @@ public class Constants {
   public final int RETRY_MAX_BACKOFF = 120;
   public final Duration DB_WAIT_RETRY_TIMEOUT = Duration.ofMinutes(20);
   public final Duration DB_WAIT_RETRY_INTERVAL = Duration.ofMillis(1000);
+  public final Duration DB_UPDATE_DELAY_INTERVAL = Duration.ofSeconds(60);
 
   public final Map<String, String> COMPONENT_TAGS =
       Map.of("component:mysql:version", ApplicationUtil.getProjectVersion());
