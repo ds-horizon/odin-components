@@ -5,6 +5,7 @@ import com.dream11.redis.config.metadata.ComponentMetadata;
 import com.dream11.redis.config.metadata.aws.AwsAccountData;
 import com.dream11.redis.config.metadata.aws.RedisData;
 import com.dream11.redis.config.user.DeployConfig;
+import com.dream11.redis.config.user.UpdateReplicaCountConfig;
 import com.dream11.redis.constant.Constants;
 import com.dream11.redis.constant.Operations;
 import com.dream11.redis.error.ApplicationError;
@@ -151,6 +152,17 @@ public class Application {
             yield Deploy.class;
           }
           case UNDEPLOY -> Undeploy.class;
+          case UPDATE_REPLICA_COUNT -> {
+            this.deployConfig = Application.getState().getDeployConfig();
+            this.deployConfig = this.deployConfig.mergeWith(this.config);
+            UpdateReplicaCountConfig updateReplicaCountConfig = Application.getObjectMapper().readValue(this.config, UpdateReplicaCountConfig.class);
+            modules.add(
+                    OptionalConfigModule.<UpdateReplicaCountConfig>builder()
+                            .clazz(UpdateReplicaCountConfig.class)
+                            .config(updateReplicaCountConfig)
+                            .build());
+            yield UpdateReplicaCountConfig.class;
+          }
         };
 
     if (Operations.fromValue(this.operationName).equals(Operations.UNDEPLOY)) {

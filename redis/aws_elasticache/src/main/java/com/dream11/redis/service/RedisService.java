@@ -6,6 +6,7 @@ import com.dream11.redis.config.metadata.ComponentMetadata;
 import com.dream11.redis.config.metadata.aws.AwsAccountData;
 import com.dream11.redis.config.metadata.aws.RedisData;
 import com.dream11.redis.config.user.DeployConfig;
+import com.dream11.redis.config.user.UpdateReplicaCountConfig;
 import com.dream11.redis.constant.Constants;
 import com.dream11.redis.util.ApplicationUtil;
 import com.google.inject.Inject;
@@ -24,6 +25,7 @@ public class RedisService {
   @NonNull final RedisClient redisClient;
   @NonNull final AwsAccountData awsAccountData;
   @NonNull final RedisData redisData;
+  @NonNull final UpdateReplicaCountConfig updateReplicaCountConfig;
 
   public void deploy() {
 
@@ -89,4 +91,18 @@ public class RedisService {
         "Redis undeployment completed successfully for replicationGroup {}",
         Application.getState().getReplicationGroupIdentifier());
   }
+
+    public void updateReplicaCount() {
+      log.info("Updating replica count...");
+      String replicationGroupIdentifier = Application.getState().getReplicationGroupIdentifier();
+      redisClient.updateReplicaCount(replicationGroupIdentifier, updateReplicaCountConfig);
+      log.info("Waiting for Replication group to become available: {}", replicationGroupIdentifier);
+      this.redisClient.waitUntilReplicationGroupAvailable(
+              replicationGroupIdentifier,
+              Constants.REPLICATION_GROUP_WAIT_RETRY_TIMEOUT,
+              Constants.REPLICATION_GROUP_WAIT_RETRY_INTERVAL);
+      log.info("Replication group is now available: {}", replicationGroupIdentifier);
+
+
+    }
 }

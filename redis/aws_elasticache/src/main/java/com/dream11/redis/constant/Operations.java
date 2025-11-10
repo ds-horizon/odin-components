@@ -10,7 +10,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum Operations {
   DEPLOY("deploy"),
-  UNDEPLOY("undeploy");
+  UNDEPLOY("undeploy"),
+  UPDATE_REPLICA_COUNT("update-replica-count");
   final String value;
 
   public static Operations fromValue(String value) {

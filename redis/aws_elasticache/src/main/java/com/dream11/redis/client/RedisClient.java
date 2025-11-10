@@ -2,15 +2,13 @@ package com.dream11.redis.client;
 
 import com.dream11.redis.config.metadata.aws.RedisData;
 import com.dream11.redis.config.user.DeployConfig;
+import com.dream11.redis.config.user.UpdateReplicaCountConfig;
 import com.dream11.redis.constant.Constants;
 import com.dream11.redis.error.ApplicationError;
 import com.dream11.redis.exception.GenericApplicationException;
 import com.dream11.redis.exception.ReplicationGroupNotFoundException;
 import com.dream11.redis.util.ApplicationUtil;
-import java.time.Duration;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
+import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
@@ -18,11 +16,19 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.retries.api.BackoffStrategy;
 import software.amazon.awssdk.services.elasticache.ElastiCacheClient;
 import software.amazon.awssdk.services.elasticache.model.CreateReplicationGroupRequest;
+import software.amazon.awssdk.services.elasticache.model.DecreaseReplicaCountRequest;
 import software.amazon.awssdk.services.elasticache.model.DeleteReplicationGroupRequest;
 import software.amazon.awssdk.services.elasticache.model.DescribeReplicationGroupsRequest;
 import software.amazon.awssdk.services.elasticache.model.DescribeReplicationGroupsResponse;
+import software.amazon.awssdk.services.elasticache.model.IncreaseReplicaCountRequest;
+import software.amazon.awssdk.services.elasticache.model.NodeGroup;
 import software.amazon.awssdk.services.elasticache.model.ReplicationGroup;
 import software.amazon.awssdk.services.elasticache.model.Tag;
+
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 public class RedisClient {
@@ -230,4 +236,42 @@ public class RedisClient {
       }
     }
   }
-}
+
+    public void updateReplicaCount(String replicationGroupIdentifier, @NonNull UpdateReplicaCountConfig updateReplicaCountConfig) {
+
+      ReplicationGroup replicationGroup = elastiCacheClient.describeReplicationGroups(
+              DescribeReplicationGroupsRequest.builder().replicationGroupId(replicationGroupIdentifier).build()
+      ).replicationGroups().get(0);
+
+
+      // For CMD there is a single node group
+      List<NodeGroup> nodeGroups = replicationGroup.nodeGroups();
+
+      // Compute current replicas-per-shard (assume uniform; if not, we’ll still set uniformly)
+      int current = nodeGroups.get(0).nodeGroupMembers().size() - 1;
+
+      if (updateReplicaCountConfig.getReplicasPerNodeGroup() == current) {
+        log.info("No change: replicas per shard already {}", current);
+        return;
+      }
+
+      if (updateReplicaCountConfig.getReplicasPerNodeGroup() > current) {
+        elastiCacheClient.increaseReplicaCount(IncreaseReplicaCountRequest.builder()
+                .replicationGroupId(replicationGroupIdentifier)
+                .newReplicaCount(updateReplicaCountConfig.getReplicasPerNodeGroup())
+                .applyImmediately(true).build());
+
+      } else {
+
+        elastiCacheClient.decreaseReplicaCount(DecreaseReplicaCountRequest.builder()
+                .replicationGroupId(replicationGroupIdentifier)
+                .newReplicaCount(updateReplicaCountConfig.getReplicasPerNodeGroup())
+                .applyImmediately(true).build());
+
+      }
+    }
+
+
+
+
+    }
