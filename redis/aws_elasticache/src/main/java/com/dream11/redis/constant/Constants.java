@@ -19,6 +19,9 @@ public class Constants {
 
   public final String DEFAULT = "default";
   public final String PARAMETER_GROUP_SUFFIX = ".cluster.on";
+  public final int AWS_CLIENT_RETRY_DELAY_SECONDS = 3;
+  public final int AWS_CLIENT_RETRY_MAX_BACKOFF_SECONDS = 3;
+  public final int AWS_CLIENT_MAX_ATTEMPTS_SECONDS = 3;
   public final Duration REPLICATION_GROUP_WAIT_RETRY_TIMEOUT = Duration.ofMinutes(20);
   public final Duration REPLICATION_GROUP_WAIT_RETRY_INTERVAL = Duration.ofMillis(5000);
 }

@@ -8,18 +8,19 @@ import java.util.stream.Collectors;
 import com.dream11.redis.config.metadata.aws.RedisData;
 import com.dream11.redis.config.user.DeployConfig;
 import com.dream11.redis.constant.Constants;
+import com.dream11.redis.error.ApplicationError;
 import com.dream11.redis.exception.GenericApplicationException;
 import com.dream11.redis.exception.ReplicationGroupNotFoundException;
 import com.dream11.redis.util.ApplicationUtil;
 
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import software.amazon.awssdk.core.retry.RetryMode;
+import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.retries.api.BackoffStrategy;
 import software.amazon.awssdk.services.elasticache.ElastiCacheClient;
 import software.amazon.awssdk.services.elasticache.model.CreateReplicationGroupRequest;
 import software.amazon.awssdk.services.elasticache.model.DeleteReplicationGroupRequest;
-import software.amazon.awssdk.services.elasticache.model.DeleteReplicationGroupResponse;
 import software.amazon.awssdk.services.elasticache.model.DescribeReplicationGroupsRequest;
 import software.amazon.awssdk.services.elasticache.model.DescribeReplicationGroupsResponse;
 import software.amazon.awssdk.services.elasticache.model.ReplicationGroup;
@@ -34,7 +35,16 @@ public class RedisClient {
         .region(Region.of(region))
         .overrideConfiguration(
             overrideConfig -> overrideConfig
-                .retryStrategy(RetryMode.STANDARD)
+                .retryStrategy(
+                            AwsRetryStrategy.standardRetryStrategy().toBuilder()
+                                .maxAttempts(Constants.AWS_CLIENT_MAX_ATTEMPTS_SECONDS)
+                                .throttlingBackoffStrategy(
+                                    BackoffStrategy.exponentialDelayHalfJitter(
+                                        Duration.ofSeconds(
+                                            Constants.AWS_CLIENT_RETRY_DELAY_SECONDS),
+                                        Duration.ofSeconds(
+                                            Constants.AWS_CLIENT_RETRY_MAX_BACKOFF_SECONDS)))
+                                .build())
                 .apiCallTimeout(Duration.ofMinutes(2))
                 .apiCallAttemptTimeout(Duration.ofSeconds(30)))
         .build();
@@ -98,14 +108,21 @@ public class RedisClient {
     ApplicationUtil.setIfNotNull(
         builder::cacheParameterGroupName, deployConfig.getCacheParameterGroupName());
 
-    // Set subnet group from metadata
-    if (redisData.getSubnetGroups() != null && !redisData.getSubnetGroups().isEmpty()) {
-      builder.cacheSubnetGroupName(redisData.getSubnetGroups().get(0));
+    if (deployConfig.getCacheSubnetGroupName() != null) {
+      builder.cacheSubnetGroupName(deployConfig.getCacheSubnetGroupName());
+    } else if (redisData.getSubnetGroup() != null) {
+      builder.cacheSubnetGroupName(redisData.getSubnetGroup());
+    } else {
+      throw new GenericApplicationException(ApplicationError.SUBNET_GROUP_NOT_FOUND);
     }
 
-    // Set security groups from metadata
-    if (redisData.getSecurityGroups() != null && !redisData.getSecurityGroups().isEmpty()) {
+    if (deployConfig.getSecurityGroupIds() != null
+        && !deployConfig.getSecurityGroupIds().isEmpty()) {
+      builder.securityGroupIds(deployConfig.getSecurityGroupIds());
+    } else if (redisData.getSecurityGroups() != null && !redisData.getSecurityGroups().isEmpty()) {
       builder.securityGroupIds(redisData.getSecurityGroups());
+    } else {
+      throw new GenericApplicationException(ApplicationError.SECURITY_GROUP_NOT_FOUND);
     }
 
     // Set tags
@@ -142,15 +159,10 @@ public class RedisClient {
     ApplicationUtil.setIfNotNull(
         builder::autoMinorVersionUpgrade, deployConfig.getAutoMinorVersionUpgrade());
 
-    // Set preferred AZs
     ApplicationUtil.setIfNotNull(
         builder::preferredCacheClusterAZs, deployConfig.getPreferredCacheClusterAZs());
 
-    // Set KMS key for encryption
     ApplicationUtil.setIfNotNull(builder::kmsKeyId, deployConfig.getKmsKeyId());
-
-    // Note: Log delivery configurations are handled separately if needed
-    // as they may require specific AWS SDK version support
   }
 
   @SneakyThrows
@@ -166,7 +178,7 @@ public class RedisClient {
         return;
       if (System.currentTimeMillis() > end)
         throw new GenericApplicationException(
-            "Timed out waiting for " + replicationGroupId + " status=" + rg.status());
+            ApplicationError.REPLICATION_GROUP_WAIT_TIMEOUT, replicationGroupId, "available");
       Thread.sleep(interval.toMillis());
     }
   }
@@ -198,9 +210,8 @@ public class RedisClient {
   @SneakyThrows
   public void deleteReplicationGroup(String replicationGroupId) {
 
-    DeleteReplicationGroupResponse response = elastiCacheClient.deleteReplicationGroup(
+    elastiCacheClient.deleteReplicationGroup(
         DeleteReplicationGroupRequest.builder().replicationGroupId(replicationGroupId).build());
-    log.info("Deletion status: {}", response.replicationGroup().status());
 
     while (true) {
       try {

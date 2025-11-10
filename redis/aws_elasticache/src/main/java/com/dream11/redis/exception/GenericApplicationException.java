@@ -3,9 +3,6 @@ package com.dream11.redis.exception;
 import com.dream11.redis.error.ApplicationError;
 
 public class GenericApplicationException extends RuntimeException {
-  public GenericApplicationException(String message) {
-    super(message);
-  }
 
   public GenericApplicationException(ApplicationError applicationError, Object... params) {
     super(

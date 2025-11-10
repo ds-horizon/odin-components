@@ -8,6 +8,6 @@ import lombok.Data;
 
 @Data
 public class RedisData implements Config {
-  @Valid @NotNull List<String> subnetGroups;
+  @Valid @NotNull String subnetGroup;
   @Valid @NotNull List<String> securityGroups;
 }

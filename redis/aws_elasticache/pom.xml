@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>com.dream11</groupId>
-  <artifactId>redis-aws_elasticache</artifactId>
+  <artifactId>redis-aws-elasticache</artifactId>
   <version>0.0.1-SNAPSHOT</version>
   <packaging>jar</packaging>
 
@@ -28,6 +28,7 @@
 
     <maven.compiler.source>17</maven.compiler.source>
     <maven.compiler.target>17</maven.compiler.target>
+    <maven.lombok.plugin.version>1.18.20.0</maven.lombok.plugin.version>
     <maven.compiler.plugin.version>3.8.1</maven.compiler.plugin.version>
     <maven.assembly.plugin.version>3.7.1</maven.assembly.plugin.version>
     <maven.surefire.plugin.version>3.0.0-M5</maven.surefire.plugin.version>
@@ -114,10 +115,10 @@
       <artifactId>regions</artifactId>
     </dependency>
 
-    <dependency>
+    <!--<dependency>
       <groupId>software.amazon.awssdk</groupId>
       <artifactId>utils</artifactId>
-    </dependency>
+    </dependency>-->
   </dependencies>
 
   <dependencyManagement>
@@ -135,6 +136,18 @@
 
   <build>
     <plugins>
+      <plugin>
+        <groupId>org.projectlombok</groupId>
+        <artifactId>lombok-maven-plugin</artifactId>
+        <version>${maven.lombok.plugin.version}</version>
+        <dependencies>
+          <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>${lombok.version}</version>
+          </dependency>
+        </dependencies>
+      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
@@ -162,6 +175,7 @@
           </descriptorRefs>
           <outputDirectory>${project.basedir}</outputDirectory>
           <finalName>${fat-jar.name}</finalName>
+          <appendAssemblyId>false</appendAssemblyId>
           <archive>
             <manifest>
               <addClasspath>true</addClasspath>

@@ -4,7 +4,6 @@ import java.io.File;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -150,7 +149,6 @@ public class Application {
   @SneakyThrows
   void executeOperation() {
     Class<? extends Operation> operationClass;
-    List<Module> modules = new ArrayList<>();
     operationClass =
         switch (Operations.fromValue(this.operationName)) {
           case DEPLOY -> {
@@ -177,8 +175,8 @@ public class Application {
     } else {
       log.info("Executing operation:[{}]", Operations.fromValue(this.operationName));
     }
-    modules.addAll(this.getGuiceModules());
-    this.initializeGuiceModules(modules).getInstance(operationClass).execute();
+
+    this.initializeGuiceModules(this.getGuiceModules()).getInstance(operationClass).execute();
     if (Operations.fromValue(this.operationName).equals(Operations.DEPLOY)) {
       Application.getState().setDeployConfig(this.deployConfig);
     }
@@ -218,7 +216,6 @@ public class Application {
                 this.componentMetadata.getCloudProviderDetails().getAccount().getData(),
                 AwsAccountData.class);
     this.awsAccountData.validate();
-    // ToDo Evaluate if we need redisData
     this.redisData =
         ApplicationUtil.getServiceWithCategory(
             this.componentMetadata.getCloudProviderDetails().getAccount().getServices(),
