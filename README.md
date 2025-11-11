@@ -2,7 +2,7 @@
 
 ## Overview
 
-This repository contains the source code for various Odin components - production-grade infrastructure components designed for cloud-native deployments. Each component follows the [Odin Component Interface (OCI)](https://github.com/dream-sports-labs/odin-component-interface) specification to ensure consistency, reliability, and ease of use across different cloud platforms.
+This repository contains the source code for various Odin components - production-grade infrastructure components designed for cloud-native deployments. Each component follows the [Odin Component Interface (OCI)](https://github.com/ds-horizon/odin-component-interface) specification to ensure consistency, reliability, and ease of use across different cloud platforms.
 
 ## Repository Structure
 
@@ -41,5 +41,5 @@ odin-components/
 
 ## Learn More
 
-- **OCI Specification**: [github.com/dream-sports-labs/odin-component-interface](https://github.com/dream-sports-labs/odin-component-interface)
+- **OCI Specification**: [github.com/ds-horizon/odin-component-interface](https://github.com/ds-horizon/odin-component-interface)
 - **Schema Design**: See our comprehensive [guiding principles document](./component-schema-guiding-principles.md)

@@ -31,9 +31,11 @@ import software.amazon.awssdk.services.rds.model.DBCluster;
 import software.amazon.awssdk.services.rds.model.DBClusterParameterGroup;
 import software.amazon.awssdk.services.rds.model.DBInstance;
 import software.amazon.awssdk.services.rds.model.DBParameterGroup;
+import software.amazon.awssdk.services.rds.model.FailoverDbClusterRequest;
 import software.amazon.awssdk.services.rds.model.ModifyDbClusterParameterGroupRequest;
 import software.amazon.awssdk.services.rds.model.ModifyDbParameterGroupRequest;
 import software.amazon.awssdk.services.rds.model.Parameter;
+import software.amazon.awssdk.services.rds.model.RebootDbInstanceRequest;
 import software.amazon.awssdk.services.rds.model.RestoreDbClusterFromSnapshotRequest;
 import software.amazon.awssdk.services.rds.model.ServerlessV2ScalingConfiguration;
 import software.amazon.awssdk.services.rds.model.Tag;
@@ -260,9 +262,6 @@ public class RDSClient {
           requestBuilder::autoMinorVersionUpgrade, instanceConfig.getAutoMinorVersionUpgrade());
 
       ApplicationUtil.setIfNotNull(
-          requestBuilder::deletionProtection, instanceConfig.getDeletionProtection());
-
-      ApplicationUtil.setIfNotNull(
           requestBuilder::enablePerformanceInsights, instanceConfig.getEnablePerformanceInsights());
 
       ApplicationUtil.setIfNotNull(
@@ -276,7 +275,8 @@ public class RDSClient {
           requestBuilder::performanceInsightsRetentionPeriod,
           instanceConfig.getPerformanceInsightsRetentionPeriod());
 
-      if (instanceConfig.getEnhancedMonitoring().getEnabled()) {
+      if (instanceConfig.getEnhancedMonitoring() != null
+          && instanceConfig.getEnhancedMonitoring().getEnabled()) {
         requestBuilder
             .monitoringInterval(instanceConfig.getEnhancedMonitoring().getInterval())
             .monitoringRoleArn(instanceConfig.getEnhancedMonitoring().getMonitoringRoleArn());
@@ -292,7 +292,7 @@ public class RDSClient {
     try (RdsWaiter waiter =
         RdsWaiter.builder()
             .client(this.dbClient)
-            .overrideConfiguration(config -> config.maxAttempts(60))
+            .overrideConfiguration(config -> config.waitTimeout(Constants.DB_WAIT_RETRY_TIMEOUT))
             .build()) {
       waitAction.accept(waiter);
     } catch (Exception e) {
@@ -339,6 +339,23 @@ public class RDSClient {
         waiter ->
             waiter.waitUntilDBInstanceDeleted(
                 builder -> builder.dbInstanceIdentifier(instanceIdentifier)));
+  }
+
+  public void failoverDBCluster(String clusterIdentifier, String targetInstanceIdentifier) {
+    FailoverDbClusterRequest request =
+        FailoverDbClusterRequest.builder()
+            .dbClusterIdentifier(clusterIdentifier)
+            .targetDBInstanceIdentifier(targetInstanceIdentifier)
+            .build();
+
+    this.dbClient.failoverDBCluster(request);
+  }
+
+  public void rebootDBInstance(String instanceIdentifier) {
+    RebootDbInstanceRequest request =
+        RebootDbInstanceRequest.builder().dbInstanceIdentifier(instanceIdentifier).build();
+
+    this.dbClient.rebootDBInstance(request);
   }
 
   public void createDBClusterParameterGroup(

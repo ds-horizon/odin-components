@@ -8,8 +8,9 @@
 5. [Default Values Philosophy](#default-values-philosophy)
 6. [Property Description Guidelines](#property-description-guidelines)
 7. [API Mapping and Validation](#api-mapping-and-validation)
-8. [Common Pitfalls and Lessons Learned](#common-pitfalls-and-lessons-learned)
-9. [Documentation and README Generation](#documentation-and-readme-generation)
+8. [Schema Merging and Cross-Schema Validation](#schema-merging-and-cross-schema-validation)
+9. [Common Pitfalls and Lessons Learned](#common-pitfalls-and-lessons-learned)
+10. [Documentation and README Generation](#documentation-and-readme-generation)
 
 ---
 
@@ -455,6 +456,336 @@ Before adding ANY property to a flavour schema:
      }
    }
    ```
+
+---
+
+## Schema Merging and Cross-Schema Validation
+
+### How Validation Works
+
+**Important**: Root schema and flavour schema are **merged before validation**. This is implemented in the `odin-component-interface` and allows flavour schemas to reference and validate against root schema properties.
+
+### Validation Flow
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Step 1: User Configuration                                 │
+│  ├── Root properties (redis/schema.json)                    │
+│  │   └── clusterModeEnabled: true                           │
+│  └── Flavor properties (redis/aws_k8s/schema.json)    │
+│      └── deploymentMode: "cluster"                          │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Step 2: Schema Merging (odin-component-interface)          │
+│  Combines root and flavour schemas into single merged schema │
+│  {                                                           │
+│    "clusterModeEnabled": true,        // From root          │
+│    "deploymentMode": "cluster",       // From flavour        │
+│    "cluster": { ... },                // From flavour        │
+│    ... all other properties                                 │
+│  }                                                           │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Step 3: Validation (JSON Schema)                           │
+│  Validates merged configuration against merged schema       │
+│  - Root schema validations apply                            │
+│  - Flavor schema validations apply                          │
+│  - Cross-schema validations apply (allOf conditions)        │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Result: Valid or Error                                     │
+│  If invalid, returns error message from failed validation   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Cross-Schema Dependencies
+
+Since schemas are merged, flavour schemas can reference root schema properties directly in validation rules. This enables enforcing dependencies between root and flavour properties.
+
+#### Example: Cluster Mode Dependency
+
+**Root Schema (redis/schema.json):**
+```json
+{
+  "properties": {
+    "clusterModeEnabled": {
+      "type": "boolean",
+      "description": "Enable Redis Cluster mode for horizontal scaling",
+      "default": false
+    }
+  }
+}
+```
+
+**Flavor Schema (redis/aws_k8s/schema.json):**
+```json
+{
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "deploymentMode": { "const": "cluster" }
+        }
+      },
+      "then": {
+        "properties": {
+          "clusterModeEnabled": { "const": true }  // <-- References root property
+        },
+        "errorMessage": "deploymentMode: 'cluster' requires clusterModeEnabled: true in root schema"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "clusterModeEnabled": { "const": false }  // <-- References root property
+        }
+      },
+      "then": {
+        "properties": {
+          "deploymentMode": {
+            "enum": ["standalone", "sentinel"]
+          }
+        },
+        "errorMessage": "clusterModeEnabled: false does not support deploymentMode: 'cluster'"
+      }
+    }
+  ]
+}
+```
+
+**How It Works:**
+1. User provides configuration with both root and flavour properties
+2. Schemas are merged: `clusterModeEnabled` (root) + `deploymentMode` (flavour)
+3. Validation runs on merged schema
+4. Flavor's `allOf` rules can check `clusterModeEnabled` value
+5. If mismatch detected, validation fails with clear error message
+
+#### Real-World Example: ElastiCache
+
+**From redis/aws_elasticache/schema.json:**
+```json
+{
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "numNodeGroups": { "minimum": 2 }  // Flavor property
+        }
+      },
+      "then": {
+        "properties": {
+          "clusterModeEnabled": { "const": true }  // Root property reference
+        },
+        "errorMessage": "numNodeGroups can only be greater than 1 when clusterModeEnabled is true"
+      }
+    }
+  ]
+}
+```
+
+This validates that ElastiCache's `numNodeGroups` (flavour property) aligns with Redis's `clusterModeEnabled` (root property).
+
+### When to Use Cross-Schema Validation
+
+Use cross-schema validation when:
+
+1. **Enforcing LSP**: Ensure flavour implementations respect root schema contracts
+2. **Preventing Misconfigurations**: Catch incompatible property combinations early
+3. **Clear Error Messages**: Guide users to correct configuration issues
+4. **Platform-Specific Requirements**: Validate platform constraints against logical configuration
+
+### Best Practices for Cross-Schema Validation
+
+#### 1. Always Validate Both Directions
+
+```json
+{
+  "allOf": [
+    // Direction 1: Flavor property requires root property
+    {
+      "if": { "properties": { "flavorProp": { "const": "value" } } },
+      "then": { "properties": { "rootProp": { "const": true } } }
+    },
+    // Direction 2: Root property constrains flavour property
+    {
+      "if": { "properties": { "rootProp": { "const": false } } },
+      "then": { "properties": { "flavorProp": { "not": { "const": "value" } } } }
+    }
+  ]
+}
+```
+
+#### 2. Provide Clear Error Messages
+
+```json
+{
+  "errorMessage": "deploymentMode: 'cluster' requires clusterModeEnabled: true in root schema"
+  // ✅ GOOD: Tells user exactly what's wrong and which schemas are involved
+}
+```
+
+```json
+{
+  "errorMessage": "Invalid configuration"
+  // ❌ BAD: Doesn't explain what's wrong or how to fix it
+}
+```
+
+#### 3. Document Cross-Schema Dependencies
+
+In property descriptions, explicitly mention dependencies on root schema:
+
+```json
+{
+  "deploymentMode": {
+    "description": "... **IMPORTANT:** Cluster mode requires `clusterModeEnabled: true` in root schema ..."
+  }
+}
+```
+
+#### 4. Test All Combinations
+
+When adding cross-schema validations, test:
+
+| Root Property | Flavor Property | Expected Result |
+|--------------|----------------|-----------------|
+| `true` | Compatible value | ✅ Valid |
+| `true` | Incompatible value | ❌ Error |
+| `false` | Compatible value | ✅ Valid |
+| `false` | Incompatible value | ❌ Error |
+
+### Common Cross-Schema Validation Patterns
+
+#### Pattern 1: Mandatory Dependency
+```json
+// Flavor property REQUIRES root property
+{
+  "if": { "properties": { "flavorFeature": { "const": true } } },
+  "then": { "properties": { "rootFeature": { "const": true } } },
+  "errorMessage": "flavorFeature requires rootFeature: true in root schema"
+}
+```
+
+#### Pattern 2: Mutual Exclusivity
+```json
+// Root property PREVENTS flavour property
+{
+  "if": { "properties": { "rootMode": { "const": "simple" } } },
+  "then": {
+    "properties": {
+      "flavorAdvancedFeature": { "const": false }
+    }
+  },
+  "errorMessage": "rootMode: 'simple' does not support flavorAdvancedFeature"
+}
+```
+
+#### Pattern 3: Conditional Requirements
+```json
+// Flavor property requires additional flavour properties when root property is set
+{
+  "if": {
+    "properties": {
+      "rootFeature": { "const": true },
+      "flavorMode": { "const": "advanced" }
+    }
+  },
+  "then": {
+    "required": ["flavorConfig"],
+    "properties": {
+      "flavorConfig": { "type": "object" }
+    }
+  },
+  "errorMessage": "rootFeature: true with flavorMode: 'advanced' requires flavorConfig"
+}
+```
+
+### Validation Error Messages
+
+When validation fails, users see error messages that include:
+1. **Which property failed**: The specific property that violated the constraint
+2. **Why it failed**: The validation rule that was violated
+3. **How to fix it**: Clear guidance from the `errorMessage` field
+
+**Example Error Output:**
+```
+Validation Error: Configuration invalid
+
+Property: deploymentMode
+Value: "cluster"
+Error: deploymentMode: 'cluster' requires clusterModeEnabled: true in root schema
+
+Fix: Set clusterModeEnabled: true in the root Redis configuration
+```
+
+### Debugging Cross-Schema Validations
+
+If validations aren't working as expected:
+
+1. **Check Schema Merging**: Verify both schemas are being merged correctly
+2. **Test Merged Schema**: Validate against the merged schema directly
+3. **Check Property Names**: Ensure root property names match exactly (case-sensitive)
+4. **Review allOf Order**: Later rules can override earlier ones
+5. **Use errorMessage**: Add detailed error messages to debug which rule is triggering
+
+### Example: Complete Cross-Schema Validation
+
+```json
+{
+  "title": "AWS Container Flavor",
+  "allOf": [
+    // Validate cluster mode dependency
+    {
+      "if": {
+        "properties": { "deploymentMode": { "const": "cluster" } }
+      },
+      "then": {
+        "properties": { "clusterModeEnabled": { "const": true } },
+        "required": ["cluster"],
+        "errorMessage": "deploymentMode: 'cluster' requires clusterModeEnabled: true and cluster configuration"
+      }
+    },
+    // Prevent cluster mode when not enabled
+    {
+      "if": {
+        "properties": { "clusterModeEnabled": { "const": false } }
+      },
+      "then": {
+        "properties": {
+          "deploymentMode": { "enum": ["standalone", "sentinel"] }
+        },
+        "errorMessage": "clusterModeEnabled: false only supports standalone or sentinel modes"
+      }
+    },
+    // Validate high availability requirements
+    {
+      "if": {
+        "properties": {
+          "deploymentMode": { "const": "sentinel" }
+        }
+      },
+      "then": {
+        "properties": { "replicaCount": { "minimum": 1 } },
+        "errorMessage": "Sentinel mode requires at least 1 replica for high availability"
+      }
+    }
+  ],
+  "properties": {
+    "deploymentMode": {
+      "type": "string",
+      "enum": ["standalone", "sentinel", "cluster"],
+      "description": "Deployment topology. Cluster mode requires clusterModeEnabled: true in root schema."
+    }
+  }
+}
+```
+
 ---
 
 ## Common Pitfalls and Lessons Learned

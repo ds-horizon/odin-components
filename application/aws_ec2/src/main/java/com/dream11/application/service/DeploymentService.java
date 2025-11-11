@@ -1,0 +1,881 @@
+package com.dream11.application.service;
+
+import com.dream11.application.Application;
+import com.dream11.application.config.metadata.ComponentMetadata;
+import com.dream11.application.config.metadata.aws.AwsAccountData;
+import com.dream11.application.config.user.BlueGreenStrategyConfig;
+import com.dream11.application.config.user.DeployConfig;
+import com.dream11.application.config.user.LoadBalancerConfig;
+import com.dream11.application.config.user.RevertConfig;
+import com.dream11.application.constant.Constants;
+import com.dream11.application.constant.DeploymentStrategy;
+import com.dream11.application.constant.DiscoveryType;
+import com.dream11.application.constant.LoadBalancerType;
+import com.dream11.application.constant.Mode;
+import com.dream11.application.error.ApplicationError;
+import com.dream11.application.exception.GenericApplicationException;
+import com.dream11.application.state.AutoscalingGroupState;
+import com.dream11.application.util.ApplicationUtil;
+import com.google.inject.Inject;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.Pair;
+import software.amazon.awssdk.services.autoscaling.model.AutoScalingGroup;
+
+@Slf4j
+@RequiredArgsConstructor(onConstructor = @__({@Inject}))
+public class DeploymentService {
+
+  @NonNull final DeployConfig deployConfig;
+  @NonNull final LaunchTemplateService launchTemplateService;
+  @NonNull final AutoscalingGroupService autoscalingGroupService;
+  @NonNull final LoadBalancerService loadBalancerService;
+  @NonNull final ClassicLoadBalancerService classicLoadBalancerService;
+  @NonNull final ComponentMetadata componentMetadata;
+  @NonNull final RoutingService routingService;
+  @NonNull final AwsAccountData awsAccountData;
+
+  public void deploy() {
+    if (this.deployConfig.getDeploymentStrategyConfig().getName()
+        == DeploymentStrategy.BLUE_GREEN) {
+
+      this.performBlueGreenDeployment(
+          (BlueGreenStrategyConfig) this.deployConfig.getDeploymentStrategyConfig().getConfig());
+    } else {
+      throw new GenericApplicationException(
+          ApplicationError.INVALID_DEPLOYMENT_STRATEGY,
+          this.deployConfig.getDeploymentStrategyConfig().getName());
+    }
+  }
+
+  @SneakyThrows
+  public void performBlueGreenDeployment(BlueGreenStrategyConfig blueGreenStrategyConfig) {
+    String uniqueId = ApplicationUtil.generateRandomId(Constants.ASG_RANDOM_ID_LENGTH);
+    log.info("Unique id for creating ASGs and launch templates:[{}]", uniqueId);
+    if (this.deployConfig.getDiscoveryConfig().getType() == DiscoveryType.NONE) {
+      this.performBlueGreenDeploymentNonDiscoverable(uniqueId);
+    } else {
+      this.performBlueGreenDeploymentDiscoverable(uniqueId, blueGreenStrategyConfig);
+    }
+
+    // Passive downscale
+    if (blueGreenStrategyConfig.getPassiveDownscale().getEnabled().equals(Boolean.TRUE)) {
+      if (Objects.isNull(Application.getState().getDeployConfig())) {
+        log.info("Skipping wait as deployment has not been successful yet");
+      } else {
+        log.info(
+            "Waiting for:[{}] seconds before downscaling passive deployment stack and deleting orphan deployments",
+            blueGreenStrategyConfig.getPassiveDownscale().getDelay());
+        Thread.sleep(
+            TimeUnit.SECONDS.toMillis(blueGreenStrategyConfig.getPassiveDownscale().getDelay()));
+      }
+      log.info("Downscaling passive deployment stack and deleting orphan ASGs");
+      this.passiveDownscale();
+    } else {
+      log.info("Skipping passive downscale");
+    }
+  }
+
+  private void performBlueGreenDeploymentNonDiscoverable(String uniqueId) {
+    // Create ASG. For non-discoverable components there can be only 1 stack
+    AutoScalingGroup asg =
+        this.createLtAndAsg(
+            this.getAsgName(uniqueId, "1"), Map.of(), List.of(), List.of(), Map.of());
+    // Wait for initial capacity of instances to come healthy for all ASGs
+    List<Callable<Boolean>> initialWaitTasks =
+        this.createAllAsgWaitTasks(
+            List.of(asg),
+            this.deployConfig.getAutoScalingGroupConfig().getInitialCapacity(),
+            Constants.WAIT_FOR_INITIAL_HEALHTY_INSTANCES_DURATION);
+    ApplicationUtil.runOnExecutorService(initialWaitTasks);
+    // Scale ASG
+    int instancesPerAsg = this.scaleAsg(List.of(asg));
+    // Wait for total capacity to come healthy
+    List<Callable<Boolean>> tasks =
+        this.createAllAsgWaitTasks(
+            List.of(asg), instancesPerAsg, Constants.WAIT_FOR_TOTAL_HEALHTY_INSTANCES_DURATION);
+    ApplicationUtil.runOnExecutorService(tasks);
+  }
+
+  private void performBlueGreenDeploymentDiscoverable(
+      String uniqueId, BlueGreenStrategyConfig blueGreenStrategyConfig) {
+    // Get passive deployment stack for each stack
+    Map<String, Character> passiveStackMap = this.routingService.getPassiveStackMap();
+    log.info("Passive stacks map:[{}]", passiveStackMap);
+    // Create ASG for each stack
+    List<Callable<AutoScalingGroup>> asgCreateTasks = new ArrayList<>();
+    passiveStackMap.forEach(
+        (stackId, deploymentStack) ->
+            asgCreateTasks.add(
+                () -> this.createLtAndAsgForDiscoverable(uniqueId, stackId, deploymentStack)));
+    List<AutoScalingGroup> asgs = ApplicationUtil.runOnExecutorService(asgCreateTasks);
+
+    // Wait for initial capacity of instances to come healthy for all ASGs
+    List<Callable<Boolean>> initialWaitTasks =
+        this.createAllAsgWaitTasks(
+            asgs,
+            this.deployConfig.getAutoScalingGroupConfig().getInitialCapacity(),
+            Constants.WAIT_FOR_INITIAL_HEALHTY_INSTANCES_DURATION);
+    ApplicationUtil.runOnExecutorService(initialWaitTasks);
+
+    // Scale the ASG
+    int instancesPerAsg = this.scaleAsg(asgs);
+    // Scale LCU for each stack
+    Map<Character, Integer> lcus = this.getLcuToScale();
+    List<Pair<String, String>> lbsWithLcu =
+        passiveStackMap.entrySet().stream()
+            .flatMap(entry -> this.scaleLcus(entry.getKey(), entry.getValue(), lcus).stream())
+            .toList();
+
+    // Wait for instances to come healthy and lcus to get provisioned
+    List<Callable<Boolean>> tasks =
+        this.createAllAsgWaitTasks(
+            asgs, instancesPerAsg, Constants.WAIT_FOR_TOTAL_HEALHTY_INSTANCES_DURATION);
+    tasks.addAll(this.createAllLcuWaitTasks(lbsWithLcu));
+    ApplicationUtil.runOnExecutorService(tasks);
+
+    // Route Traffic
+    if (blueGreenStrategyConfig.getAutoRouting().equals(Boolean.FALSE)) {
+      log.info("Skipping routing traffic as auto routing is false");
+    } else {
+      this.routingService.routeTraffic(blueGreenStrategyConfig, passiveStackMap);
+    }
+  }
+
+  public int scaleAsg(List<AutoScalingGroup> asgs) {
+    return scaleAsgEqually(
+        asgs, this.deployConfig.getAutoScalingGroupConfig().getDesiredInstances());
+  }
+
+  public int scaleAsgEqually(List<AutoScalingGroup> asgs, Integer totalDesiredCount) {
+    // Scale ASG
+    int instancesPerAsg = (int) Math.ceil((double) totalDesiredCount / asgs.size());
+    asgs.forEach(
+        asg -> this.autoscalingGroupService.scale(asg.autoScalingGroupName(), instancesPerAsg));
+    return instancesPerAsg;
+  }
+
+  public int scaleAsgEqually(List<String> asgs, Integer totalDesiredCount, Integer maxInstances) {
+    // Scale ASG
+    int instancesPerAsg = (int) Math.ceil((double) totalDesiredCount / asgs.size());
+    asgs.forEach(asg -> this.autoscalingGroupService.scale(asg, instancesPerAsg, maxInstances));
+    return instancesPerAsg;
+  }
+
+  /**
+   * @return map containing lcus to scale for internal and external
+   */
+  private Map<Character, Integer> getLcuToScale() {
+    int internalLcu =
+        (int)
+            Math.ceil(
+                (double) this.deployConfig.getLoadBalancerConfig().getLcuConfig().getInternal()
+                    / this.deployConfig.getStacks());
+    int externalLcu =
+        (int)
+            Math.ceil(
+                (double) this.deployConfig.getLoadBalancerConfig().getLcuConfig().getExternal()
+                    / this.deployConfig.getStacks());
+    return Map.of(
+        Constants.INTERNAL_IDENTIFIER, internalLcu, Constants.EXTERNAL_IDENTIFIER, externalLcu);
+  }
+
+  /**
+   * Finds load balancer with identifier from state and scale lcu if found
+   *
+   * @param stackId stackId
+   * @param deploymentStack blue/green
+   * @param lcus map number of lcus to scale for internal and external
+   * @return list of string pair, for each element left element denotes lb arn and right element
+   *     denotes lb name (for classic)
+   */
+  public List<Pair<String, String>> scaleLcus(
+      String stackId, Character deploymentStack, Map<Character, Integer> lcus) {
+    return List.of(
+        this.scaleLcu(
+            stackId,
+            Constants.INTERNAL_IDENTIFIER,
+            deploymentStack,
+            lcus.getOrDefault(Constants.INTERNAL_IDENTIFIER, 0)),
+        this.scaleLcu(
+            stackId,
+            Constants.EXTERNAL_IDENTIFIER,
+            deploymentStack,
+            lcus.getOrDefault(Constants.EXTERNAL_IDENTIFIER, 0)));
+  }
+
+  /**
+   * Finds load balancer with identifier from state and scale lcu if found
+   *
+   * @param stackId stackId
+   * @param type type of stack i.e internal/external
+   * @param deploymentStack blue/green
+   * @param lcu number of lcus to scale
+   * @return pair of string, left element denotes lb arn and right element denotes lb name (for
+   *     classic)
+   */
+  private Pair<String, String> scaleLcu(
+      String stackId, Character type, Character deploymentStack, Integer lcu) {
+    Pair<String, String> pair =
+        Application.getState()
+            .getLbArnOrName(String.format("%s%s%s", stackId, type, deploymentStack));
+
+    if (Objects.nonNull(pair.getLeft())) {
+      // Application/Network load balancer
+      this.loadBalancerService.scaleLcu(pair.getLeft(), lcu);
+    }
+    return pair;
+  }
+
+  public AutoScalingGroup createLtAndAsg(
+      String name,
+      Map<String, String> envVars,
+      List<String> targetGroupARNs,
+      List<String> loadBalancerNames,
+      Map<String, String> extraTags) {
+    Map<String, String> launchTemplateIdArchitectureMap =
+        this.launchTemplateService.createLaunchTemplates(name, envVars).entrySet().stream()
+            .collect(
+                Collectors.toMap(entry -> entry.getKey().launchTemplateId(), Map.Entry::getValue));
+    // Remove these tgs/lbs from existing ASG
+    this.autoscalingGroupService.detachTgFromAsg(targetGroupARNs);
+    this.autoscalingGroupService.detachLbFromAsg(loadBalancerNames);
+    this.waitForAllInstancesToDrain(targetGroupARNs, loadBalancerNames);
+    return this.autoscalingGroupService.createAsg(
+        name,
+        targetGroupARNs,
+        loadBalancerNames,
+        launchTemplateIdArchitectureMap,
+        this.deployConfig.getAutoScalingGroupConfig(),
+        extraTags);
+  }
+
+  private void waitForAllInstancesToDrain(
+      List<String> targetGroupARNs, List<String> loadBalancerNames) {
+    List<Callable<Boolean>> tasks = new ArrayList<>();
+    if (!targetGroupARNs.isEmpty()) {
+      targetGroupARNs.forEach(
+          tgARN ->
+              tasks.add(
+                  () ->
+                      this.waitForInstancesToDrain(
+                          () -> this.loadBalancerService.getNonDrainingTargets(tgARN),
+                          Constants.WAIT_FOR_INSTANCES_TO_DRAIN_DURATION)));
+    } else if (!loadBalancerNames.isEmpty()) {
+      loadBalancerNames.forEach(
+          lbName ->
+              tasks.add(
+                  () ->
+                      this.waitForInstancesToDrain(
+                          () -> this.classicLoadBalancerService.getAllInstances(lbName),
+                          Constants.WAIT_FOR_INSTANCES_TO_DRAIN_DURATION)));
+    }
+    ApplicationUtil.runOnExecutorService(tasks);
+  }
+
+  public String getAsgName(String uniqueId, String stackId) {
+    return String.format(
+        "%s-%s-%s-%s-%s",
+        this.deployConfig.getArtifactConfig().getName(),
+        this.componentMetadata.getEnvName(),
+        this.deployConfig.getArtifactConfig().getVersion(),
+        stackId,
+        uniqueId);
+  }
+
+  public AutoScalingGroup createLtAndAsgForDiscoverable(
+      String uniqueId, String stackId, Character deploymentStack) {
+    // Create ASG and Launch Template
+    Pair<List<String>, List<String>> asgAttachments =
+        this.getAsgAttachments(stackId, deploymentStack);
+
+    String deploymentStackName = ApplicationUtil.getDeploymentStackName(deploymentStack);
+    Map<String, String> extraTags =
+        Map.of(
+            Constants.APPLICATION_DEPLOYMENT_STACK_TAG,
+            deploymentStackName,
+            Constants.DEPLOYMENT_STACK_TAG,
+            deploymentStackName);
+
+    return this.createLtAndAsg(
+        this.getAsgName(uniqueId, stackId),
+        this.getEnvVarsForDiscoverable(
+            asgAttachments.getLeft(), asgAttachments.getRight(), deploymentStack),
+        asgAttachments.getLeft(),
+        asgAttachments.getRight(),
+        extraTags);
+  }
+
+  private Map<String, String> getEnvVarsForDiscoverable(
+      List<String> targetGroupARNs, List<String> loadBalancerNames, Character deploymentStack) {
+    String deploymentStackEnvVar = ApplicationUtil.getDeploymentStackName(deploymentStack);
+    Map<String, String> envVars = new HashMap<>();
+    envVars.put(Constants.DEPLOYMENT_STACK_ENV_VARIABLE, deploymentStackEnvVar);
+    if (!targetGroupARNs.isEmpty()) {
+      envVars.put(Constants.TARGET_GROUP_ARN_ENV_VARIABLE, targetGroupARNs.get(0));
+    }
+    if (!loadBalancerNames.isEmpty()) {
+      envVars.put(Constants.LOAD_BALANCER_NAME_ENV_VARIABLE, loadBalancerNames.get(0));
+    }
+    return envVars;
+  }
+
+  public List<Callable<Boolean>> createAllAsgWaitTasks(
+      List<AutoScalingGroup> autoScalingGroups, Integer desiredHealthyCount, Duration timeout) {
+
+    List<Callable<Boolean>> tasks = new ArrayList<>();
+    autoScalingGroups.forEach(
+        autoScalingGroup ->
+            tasks.addAll(this.createAsgWaitTasks(autoScalingGroup, desiredHealthyCount, timeout)));
+    return tasks;
+  }
+
+  public List<Callable<Boolean>> createAllLcuWaitTasks(List<Pair<String, String>> lbsWithLcu) {
+    List<Callable<Boolean>> tasks = new ArrayList<>();
+    List<String> lbArns = new ArrayList<>();
+    lbsWithLcu.forEach(
+        pair -> {
+          if (Objects.nonNull(pair.getLeft())) {
+            lbArns.add(pair.getLeft());
+          }
+        });
+    log.info("Waiting for LCU provisioning in LB ARNs:{}", lbArns);
+    lbArns.forEach(
+        lbArn ->
+            tasks.add(
+                () ->
+                    this.waitForLcuProvisioning(
+                        () -> this.loadBalancerService.getLcu(lbArn).getStatus(),
+                        Constants.WAIT_FOR_LCU_PROVISIONING_DURATION,
+                        this.loadBalancerService.getLcu(lbArn).getLcu())));
+    return tasks;
+  }
+
+  @SneakyThrows
+  public List<Callable<Boolean>> createAsgWaitTasks(
+      AutoScalingGroup autoScalingGroup, Integer desiredHealthyCount, Duration timeout) {
+    log.info(
+        "Waiting for {} healthy instances in ASG:[{}]",
+        desiredHealthyCount,
+        autoScalingGroup.autoScalingGroupName());
+    List<Callable<Boolean>> tasks = new ArrayList<>();
+    if (!autoScalingGroup.targetGroupARNs().isEmpty()) {
+      autoScalingGroup
+          .targetGroupARNs()
+          .forEach(
+              targetGroupARN ->
+                  tasks.add(
+                      () ->
+                          this.waitForHealthyInstances(
+                              () -> this.loadBalancerService.getHealthyTargets(targetGroupARN),
+                              desiredHealthyCount,
+                              timeout,
+                              autoScalingGroup.autoScalingGroupName())));
+
+    } else if (!autoScalingGroup.loadBalancerNames().isEmpty()) {
+      autoScalingGroup
+          .loadBalancerNames()
+          .forEach(
+              loadBalancerName ->
+                  tasks.add(
+                      () ->
+                          this.waitForHealthyInstances(
+                              () ->
+                                  this.classicLoadBalancerService.getHealthyInstances(
+                                      loadBalancerName),
+                              desiredHealthyCount,
+                              timeout,
+                              autoScalingGroup.autoScalingGroupName())));
+    } else {
+      tasks.add(
+          () ->
+              this.waitForHealthyInstances(
+                  () ->
+                      this.autoscalingGroupService.getInServiceInstances(
+                          autoScalingGroup.autoScalingGroupName()),
+                  desiredHealthyCount,
+                  timeout,
+                  autoScalingGroup.autoScalingGroupName()));
+    }
+    return tasks;
+  }
+
+  @SneakyThrows
+  public boolean waitForHealthyInstances(
+      Callable<Long> getHealthyInstanceCountMapper,
+      Integer desiredHealthyCount,
+      Duration timeout,
+      String asgName) {
+    long startTime = System.currentTimeMillis();
+    while (System.currentTimeMillis() <= startTime + timeout.toMillis()) {
+      long healthyTargets = getHealthyInstanceCountMapper.call();
+      if (healthyTargets >= desiredHealthyCount) {
+        return true;
+      }
+      Thread.sleep(Constants.DELAY_FOR_MAKING_NEXT_REQUEST.toMillis());
+    }
+    throw new GenericApplicationException(
+        ApplicationError.UNHEALTHY_APPLICATION_TIMEOUT, timeout.toMinutes(), asgName);
+  }
+
+  @SneakyThrows
+  public boolean waitForInstancesToDrain(Callable<Long> getInstanceCountMapper, Duration timeout) {
+    long startTime = System.currentTimeMillis();
+    while (System.currentTimeMillis() <= startTime + timeout.toMillis()) {
+      long targets = getInstanceCountMapper.call();
+      if (targets == 0) {
+        return true;
+      }
+      Thread.sleep(Constants.DELAY_FOR_MAKING_NEXT_REQUEST.toMillis());
+    }
+    throw new GenericApplicationException(
+        ApplicationError.TARGET_DRAIN_TIMEOUT, timeout.toMinutes());
+  }
+
+  @SneakyThrows
+  public boolean waitForLcuProvisioning(
+      Callable<String> getLcuStatusMapper, Duration timeout, Integer lcu) {
+    if (lcu == 0) {
+      return true;
+    }
+    long startTime = System.currentTimeMillis();
+    while (System.currentTimeMillis() <= startTime + timeout.toMillis()) {
+      if (getLcuStatusMapper.call().equals(Constants.LCU_PROVISIONED_STATUS)) {
+        return true;
+      }
+      Thread.sleep(Constants.DELAY_FOR_MAKING_NEXT_REQUEST.toMillis());
+    }
+    throw new GenericApplicationException(
+        ApplicationError.LCU_PROVISIONING_TIMEOUT, timeout.toMinutes());
+  }
+
+  /**
+   * Get target group ARNs and classic load balancer names attached to ASG
+   *
+   * @param stackId stack id. Example 0, 1
+   * @param deploymentStack b/g
+   * @return Pair of target group ARNs and classic load balancer names. Left: Target group ARNs,
+   *     Right: Classic load balancer names
+   */
+  public Pair<List<String>, List<String>> getAsgAttachments(
+      String stackId, Character deploymentStack) {
+    if (this.deployConfig.getLoadBalancerConfig().getType() == LoadBalancerType.CLB) {
+      return Pair.of(
+          List.of(),
+          this.classicLoadBalancerService.getLoadBalancerNamesForStack(stackId, deploymentStack));
+    } else {
+      return Pair.of(
+          this.loadBalancerService.getTargetGroupArnsForStack(stackId, deploymentStack), List.of());
+    }
+  }
+
+  /**
+   * Downscale the given deployment stack resources for provided stack id and delete orphan ASGs
+   *
+   * @param stackId stack id to downscale
+   * @param deploymentStack deployment stack to downscale
+   */
+  private void downscale(String stackId, Character deploymentStack) {
+    Pair<List<String>, List<String>> asgAttachments =
+        this.getAsgAttachments(stackId, deploymentStack);
+    List<AutoscalingGroupState> asgsToDelete =
+        Application.getState().getAsgStateWithoutTgLb().stream().toList();
+
+    Set<String> asgsToDownscale = new HashSet<>();
+
+    asgsToDownscale.addAll(
+        this.autoscalingGroupService.getAsgsFromTgArns(asgAttachments.getLeft()));
+    asgsToDownscale.addAll(
+        this.autoscalingGroupService.getAsgsFromLbNames(asgAttachments.getRight()));
+    // Delete orphan Asg
+    asgsToDelete.forEach(
+        asgState -> {
+          this.autoscalingGroupService.deleteAsg(asgState.getName());
+          this.launchTemplateService.deleteLaunchTemplates(asgState.getLtIds());
+        });
+    // Downscale passive ASGs
+    asgsToDownscale.forEach(name -> this.autoscalingGroupService.scale(name, 0));
+    // Downscale LCUs
+    this.scaleLcus(
+        stackId,
+        deploymentStack,
+        Map.of(Constants.INTERNAL_IDENTIFIER, 0, Constants.EXTERNAL_IDENTIFIER, 0));
+  }
+
+  public void passiveDownscale() {
+    if (this.deployConfig.getDiscoveryConfig().getType() == DiscoveryType.NONE) {
+      this.passiveDownscaleNonDiscoverable();
+    } else {
+      this.passiveDownscaleDiscoverable();
+    }
+  }
+
+  private void passiveDownscaleDiscoverable() {
+    Map<String, Character> passiveStackMap = this.routingService.getPassiveStackMap();
+    passiveStackMap.forEach(this::downscale);
+  }
+
+  private void passiveDownscaleNonDiscoverable() {
+
+    List<AutoScalingGroup> autoscalingGroups =
+        Application.getState().getAsg().stream()
+            .map(
+                autoscalingGroupState ->
+                    this.autoscalingGroupService.describe(autoscalingGroupState.getName()))
+            .collect(Collectors.toList());
+    Collections.reverse(autoscalingGroups);
+
+    List<AutoScalingGroup> asgWithNonZeroCapacity =
+        autoscalingGroups.stream()
+            .filter(autoScalingGroup -> autoScalingGroup.desiredCapacity() != 0)
+            .toList();
+
+    List<AutoScalingGroup> asgWithZeroCapacity =
+        autoscalingGroups.stream()
+            .filter(autoScalingGroup -> autoScalingGroup.desiredCapacity() == 0)
+            .toList();
+
+    List<AutoScalingGroup> asgToDelete =
+        new ArrayList<>(
+            asgWithZeroCapacity.stream()
+                .skip(Math.max(2 - asgWithNonZeroCapacity.size(), 0))
+                .toList());
+    if (asgWithNonZeroCapacity.size() >= 2) {
+      asgToDelete.addAll(asgWithNonZeroCapacity.subList(2, asgWithNonZeroCapacity.size()));
+      this.autoscalingGroupService.scale(asgWithNonZeroCapacity.get(1).autoScalingGroupName(), 0);
+    }
+    asgToDelete.forEach(
+        asg -> {
+          this.launchTemplateService.deleteLaunchTemplate(
+              asg.mixedInstancesPolicy()
+                  .launchTemplate()
+                  .launchTemplateSpecification()
+                  .launchTemplateId());
+          this.autoscalingGroupService.deleteAsg(asg.autoScalingGroupName());
+        });
+  }
+
+  public List<String> getAsgsForStack(String stackId, Character deploymentStack) {
+    Pair<List<String>, List<String>> asgAttachments =
+        this.getAsgAttachments(stackId, deploymentStack);
+    List<String> asgs = new ArrayList<>();
+
+    asgs.addAll(this.autoscalingGroupService.getAsgsFromTgArns(asgAttachments.getLeft()));
+    asgs.addAll(this.autoscalingGroupService.getAsgsFromLbNames(asgAttachments.getRight()));
+
+    return asgs;
+  }
+
+  public List<Pair<String, String>> getLbsForStack(String stackId, Character deploymentStack) {
+    return List.of(
+        Application.getState()
+            .getLbArnOrName(
+                String.format("%s%s%s", stackId, Constants.INTERNAL_IDENTIFIER, deploymentStack)),
+        Application.getState()
+            .getLbArnOrName(
+                String.format("%s%s%s", stackId, Constants.EXTERNAL_IDENTIFIER, deploymentStack)));
+  }
+
+  public Map<Character, Integer> getCurrentLcusForStack(String stackId, Character deploymentStack) {
+    Map<Character, Integer> currentLcus = new HashMap<>();
+    Arrays.stream(new Character[] {Constants.INTERNAL_IDENTIFIER, Constants.EXTERNAL_IDENTIFIER})
+        .forEach(
+            identifier -> {
+              Pair<String, String> lbArnOrName =
+                  Application.getState()
+                      .getLbArnOrName(
+                          String.format("%s%s%s", stackId, identifier, deploymentStack));
+              if (Objects.nonNull(lbArnOrName.getLeft())) {
+                currentLcus.put(
+                    identifier, this.loadBalancerService.getLcu(lbArnOrName.getLeft()).getLcu());
+              }
+            });
+    return currentLcus;
+  }
+
+  private void upscalePassiveAsg(AutoScalingGroup passiveAsg, AutoScalingGroup activeAsg) {
+    if (passiveAsg.maxSize() < activeAsg.maxSize()) {
+      this.autoscalingGroupService.scale(
+          passiveAsg.autoScalingGroupName(), activeAsg.desiredCapacity(), activeAsg.maxSize());
+    } else {
+      this.autoscalingGroupService.scale(
+          passiveAsg.autoScalingGroupName(), activeAsg.desiredCapacity());
+    }
+  }
+
+  private List<Callable<Boolean>> upscalePassiveStackAndCreateWaitTasks(
+      String stackId, Character deploymentStack) {
+    List<Callable<Boolean>> tasks = new ArrayList<>(List.of());
+    List<AutoScalingGroup> passiveAsgs =
+        this.getAsgsForStack(stackId, deploymentStack).stream()
+            .map(this.autoscalingGroupService::describe)
+            .toList();
+
+    List<AutoScalingGroup> activeAsgs =
+        this.getAsgsForStack(stackId, ApplicationUtil.getSisterDeploymentStack(deploymentStack))
+            .stream()
+            .map(this.autoscalingGroupService::describe)
+            .toList();
+
+    List<Pair<String, String>> passiveLbs = this.getLbsForStack(stackId, deploymentStack);
+
+    if (passiveAsgs.isEmpty()) {
+      throw new GenericApplicationException(ApplicationError.PASSIVE_STACK_NOT_FOUND, stackId);
+    }
+
+    for (int index = 0; index < passiveAsgs.size(); index++) {
+      this.upscalePassiveAsg(passiveAsgs.get(index), activeAsgs.get(index));
+      tasks.addAll(
+          this.createAsgWaitTasks(
+              passiveAsgs.get(index),
+              activeAsgs.get(index).desiredCapacity(),
+              Constants.WAIT_FOR_TOTAL_HEALHTY_INSTANCES_DURATION));
+    }
+    Map<Character, Integer> currentLcus =
+        this.getCurrentLcusForStack(
+            stackId, ApplicationUtil.getSisterDeploymentStack(deploymentStack));
+    this.scaleLcus(stackId, deploymentStack, currentLcus);
+
+    tasks.addAll(this.createAllLcuWaitTasks(passiveLbs));
+    return tasks;
+  }
+
+  public void revert(RevertConfig revertConfig) {
+    if (this.deployConfig.getDiscoveryConfig().getType() == DiscoveryType.NONE) {
+      this.revertNonDiscoverable(revertConfig);
+    } else {
+      this.revertDiscoverable(revertConfig);
+    }
+  }
+
+  @SneakyThrows
+  private void revertNonDiscoverable(RevertConfig revertConfig) {
+    List<AutoScalingGroup> autoscalingGroups =
+        Application.getState().getAsg().stream()
+            .map(
+                autoscalingGroupState ->
+                    this.autoscalingGroupService.describe(autoscalingGroupState.getName()))
+            .toList();
+    List<AutoScalingGroup> asgWithZeroCapacity =
+        autoscalingGroups.stream()
+            .filter(autoScalingGroup -> autoScalingGroup.desiredCapacity() == 0)
+            .sorted(Comparator.comparing(AutoScalingGroup::createdTime).reversed())
+            .toList();
+    List<AutoScalingGroup> asgWithNonZeroCapacity =
+        autoscalingGroups.stream()
+            .filter(autoScalingGroup -> autoScalingGroup.desiredCapacity() != 0)
+            .sorted(Comparator.comparing(AutoScalingGroup::createdTime).reversed())
+            .toList();
+    if (asgWithNonZeroCapacity.size() != 1) {
+      throw new GenericApplicationException(
+          ApplicationError.MULTIPLE_ASG_WITH_NON_ZERO_CAPACITY,
+          asgWithNonZeroCapacity.stream().map(AutoScalingGroup::autoScalingGroupName).toList());
+    }
+    if (asgWithZeroCapacity.isEmpty()) {
+      throw new GenericApplicationException(ApplicationError.NO_ASG_WITH_ZERO_CAPACITY);
+    }
+    this.upscalePassiveAsg(asgWithZeroCapacity.get(0), asgWithNonZeroCapacity.get(0));
+
+    List<Callable<Boolean>> tasks =
+        this.createAsgWaitTasks(
+            asgWithZeroCapacity.get(0),
+            asgWithNonZeroCapacity.get(0).desiredCapacity(),
+            Constants.WAIT_FOR_TOTAL_HEALHTY_INSTANCES_DURATION);
+    ApplicationUtil.runOnExecutorService(tasks);
+
+    if (Boolean.TRUE.equals(revertConfig.getPassiveDownscale().getEnabled())) {
+      log.info(
+          "Waiting for:[{}] seconds before downscaling the now passive deployment stack",
+          revertConfig.getPassiveDownscale().getDelay());
+      Thread.sleep(Duration.ofSeconds(revertConfig.getPassiveDownscale().getDelay()).toMillis());
+
+      log.info("Downscaling the now passive deployment stack");
+      asgWithNonZeroCapacity.forEach(
+          asg -> autoscalingGroupService.scale(asg.autoScalingGroupName(), 0));
+    } else {
+      log.info("Skipping passive downscale");
+    }
+  }
+
+  @SneakyThrows
+  private void revertDiscoverable(RevertConfig revertConfig) {
+    Map<String, Character> activeStackMap = this.routingService.getActiveStackMap();
+    Map<String, Character> passiveStackMap =
+        activeStackMap.entrySet().stream()
+            .collect(
+                Collectors.toMap(
+                    Map.Entry::getKey,
+                    entry -> ApplicationUtil.getSisterDeploymentStack(entry.getValue())));
+    List<Callable<Boolean>> tasks = new ArrayList<>(List.of());
+    passiveStackMap.forEach(
+        (stackId, deploymentStack) ->
+            tasks.addAll(this.upscalePassiveStackAndCreateWaitTasks(stackId, deploymentStack)));
+    ApplicationUtil.runOnExecutorService(tasks);
+
+    this.routingService.routeFullTraffic(passiveStackMap);
+
+    if (Boolean.TRUE.equals(revertConfig.getPassiveDownscale().getEnabled())) {
+      log.info(
+          "Waiting for:[{}] seconds before downscaling the now passive deployment stack",
+          revertConfig.getPassiveDownscale().getDelay());
+      Thread.sleep(Duration.ofSeconds(revertConfig.getPassiveDownscale().getDelay()).toMillis());
+      log.info("Downscaling the now passive deployment stack");
+      activeStackMap.forEach(this::downscale);
+    } else {
+      log.info("Skipping passive downscale");
+    }
+  }
+
+  public List<String> getActiveAsgs() {
+    if (this.deployConfig.getDiscoveryConfig().getType() == DiscoveryType.NONE) {
+      List<String> asgsWithNonZeroCapacity =
+          Application.getState().getAsg().stream()
+              .map(
+                  autoscalingGroupState ->
+                      this.autoscalingGroupService.describe(autoscalingGroupState.getName()))
+              .filter(autoScalingGroup -> autoScalingGroup.desiredCapacity() != 0)
+              .map(AutoScalingGroup::autoScalingGroupName)
+              .toList();
+
+      if (asgsWithNonZeroCapacity.size() != 1) {
+        throw new GenericApplicationException(
+            ApplicationError.MULTIPLE_ASG_WITH_NON_ZERO_CAPACITY, asgsWithNonZeroCapacity);
+      }
+      return asgsWithNonZeroCapacity;
+    } else {
+      return this.routingService.getActiveStackMap().entrySet().stream()
+          .flatMap(entry -> this.getAsgsForStack(entry.getKey(), entry.getValue()).stream())
+          .toList();
+    }
+  }
+
+  @SneakyThrows
+  public List<String> createApplicationRestartCommands(Mode mode, String asgName) {
+    List<String> commands = new ArrayList<>();
+    List<LoadBalancerConfig.Listener> listeners =
+        this.deployConfig.getLoadBalancerConfig().getListeners();
+    commands.add(Constants.SHEBANG_COMMAND);
+
+    if (mode == Mode.GRACEFUL) {
+      // Add manage targets function
+      AutoscalingGroupState asgState =
+          Application.getState()
+              .getAsgByName(asgName)
+              .orElseThrow(
+                  () ->
+                      new IllegalStateException(
+                          String.format("ASG:[%s] not found in state", asgName)));
+      String manageTargetContent =
+          ApplicationUtil.readTemplateFile(
+              Constants.MANAGE_TARGETS_TEMPLATE_FILE,
+              Map.of(
+                  "region",
+                  this.awsAccountData.getRegion(),
+                  "time_to_wait_for_registration",
+                  listeners.isEmpty()
+                      ? Constants.TARGET_REGISTRATION_WAIT_SECONDS
+                      : listeners.get(0).getHealthChecks().getInterval()
+                          * listeners.get(0).getHealthChecks().getHealthyThreshold(),
+                  "target_group_arns",
+                  String.join(" ", asgState.getTargetGroupArns()),
+                  "load_balancer_names",
+                  String.join(" ", asgState.getLoadBalancerNames())));
+      commands.addAll(Arrays.asList(manageTargetContent.split("\n")));
+      // Deregister targets
+      commands.add(Constants.DEREGISTER_TARGETS_COMMAND);
+    }
+
+    // Restart application
+    commands.addAll(
+        Arrays.asList(
+            Constants.RESTART_SERVICE_COMMAND
+                .apply(this.componentMetadata.getComponentName())
+                .split("\n")));
+    // Non discoverable application
+    if (this.deployConfig.getDiscoveryConfig().getType() == DiscoveryType.NONE) {
+      return commands;
+    }
+
+    if (listeners.isEmpty()) {
+      // No listeners
+      return commands;
+    }
+    // Add health check commands
+    String healthcheckContent =
+        ApplicationUtil.readTemplateFile(
+            Constants.HEALTHCHECK_TEMPLATE_FILES.get(listeners.get(0).getTargetProtocol()),
+            Map.of(
+                "path",
+                listeners.get(0).getHealthChecks().getPath(),
+                "port",
+                listeners.get(0).getTargetPort()));
+    commands.addAll(Arrays.asList(healthcheckContent.split("\n")));
+    return commands;
+  }
+
+  public void performScale() {
+    if (this.deployConfig.getDiscoveryConfig().getType() != DiscoveryType.NONE) {
+      this.scaleDiscoverable();
+    } else {
+      this.scaleNonDiscoverable();
+    }
+  }
+
+  private void scaleDiscoverable() {
+    int desiredInstances = this.deployConfig.getAutoScalingGroupConfig().getDesiredInstances();
+    int maxInstances = this.deployConfig.getAutoScalingGroupConfig().getMaxInstances();
+    Map<String, Character> activeStackMap = this.routingService.getActiveStackMap();
+    List<String> activeAsgs =
+        activeStackMap.entrySet().stream()
+            .flatMap(entry -> this.getAsgsForStack(entry.getKey(), entry.getValue()).stream())
+            .toList();
+    this.scaleAsgEqually(activeAsgs, desiredInstances, maxInstances);
+    Map<Character, Integer> lcus = this.getLcuToScale();
+    activeStackMap.forEach(
+        (stackId, deploymentStack) -> this.scaleLcus(stackId, deploymentStack, lcus));
+  }
+
+  private void scaleNonDiscoverable() {
+    int desiredInstances = this.deployConfig.getAutoScalingGroupConfig().getDesiredInstances();
+    int maxInstances = this.deployConfig.getAutoScalingGroupConfig().getMaxInstances();
+    List<AutoScalingGroup> asgs =
+        Application.getState().getAsg().stream()
+            .map(
+                autoscalingGroupState ->
+                    this.autoscalingGroupService.describe(autoscalingGroupState.getName()))
+            .sorted(Comparator.comparing(AutoScalingGroup::createdTime).reversed())
+            .toList();
+    List<AutoScalingGroup> asgsWithNonZeroCapacity =
+        asgs.stream().filter(autoScalingGroup -> autoScalingGroup.desiredCapacity() != 0).toList();
+    if (asgsWithNonZeroCapacity.size() > 1) {
+      throw new GenericApplicationException(
+          ApplicationError.MULTIPLE_ASG_WITH_NON_ZERO_CAPACITY, asgsWithNonZeroCapacity);
+    }
+    String activeAsgName =
+        asgsWithNonZeroCapacity.isEmpty()
+            ? asgs.get(0).autoScalingGroupName()
+            : asgsWithNonZeroCapacity.get(0).autoScalingGroupName();
+    this.scaleAsgEqually(List.of(activeAsgName), desiredInstances, maxInstances);
+  }
+
+  public void performUpdate() {
+    List<String> asgs = this.getActiveAsgs();
+    this.autoscalingGroupService.updateAsg(asgs);
+  }
+}

@@ -10,6 +10,10 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum Operations {
   DEPLOY("deploy"),
+  ADD_READERS("add-readers"),
+  REMOVE_READERS("remove-readers"),
+  FAILOVER("failover"),
+  REBOOT("reboot"),
   UNDEPLOY("undeploy");
   final String value;
 
