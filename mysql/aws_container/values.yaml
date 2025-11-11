@@ -16,6 +16,8 @@ architecture: standalone
 architecture: replication
 {% endif %}
 
+{% set serviceAnnotations = componentMetadata.cloudProviderDetails.account.services | selectattr('category', 'eq', 'KUBERNETES') | map(attribute='data') | map(attribute='serviceAnnotations') | list | first %}
+
 primary:
   resources:
     requests:
@@ -27,13 +29,6 @@ primary:
       cpu: {{ flavourConfig.writer.resources.limits.cpu }}
       ephemeral-storage: {{ flavourConfig.writer.resources.limits.ephemeralStorage }}
 
-  {% if componentMetadata.annotations.writer %}
-  service:
-    annotations:
-      {% for key,value in componentMetadata.annotations.writer.items() %}
-      {{ key }}: "{{ value }}"
-      {% endfor %}
-  {% endif %}
 
   {% if flavourConfig.writer.tolerations %}
   tolerations:
@@ -61,6 +56,15 @@ primary:
     size: {{ flavourConfig.writer.persistence.size }}
     storageClass: {{ flavourConfig.storageClass }}
   {% endif %}
+
+  {% if serviceAnnotations %}
+  service:
+    annotations:
+      {% for key,value in serviceAnnotations.items() %}
+      {{ key }}: "{{ value }}"
+      {% endfor %}
+  {% endif %}
+
 
   configuration: |-
     [mysqld]
@@ -94,8 +98,6 @@ primary:
     port=3306
     socket=/opt/bitnami/mysql/tmp/mysql.sock
     pid-file=/opt/bitnami/mysql/tmp/mysqld.pid
-
-{% set serviceAnnotations = componentMetadata.cloudProviderDetails.account.services | selectattr('category', 'eq', 'KUBERNETES') | map(attribute='data') | map(attribute='serviceAnnotations') | list | first %}
 
 secondary: 
   resources:
