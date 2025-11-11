@@ -265,15 +265,39 @@ public class RedisClient {
   @SneakyThrows
   public void updateReplicaCount(String replicationGroupIdentifier, UpdateReplicaCountConfig updateReplicaCountConfig) {
 
+    log.info("Fetching replication group details for: {}", replicationGroupIdentifier);
     ReplicationGroup replicationGroup = elastiCacheClient.describeReplicationGroups(
         DescribeReplicationGroupsRequest.builder().replicationGroupId(replicationGroupIdentifier).build())
         .replicationGroups().get(0);
 
+    log.info("Replication group found: {}, Status: {}, ClusterEnabled: {}, AutomaticFailover: {}",
+        replicationGroup.replicationGroupId(),
+        replicationGroup.status(),
+        replicationGroup.clusterEnabled(),
+        replicationGroup.automaticFailover());
+
     // Check if cluster mode is enabled (CME) or disabled (CMD)
-    boolean clusterModeEnabled = replicationGroup.clusterEnabled() != null && replicationGroup.clusterEnabled();
+    Boolean clusterEnabled = replicationGroup.clusterEnabled();
+    boolean clusterModeEnabled = clusterEnabled != null && clusterEnabled;
+
+    // Verify replication group is in available state
+    String status = replicationGroup.status();
+    if (!"available".equalsIgnoreCase(status)) {
+      throw new GenericApplicationException(
+          ApplicationError.CONSTRAINT_VIOLATION,
+          String.format(
+              "Replication group %s is not in 'available' state. Current status: %s. "
+                  + "Replica count can only be modified when the replication group is available.",
+              replicationGroupIdentifier, status));
+    }
 
     // For CMD there is a single node group
     List<NodeGroup> nodeGroups = replicationGroup.nodeGroups();
+    if (nodeGroups == null || nodeGroups.isEmpty()) {
+      throw new GenericApplicationException(
+          ApplicationError.CONSTRAINT_VIOLATION,
+          String.format("Replication group %s has no node groups", replicationGroupIdentifier));
+    }
 
     // Compute current replicas-per-shard (assume uniform; if not, we'll still set
     // uniformly)
@@ -285,20 +309,81 @@ public class RedisClient {
     }
 
     if (clusterModeEnabled) {
-      // For Cluster Mode Enabled (CME), use increaseReplicaCount/decreaseReplicaCount
+      // For Cluster Mode Enabled (CME), validate requirements for
+      // increaseReplicaCount
+      // Automatic failover must be enabled
+      String automaticFailoverStatus = replicationGroup.automaticFailover() != null
+          ? replicationGroup.automaticFailover().toString()
+          : null;
+      if (automaticFailoverStatus == null || !"enabled".equalsIgnoreCase(automaticFailoverStatus)) {
+        throw new GenericApplicationException(
+            ApplicationError.CONSTRAINT_VIOLATION,
+            String.format(
+                "Automatic failover must be enabled to change replica count for replication group %s. "
+                    + "Current automatic failover status: %s. "
+                    + "Enable automatic failover first, then retry the replica count update.",
+                replicationGroupIdentifier, automaticFailoverStatus));
+      }
+
+      // Must have at least one replica to increase
+      if (current < 1 && updateReplicaCountConfig.getReplicasPerNodeGroup() > current) {
+        throw new GenericApplicationException(
+            ApplicationError.CONSTRAINT_VIOLATION,
+            String.format(
+                "Replication group %s must have at least one replica before increasing replica count. "
+                    + "Current replicas: %d. Add at least one replica first.",
+                replicationGroupIdentifier, current));
+      }
+
+      log.info(
+          "Updating replica count for CME replication group {} from {} to {}",
+          replicationGroupIdentifier,
+          current,
+          updateReplicaCountConfig.getReplicasPerNodeGroup());
+
+      // Use the replication group ID from the response to ensure exact match
+      String actualReplicationGroupId = replicationGroup.replicationGroupId();
+      log.info("Using replication group ID from response: {} (input was: {})",
+          actualReplicationGroupId, replicationGroupIdentifier);
+
       if (updateReplicaCountConfig.getReplicasPerNodeGroup() > current) {
-        elastiCacheClient.increaseReplicaCount(IncreaseReplicaCountRequest.builder()
-            .replicationGroupId(replicationGroupIdentifier)
-            .newReplicaCount(updateReplicaCountConfig.getReplicasPerNodeGroup())
-            .applyImmediately(true).build());
+        log.info("Calling increaseReplicaCount with replicationGroupId: {}, newReplicaCount: {}",
+            actualReplicationGroupId, updateReplicaCountConfig.getReplicasPerNodeGroup());
+        try {
+          elastiCacheClient.increaseReplicaCount(IncreaseReplicaCountRequest.builder()
+              .replicationGroupId(actualReplicationGroupId)
+              .newReplicaCount(updateReplicaCountConfig.getReplicasPerNodeGroup())
+              .applyImmediately(true).build());
+          log.info("Successfully called increaseReplicaCount");
+        } catch (Exception e) {
+          log.error("Error calling increaseReplicaCount for replication group {}: {}",
+              actualReplicationGroupId, e.getMessage(), e);
+          throw e;
+        }
       } else {
-        elastiCacheClient.decreaseReplicaCount(DecreaseReplicaCountRequest.builder()
-            .replicationGroupId(replicationGroupIdentifier)
-            .newReplicaCount(updateReplicaCountConfig.getReplicasPerNodeGroup())
-            .applyImmediately(true).build());
+        log.info("Calling decreaseReplicaCount with replicationGroupId: {}, newReplicaCount: {}",
+            actualReplicationGroupId, updateReplicaCountConfig.getReplicasPerNodeGroup());
+        try {
+          elastiCacheClient.decreaseReplicaCount(DecreaseReplicaCountRequest.builder()
+              .replicationGroupId(actualReplicationGroupId)
+              .newReplicaCount(updateReplicaCountConfig.getReplicasPerNodeGroup())
+              .applyImmediately(true).build());
+          log.info("Successfully called decreaseReplicaCount");
+        } catch (Exception e) {
+          log.error("Error calling decreaseReplicaCount for replication group {}: {}",
+              actualReplicationGroupId, e.getMessage(), e);
+          throw e;
+        }
       }
     } else {
-      log.info("Changing replica count for Cluster Mode Disabled (CMD) replication groups is not supported");
+      // For Cluster Mode Disabled (CMD), replica count changes are not supported
+      throw new GenericApplicationException(
+          ApplicationError.CONSTRAINT_VIOLATION,
+          String.format(
+              "Changing replica count for Cluster Mode Disabled (CMD) replication groups is not supported. "
+                  + "Current replicas: %d, Desired: %d. "
+                  + "CMD replication groups have fixed replica counts set at creation.",
+              current, updateReplicaCountConfig.getReplicasPerNodeGroup()));
     }
   }
 
