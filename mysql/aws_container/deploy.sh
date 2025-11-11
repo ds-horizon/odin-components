@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 source ./logging.sh
-source ./env
+source ./.env
 setup_error_handling
 
 cleanup() {

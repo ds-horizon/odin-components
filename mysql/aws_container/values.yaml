@@ -46,9 +46,6 @@ primary:
       {% if toleration.effect %}
       effect: {{ toleration.effect }}
       {% endif %}
-      {% if toleration.tolerationSeconds %}
-      tolerationSeconds: {{ toleration.tolerationSeconds }}
-      {% endif %}
     {% endfor %}
   {% endif %}
 
@@ -98,6 +95,8 @@ primary:
     socket=/opt/bitnami/mysql/tmp/mysql.sock
     pid-file=/opt/bitnami/mysql/tmp/mysqld.pid
 
+{% set serviceAnnotations = componentMetadata.cloudProviderDetails.account.services | selectattr('category', 'eq', 'KUBERNETES') | map(attribute='data') | map(attribute='serviceAnnotations') | list | first %}
+
 secondary: 
   resources:
     requests:
@@ -120,17 +119,13 @@ secondary:
         {% if toleration.effect %}
         effect: {{ toleration.effect }}
         {% endif %}
-        {% if toleration.tolerationSeconds %}
-        tolerationSeconds: {{ toleration.tolerationSeconds }}
-        {% endif %}
       {% endfor %}
     {% endif %}
 
-
-  {% if componentMetadata.annotations.reader %}
+  {% if serviceAnnotations %}
   service:
     annotations:
-      {% for key,value in componentMetadata.annotations.reader.items() %}
+      {% for key,value in serviceAnnotations.items() %}
       {{ key }}: "{{ value }}"
       {% endfor %}
   {% endif %}

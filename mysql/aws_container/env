@@ -1,4 +1,0 @@
-export HELM_REGISTRY="666019485799.dkr.ecr.us-east-1.amazonaws.com"
-export HELM_CHART_NAME="oci://${HELM_REGISTRY}/bitnami/mysql"
-export HELM_CHART_VERSION="9.4.6"
-export REGION="us-east-1"
