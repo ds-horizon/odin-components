@@ -9,6 +9,7 @@ import com.dream11.mysql.config.user.DeployConfig;
 import com.dream11.mysql.config.user.FailoverConfig;
 import com.dream11.mysql.config.user.RebootConfig;
 import com.dream11.mysql.config.user.RemoveReadersConfig;
+import com.dream11.mysql.config.user.UpdateClusterConfig;
 import com.dream11.mysql.constant.Constants;
 import com.dream11.mysql.constant.Operations;
 import com.dream11.mysql.error.ApplicationError;
@@ -24,6 +25,7 @@ import com.dream11.mysql.operation.Operation;
 import com.dream11.mysql.operation.Reboot;
 import com.dream11.mysql.operation.RemoveReaders;
 import com.dream11.mysql.operation.Undeploy;
+import com.dream11.mysql.operation.UpdateCluster;
 import com.dream11.mysql.state.State;
 import com.dream11.mysql.util.ApplicationUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -153,7 +155,10 @@ public class Application {
   @SneakyThrows
   void executeOperation() {
     Class<? extends Operation> operationClass;
-    this.deployConfig = Application.getState().getDeployConfig();
+    this.deployConfig =
+        Objects.isNull(Application.getState().getDeployConfig())
+            ? null
+            : Application.getState().getDeployConfig().deepCopy();
     List<Module> modules = new ArrayList<>();
     operationClass =
         switch (Operations.fromValue(this.operationName)) {
@@ -202,6 +207,17 @@ public class Application {
                     .build());
             yield Reboot.class;
           }
+          case UPDATE_CLUSTER -> {
+            this.deployConfig = this.deployConfig.mergeWith(this.config);
+            UpdateClusterConfig updateConfigConfig =
+                Application.getObjectMapper().readValue(this.config, UpdateClusterConfig.class);
+            modules.add(
+                OptionalConfigModule.<UpdateClusterConfig>builder()
+                    .clazz(UpdateClusterConfig.class)
+                    .config(updateConfigConfig)
+                    .build());
+            yield UpdateCluster.class;
+          }
           case UNDEPLOY -> Undeploy.class;
         };
 
@@ -212,7 +228,8 @@ public class Application {
     }
     modules.addAll(this.getGuiceModules());
     this.initializeGuiceModules(modules).getInstance(operationClass).execute();
-    if (Operations.fromValue(this.operationName).equals(Operations.DEPLOY)) {
+    if (Arrays.asList(Operations.DEPLOY, Operations.UPDATE_CLUSTER)
+        .contains(Operations.fromValue(this.operationName))) {
       Application.getState().setDeployConfig(this.deployConfig);
     }
     log.info("Executed operation:[{}]", Operations.fromValue(this.operationName));

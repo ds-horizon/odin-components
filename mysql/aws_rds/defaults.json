@@ -12,7 +12,6 @@
   "instanceConfig": {
     "publiclyAccessible": false,
     "autoMinorVersionUpgrade": true,
-    "deletionProtection": false,
     "enablePerformanceInsights": false,
     "networkType": "IPV4"
   }

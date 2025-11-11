@@ -14,6 +14,7 @@ public enum Operations {
   REMOVE_READERS("remove-readers"),
   FAILOVER("failover"),
   REBOOT("reboot"),
+  UPDATE_CLUSTER("update-cluster"),
   UNDEPLOY("undeploy");
   final String value;
 

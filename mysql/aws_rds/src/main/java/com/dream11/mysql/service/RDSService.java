@@ -14,6 +14,7 @@ import com.dream11.mysql.config.user.InstanceParameterGroupConfig;
 import com.dream11.mysql.config.user.ReaderConfig;
 import com.dream11.mysql.config.user.RebootConfig;
 import com.dream11.mysql.config.user.RemoveReadersConfig;
+import com.dream11.mysql.config.user.UpdateClusterConfig;
 import com.dream11.mysql.constant.Constants;
 import com.dream11.mysql.error.ApplicationError;
 import com.dream11.mysql.exception.GenericApplicationException;
@@ -22,6 +23,7 @@ import com.google.inject.Inject;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.Callable;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +42,7 @@ public class RDSService {
   @NonNull final RemoveReadersConfig removeReadersConfig;
   @NonNull final FailoverConfig failoverConfig;
   @NonNull final RebootConfig rebootConfig;
+  @NonNull final UpdateClusterConfig updateClusterConfig;
 
   public void deploy() {
     List<Callable<Void>> tasks = new ArrayList<>();
@@ -387,6 +390,185 @@ public class RDSService {
     log.info("MySQL reboot operation completed successfully");
   }
 
+  @SneakyThrows
+  public void updateCluster() {
+    String clusterIdentifier = Application.getState().getClusterIdentifier();
+    DeployConfig oldDeployConfig = Application.getState().getDeployConfig();
+
+    if (!Objects.equals(oldDeployConfig.getTags(), this.deployConfig.getTags())) {
+      this.handleTagUpdates();
+    }
+
+    String updatedEngineVersion = null;
+    if (!Objects.equals(oldDeployConfig.getEngineVersion(), this.deployConfig.getEngineVersion())) {
+      updatedEngineVersion =
+          this.deployConfig.getVersion() + ".mysql_aurora." + this.deployConfig.getEngineVersion();
+    }
+
+    log.info("Updating cluster: {}", clusterIdentifier);
+    this.rdsClient.updateDBCluster(
+        clusterIdentifier,
+        this.deployConfig,
+        updatedEngineVersion,
+        this.handleClusterParameterGroupUpdate(),
+        this.updateClusterConfig.getApplyImmediately());
+    if (this.updateClusterConfig.getApplyImmediately()) {
+      log.info(
+          "Waiting for {}s to let updates take effect on the DB cluster",
+          Constants.DB_UPDATE_DELAY_INTERVAL.getSeconds(),
+          clusterIdentifier);
+      Thread.sleep(Constants.DB_UPDATE_DELAY_INTERVAL.toMillis());
+      log.info("Waiting for cluster to become available after update: {}", clusterIdentifier);
+      this.rdsClient.waitUntilDBClusterAvailable(clusterIdentifier);
+      log.info("Cluster is now available: {}", clusterIdentifier);
+    }
+
+    if (!Objects.equals(
+        oldDeployConfig.getInstanceConfig(), this.deployConfig.getInstanceConfig())) {
+      List<Callable<Void>> tasks =
+          new ArrayList<>(this.handleDBInstanceUpdates(this.handleInstanceParameterGroupUpdate()));
+      if (this.updateClusterConfig.getApplyImmediately()) {
+        log.info(
+            "Waiting for {}s to let updates take effect on the DB instances",
+            Constants.DB_UPDATE_DELAY_INTERVAL.getSeconds());
+        Thread.sleep(Constants.DB_UPDATE_DELAY_INTERVAL.toMillis());
+        ApplicationUtil.runOnExecutorService(tasks);
+      }
+    }
+
+    log.info("MySQL update cluster operation completed successfully");
+  }
+
+  private String handleClusterParameterGroupUpdate() {
+    DeployConfig oldDeployConfig = Application.getState().getDeployConfig();
+    if (!Objects.equals(
+        oldDeployConfig.getClusterParameterGroupName(),
+        this.deployConfig.getClusterParameterGroupName())) {
+      return this.deployConfig.getClusterParameterGroupName();
+    } else if (!Objects.equals(
+        oldDeployConfig.getClusterParameterGroupConfig(),
+        this.deployConfig.getClusterParameterGroupConfig())) {
+      if (this.deployConfig.getClusterParameterGroupName() != null) {
+        throw new GenericApplicationException(
+            ApplicationError.CANNOT_MODIFY_PARAMETER_GROUP_CONFIG);
+      }
+      log.info(
+          "Updating cluster parameter group configuration: {}",
+          Application.getState().getClusterParameterGroupName());
+      this.rdsClient.configureDBClusterParameters(
+          Application.getState().getClusterParameterGroupName(),
+          this.deployConfig.getClusterParameterGroupConfig());
+    }
+    return null;
+  }
+
+  private String handleInstanceParameterGroupUpdate() {
+    DeployConfig oldDeployConfig = Application.getState().getDeployConfig();
+    if (!Objects.equals(
+        oldDeployConfig.getInstanceConfig().getInstanceParameterGroupName(),
+        this.deployConfig.getInstanceConfig().getInstanceParameterGroupName())) {
+      return this.deployConfig.getInstanceConfig().getInstanceParameterGroupName();
+    } else if (!Objects.equals(
+        oldDeployConfig.getInstanceConfig().getInstanceParameterGroupConfig(),
+        this.deployConfig.getInstanceConfig().getInstanceParameterGroupConfig())) {
+      if (this.deployConfig.getInstanceConfig().getInstanceParameterGroupName() != null) {
+        throw new GenericApplicationException(
+            ApplicationError.CANNOT_MODIFY_PARAMETER_GROUP_CONFIG);
+      }
+      log.info(
+          "Updating instance parameter group configuration: {}",
+          Application.getState().getInstanceParameterGroupName());
+      this.rdsClient.configureDBInstanceParameters(
+          Application.getState().getInstanceParameterGroupName(),
+          this.deployConfig.getInstanceConfig().getInstanceParameterGroupConfig());
+    }
+    return null;
+  }
+
+  private List<Callable<Void>> handleDBInstanceUpdates(String updatedInstanceParameterGroupName) {
+    List<Callable<Void>> tasks = new ArrayList<>();
+    String writerInstanceIdentifier = Application.getState().getWriterInstanceIdentifier();
+    if (writerInstanceIdentifier != null) {
+      log.info("Updating writer instance: {}", writerInstanceIdentifier);
+      this.rdsClient.updateDBInstance(
+          writerInstanceIdentifier,
+          this.deployConfig.getInstanceConfig(),
+          updatedInstanceParameterGroupName,
+          this.updateClusterConfig.getApplyImmediately());
+
+      tasks.add(
+          () -> {
+            log.info(
+                "Waiting for writer instance to become available: {}", writerInstanceIdentifier);
+            this.rdsClient.waitUntilDBInstanceAvailable(writerInstanceIdentifier);
+            log.info("Writer instance update completed: {}", writerInstanceIdentifier);
+            return null;
+          });
+    }
+
+    Application.getState().getReaderInstanceIdentifiers().values().stream()
+        .flatMap(List::stream)
+        .forEach(
+            readerInstanceIdentifier -> {
+              log.info("Updating reader instance: {}", readerInstanceIdentifier);
+              this.rdsClient.updateDBInstance(
+                  readerInstanceIdentifier,
+                  this.deployConfig.getInstanceConfig(),
+                  updatedInstanceParameterGroupName,
+                  this.updateClusterConfig.getApplyImmediately());
+              tasks.add(
+                  () -> {
+                    log.info(
+                        "Waiting for reader instance to become available: {}",
+                        readerInstanceIdentifier);
+                    this.rdsClient.waitUntilDBInstanceAvailable(readerInstanceIdentifier);
+                    log.info("Reader instance update completed: {}", readerInstanceIdentifier);
+                    return null;
+                  });
+            });
+
+    return tasks;
+  }
+
+  private void handleTagUpdates() {
+    Map<String, String> tags = this.deployConfig.getTags();
+
+    this.rdsClient.updateTagsForResource(
+        this.rdsClient.getDBCluster(Application.getState().getClusterIdentifier()).dbClusterArn(),
+        tags);
+
+    if (Application.getState().getWriterInstanceIdentifier() != null) {
+      this.rdsClient.updateTagsForResource(
+          this.rdsClient
+              .getDBInstance(Application.getState().getWriterInstanceIdentifier())
+              .dbInstanceArn(),
+          tags);
+    }
+
+    Application.getState().getReaderInstanceIdentifiers().values().stream()
+        .flatMap(List::stream)
+        .forEach(
+            readerInstanceIdentifier ->
+                this.rdsClient.updateTagsForResource(
+                    this.rdsClient.getDBInstance(readerInstanceIdentifier).dbInstanceArn(), tags));
+
+    if (Application.getState().getClusterParameterGroupName() != null) {
+      this.rdsClient.updateTagsForResource(
+          this.rdsClient
+              .getDBClusterParameterGroup(Application.getState().getClusterParameterGroupName())
+              .dbClusterParameterGroupArn(),
+          tags);
+    }
+
+    if (Application.getState().getInstanceParameterGroupName() != null) {
+      this.rdsClient.updateTagsForResource(
+          this.rdsClient
+              .getDBParameterGroup(Application.getState().getInstanceParameterGroupName())
+              .dbParameterGroupArn(),
+          tags);
+    }
+  }
+
   public void undeploy() {
     List<Callable<Void>> tasks = new ArrayList<>();
 
@@ -440,7 +622,7 @@ public class RDSService {
           "Deleting DB writer instance: {}", Application.getState().getWriterInstanceIdentifier());
       this.rdsClient.deleteDBInstance(
           Application.getState().getWriterInstanceIdentifier(),
-          this.deployConfig != null ? this.deployConfig.getDeletionConfig() : null);
+          this.deployConfig.getDeletionConfig());
       tasks.add(
           () -> {
             log.info(
@@ -462,8 +644,7 @@ public class RDSService {
     if (Application.getState().getClusterIdentifier() != null) {
       log.info("Deleting DB cluster: {}", Application.getState().getClusterIdentifier());
       this.rdsClient.deleteDBCluster(
-          Application.getState().getClusterIdentifier(),
-          this.deployConfig != null ? this.deployConfig.getDeletionConfig() : null);
+          Application.getState().getClusterIdentifier(), this.deployConfig.getDeletionConfig());
       log.info(
           "Waiting for DB cluster to become deleted: {}",
           Application.getState().getClusterIdentifier());

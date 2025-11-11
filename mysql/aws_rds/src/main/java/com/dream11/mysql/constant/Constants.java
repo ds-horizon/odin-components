@@ -17,6 +17,7 @@ public class Constants {
   public final int RETRY_MAX_BACKOFF = 120;
   public final Duration DB_WAIT_RETRY_TIMEOUT = Duration.ofMinutes(20);
   public final Duration DB_WAIT_RETRY_INTERVAL = Duration.ofMillis(1000);
+  public final Duration DB_UPDATE_DELAY_INTERVAL = Duration.ofSeconds(60);
 
   public final Map<String, String> COMPONENT_TAGS =
       Map.of("component:mysql:version", ApplicationUtil.getProjectVersion());
@@ -24,4 +25,5 @@ public class Constants {
   public final String CLUSTER_PARAMETER_GROUP_SUFFIX = "cpg";
   public final String INSTANCE_PARAMETER_GROUP_SUFFIX = "ipg";
   public final Integer RANDOM_ID_LENGTH = 4;
+  public final String PARAMETER_GROUP_CONFIG_APPLY_METHOD = "pending-reboot";
 }

@@ -5,3 +5,4 @@
 ./aws_rds/operations/failover/README.md.tpl
 ./aws_rds/operations/reboot/README.md.tpl
 ./aws_container/README.md.tpl
+./aws_rds/operations/update-cluster/README.md.tpl
