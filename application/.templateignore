@@ -13,8 +13,4 @@
 ./aws_ec2/operations/rolling-restart/README.md.tpl
 ./aws_ec2/operations/update-stack/README.md.tpl
 ./aws_ec2/operations/scale/README.md.tpl
-./aws_ec2/operations/update/README.md.tpl
-./aws_container/README.md.tpl
-./aws_container/operations/redeploy/README.md.tpl
-./aws_container/operations/rolling-restart/README.md.tpl
-./aws_container/operations/scale/README.md.tpl
+./aws_ec2/operations/update-asg/README.md.tpl

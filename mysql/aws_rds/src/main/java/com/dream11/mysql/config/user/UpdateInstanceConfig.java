@@ -5,14 +5,10 @@ import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 
 @Data
-public class InstanceConfig {
-
-  @Pattern(regexp = "^[a-z]{2}-[a-z]+-\\d[a-z]?$")
-  private String availabilityZone;
-
-  private Boolean publiclyAccessible;
-
+public class UpdateInstanceConfig {
   private Boolean autoMinorVersionUpgrade;
+
+  private Boolean deletionProtection;
 
   private Boolean enablePerformanceInsights;
 
@@ -26,6 +22,4 @@ public class InstanceConfig {
   private String instanceParameterGroupName;
 
   @Valid private InstanceParameterGroupConfig instanceParameterGroupConfig;
-
-  private String networkType;
 }

@@ -75,7 +75,7 @@ else
     export ARTIFACT_SHA=$(jq -r '.artifactSha' ${ARTIFACT_CACHE_PATH}/metadata.json)
   else
     # Download from artifactory
-    export ARTIFACTORY_DATA=$(echo ${ODIN_COMPONENT_METADATA} | jq '(.cloudProviderDetails.account | select(.services[]?.category == "STORAGE")) // (.cloudProviderDetails.linked_accounts[] | select(.services[]?.category == "STORAGE") // error("Service with category STORAGE not found in account or linked accounts."))')
+    export ARTIFACTORY_DATA=$(echo ${ODIN_COMPONENT_METADATA} | jq '(.cloudProviderDetails.account | select(.services[]?.category == "STORAGE")) // (.cloudProviderDetails.linked_accounts[] | select(.services[]?.category == "STORAGE")) // error("Service with category STORAGE not found in account or linked accounts.")')
     ARTIFACTORY_ACCOUNT_PROVIDER=$(echo ${ARTIFACTORY_DATA} | jq -r '.provider' | tr '[:lower:]' '[:upper:]')
 
     if [[ "${ARTIFACTORY_ACCOUNT_PROVIDER}" == "JFROG" ]]; then
