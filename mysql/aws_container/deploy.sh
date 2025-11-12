@@ -5,8 +5,11 @@ source ./constants
 setup_error_handling
 
 update_state() {
-  jq -n --arg name "${RELEASE_NAME}" --arg sha "${CURRENT_SHA}" \
-    '{releaseName: $name, sha: $sha}' > state.json
+  status=$?
+  if [[ $status -eq 0 ]]; then
+    jq -n --arg name "${RELEASE_NAME}" --arg sha "${CURRENT_SHA}" \
+      '{releaseName: $name, sha: $sha}' > state.json
+  fi
 }
 
 trap 'update_state' EXIT
