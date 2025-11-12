@@ -52,7 +52,7 @@ jobs:
           ASSET_NAME="${COMPONENT}-${{ steps.extract_component_details.outputs.VERSION}}.tar.gz"
 
           mkdir -p dist
-          tar -czvf "dist/${ASSET_NAME}" -C "${COMPONENT}" .
+          tar -czf "dist/${ASSET_NAME}" "${COMPONENT}"
 
           echo "ASSET_PATH=dist/${ASSET_NAME}" >> "$GITHUB_OUTPUT"
 

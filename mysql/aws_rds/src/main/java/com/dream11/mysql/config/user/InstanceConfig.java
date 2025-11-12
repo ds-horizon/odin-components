@@ -14,8 +14,6 @@ public class InstanceConfig {
 
   private Boolean autoMinorVersionUpgrade;
 
-  private Boolean deletionProtection;
-
   private Boolean enablePerformanceInsights;
 
   @Pattern(regexp = "^arn:(aws|aws-cn|aws-us-gov):kms:[a-z0-9-]+:\\d{12}:key\\/[0-9a-fA-F-]{36}$")

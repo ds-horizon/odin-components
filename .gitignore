@@ -52,5 +52,4 @@ application/local_k8s/values.yaml
 application/**/ami.pkr.hcl
 application/**/*.jar
 
-**/example
 run.sh

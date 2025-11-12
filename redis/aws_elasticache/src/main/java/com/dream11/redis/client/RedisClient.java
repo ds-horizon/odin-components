@@ -5,6 +5,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 import com.dream11.redis.config.metadata.aws.RedisData;
 import com.dream11.redis.config.user.DeployConfig;
 import com.dream11.redis.config.user.UpdateReplicaCountConfig;
@@ -70,23 +75,20 @@ public class RedisClient {
       DeployConfig deployConfig,
       RedisData redisData) {
 
-    if (deployConfig.getCacheParameterGroupName() == null) {
-      // Input ensures that the redisVersion is mandatory and all valid values have at
-      // least one
-      // character
-      String cacheParameterGroupName = String.join(
+    String cacheParameterGroupName = deployConfig.getCacheParameterGroupName();
+    if (cacheParameterGroupName == null) {
+      cacheParameterGroupName = String.join(
           ".",
           Constants.DEFAULT,
           Constants.ENGINE_TYPE + deployConfig.getRedisVersion().charAt(0));
-      if (deployConfig.getNumNodeGroups() > 1) {
+      if (deployConfig.getNumNodeGroups() > 1 || deployConfig.getClusterModeEnabled()) {
         cacheParameterGroupName += Constants.PARAMETER_GROUP_SUFFIX;
       }
-      deployConfig.setCacheParameterGroupName(cacheParameterGroupName);
     }
 
     CreateReplicationGroupRequest.Builder createBuilder = CreateReplicationGroupRequest.builder();
 
-    applyCommonConfiguration(createBuilder, replicationGroupId, tags, deployConfig, redisData);
+    applyCommonConfiguration(createBuilder, replicationGroupId, tags, deployConfig, redisData, cacheParameterGroupName);
 
     elastiCacheClient.createReplicationGroup(createBuilder.build());
   }
@@ -99,7 +101,8 @@ public class RedisClient {
       String replicationGroupId,
       Map<String, String> tags,
       DeployConfig deployConfig,
-      RedisData redisData) {
+      RedisData redisData,
+      String cacheParameterGroupName) {
 
     // Set required fields
     builder.replicationGroupId(replicationGroupId);
@@ -107,10 +110,33 @@ public class RedisClient {
     builder.engine(Constants.ENGINE_TYPE);
     builder.cacheNodeType(deployConfig.getCacheNodeType());
     builder.engineVersion(deployConfig.getRedisVersion());
+    builder.clusterMode(deployConfig.getClusterModeEnabled() ? "enabled" : "disabled");
+    builder.transitEncryptionEnabled(deployConfig.getTransitEncryptionEnabled());
+
+    // Set authentication token if enabled
+    if (deployConfig.getAuthentication() != null
+        && deployConfig.getAuthentication().getEnabled() != null
+        && deployConfig.getAuthentication().getEnabled()) {
+      if (deployConfig.getAuthentication().getAuthToken() == null
+          || deployConfig.getAuthentication().getAuthToken().isEmpty()) {
+        throw new GenericApplicationException(
+            ApplicationError.CONSTRAINT_VIOLATION,
+            "authToken is required when authentication is enabled");
+      }
+      // AWS requires encryption-in-transit to be enabled when using AUTH tokens
+      if (deployConfig.getTransitEncryptionEnabled() == null
+          || !deployConfig.getTransitEncryptionEnabled()) {
+        throw new GenericApplicationException(
+            ApplicationError.CONSTRAINT_VIOLATION,
+            "transitEncryptionEnabled must be true when authentication is enabled. "
+                + "AUTH tokens are only supported when encryption-in-transit is enabled.");
+      }
+      builder.authToken(deployConfig.getAuthentication().getAuthToken());
+    }
 
     // Set parameter group if provided
     ApplicationUtil.setIfNotNull(
-        builder::cacheParameterGroupName, deployConfig.getCacheParameterGroupName());
+        builder::cacheParameterGroupName, cacheParameterGroupName);
 
     if (deployConfig.getCacheSubnetGroupName() != null) {
       builder.cacheSubnetGroupName(deployConfig.getCacheSubnetGroupName());
@@ -211,28 +237,66 @@ public class RedisClient {
         .orElseThrow(() -> new ReplicationGroupNotFoundException(replicationGroupId));
   }
 
-  @SneakyThrows
+  /**
+   * Initiates deletion of a replication group.
+   *
+   * @param replicationGroupId The identifier of the replication group to delete
+   */
   public void deleteReplicationGroup(String replicationGroupId) {
+    log.info("Initiating deletion of replication group: {}", replicationGroupId);
 
     elastiCacheClient.deleteReplicationGroup(
         DeleteReplicationGroupRequest.builder().replicationGroupId(replicationGroupId).build());
 
+    log.info("Delete request submitted for replication group: {}", replicationGroupId);
+  }
+
+  /**
+   * Waits for and confirms that a replication group has been successfully
+   * deleted.
+   * Polls the replication group status until it no longer exists or a timeout is
+   * reached.
+   *
+   * @param replicationGroupId The identifier of the replication group to check
+   * @throws GenericApplicationException if the deletion does not complete within
+   *                                     the timeout period
+   */
+  @SneakyThrows
+  public void waitForReplicationGroupDeletion(String replicationGroupId) {
+    log.info("Waiting for replication group {} to be deleted...", replicationGroupId);
+
+    long endTime = System.currentTimeMillis() + Constants.REPLICATION_GROUP_WAIT_RETRY_TIMEOUT.toMillis();
+
     while (true) {
+      if (System.currentTimeMillis() > endTime) {
+        throw new GenericApplicationException(
+            ApplicationError.REPLICATION_GROUP_WAIT_TIMEOUT,
+            replicationGroupId,
+            "deleted");
+      }
+
       try {
         DescribeReplicationGroupsResponse replicationGroupResponse = elastiCacheClient.describeReplicationGroups(
             DescribeReplicationGroupsRequest.builder()
                 .replicationGroupId(replicationGroupId)
                 .build());
-        // Given the groupId is passed in the request, this will always have
-        // replicationGroups or
-        // throw the ReplicationGroupNotFoundException
+
+        // Check if response is empty (defensive check)
+        if (replicationGroupResponse.replicationGroups() == null
+            || replicationGroupResponse.replicationGroups().isEmpty()) {
+          log.info("Replication group {} has been deleted (empty response)", replicationGroupId);
+          break;
+        }
+
+        // Check status if replication group still exists
         String status = replicationGroupResponse.replicationGroups().get(0).status();
-        log.debug("Current deletion status: {}", status);
+        log.debug("Replication group {} deletion in progress. Current status: {}", replicationGroupId, status);
+
         Thread.sleep(Constants.REPLICATION_GROUP_WAIT_RETRY_INTERVAL.toMillis());
+
       } catch (software.amazon.awssdk.services.elasticache.model.ReplicationGroupNotFoundException e) {
-        log.debug(
-            "Replication group {} not found exception, it has been deleted now",
-            replicationGroupId);
+        // Replication group not found means it's been successfully deleted
+        log.info("Replication group {} has been successfully deleted", replicationGroupId);
         break;
       }
     }

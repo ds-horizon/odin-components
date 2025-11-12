@@ -76,7 +76,7 @@ public class RedisService {
       ReplicationGroup replicationGroup = redisClient.getReplicationGroup(replicationGroupIdentifier);
 
       Application.getState().setReplicationGroupIdentifier(replicationGroupIdentifier);
-      if (deployConfig.getNumNodeGroups() > 1) {
+      if (deployConfig.getNumNodeGroups() > 1 || deployConfig.getClusterModeEnabled()) {
         Application.getState()
             .setPrimaryEndpoint(replicationGroup.configurationEndpoint().address());
         Application.getState()
@@ -91,11 +91,13 @@ public class RedisService {
   }
 
   public void undeploy() {
-    log.info("Undeploying Redis...");
-    redisClient.deleteReplicationGroup(Application.getState().getReplicationGroupIdentifier());
+    String replicationGroupIdentifier = Application.getState().getReplicationGroupIdentifier();
+    log.info("Undeploying Redis replication group: {}", replicationGroupIdentifier);
+    redisClient.deleteReplicationGroup(replicationGroupIdentifier);
+    redisClient.waitForReplicationGroupDeletion(replicationGroupIdentifier);
     log.info(
         "Redis undeployment completed successfully for replicationGroup {}",
-        Application.getState().getReplicationGroupIdentifier());
+        replicationGroupIdentifier);
   }
 
   public void updateNodeType(@NonNull UpdateNodeTypeConfig updateNodeTypeConfig) {
