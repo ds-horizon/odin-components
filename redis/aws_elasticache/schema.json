@@ -57,6 +57,23 @@
         },
         "errorMessage": "numNodeGroups can only be greater than 1 when clusterModeEnabled is true"
       }
+    },
+    {
+      "if": {
+        "properties": {
+          "authentication": {
+            "properties": {
+              "enabled": { "const": true }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "transitEncryptionEnabled": { "const": true }
+        },
+        "errorMessage": "transitEncryptionEnabled must be true when authentication is enabled. AUTH tokens are only supported when encryption-in-transit is enabled."
+      }
     }
   ],
   "properties": {
