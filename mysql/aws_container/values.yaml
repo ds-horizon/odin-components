@@ -10,7 +10,7 @@ auth:
 global:
   storageClass: {{ flavourConfig.storageClass }}
 
-{% if flavourConfig.readerCount == 0 %}
+{% if flavourConfig.reader.replicaCount == 0 %}
 architecture: standalone
 {% else %}
 architecture: replication
@@ -153,3 +153,9 @@ initdbScripts:
     FLUSH PRIVILEGES;
     EOF
     fi
+
+metrics:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/mysqld-exporter
