@@ -53,4 +53,4 @@ application/**/ami.pkr.hcl
 application/**/*.jar
 
 run.sh
-**/example
+

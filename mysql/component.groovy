@@ -1,14 +1,6 @@
 import com.dream11.Odin
 import com.dream11.OdinUtil
 
-def downloadLogging = {
-    download {
-        provider "S3"
-        uri      "s3://components-state-odin-dsl-central-prod/odin_run_files/logging.sh"
-        relativeDestination "logging.sh"
-    }
-}
-
 Odin.component {
     dslVersion "v0.0.1"
 
@@ -115,9 +107,7 @@ Odin.component {
             String lastState = getLastState()
             if (lastState != null && !lastState.isEmpty()) {
                 run "echo '${lastState}' > state.json"
-            }            
-            downloadLogging.delegate = delegate
-            downloadLogging()            
+            }                       
             run "bash deploy.sh"
             out "cat state.json"
 
@@ -143,9 +133,7 @@ Odin.component {
                 run "echo '${lastState}' > state.json"
             }else{
                 run "echo '{}' > state.json"
-            }                    
-            downloadLogging.delegate = delegate
-            downloadLogging()            
+            }           
             run "bash undeploy.sh"
             out "cat state.json"
         }
