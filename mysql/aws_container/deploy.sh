@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 source ./logging.sh
-source ./.env
+source ./constants
 setup_error_handling
 
-cleanup() {
+update_state() {
   jq -n --arg name "${RELEASE_NAME}" --arg sha "${CURRENT_SHA}" \
     '{releaseName: $name, sha: $sha}' > state.json
 }
 
-trap 'cleanup' EXIT
+trap 'update_state' EXIT
 
 function print_marker() {
   echo "=========================================================================================="
