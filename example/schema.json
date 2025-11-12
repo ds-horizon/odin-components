@@ -1,6 +1,0 @@
-{
-  "title": "Example root level schema",
-  "type": "object",
-  "properties": {},
-  "additionalProperties": false
-}
