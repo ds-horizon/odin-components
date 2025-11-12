@@ -1,25 +1,27 @@
 package com.dream11.redis.config.user;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import com.dream11.redis.Application;
 import com.dream11.redis.config.Config;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import lombok.Data;
 import lombok.SneakyThrows;
 
 @Data
 public class DeployConfig implements Config {
-  @NotNull private String redisVersion;
+  @NotNull
+  private String redisVersion;
 
   @Size(max = 255)
   private String replicationGroupDescription = "ElastiCache Redis replication group";
@@ -31,6 +33,13 @@ public class DeployConfig implements Config {
   @Min(1)
   @Max(500)
   private Integer numNodeGroups = 1;
+
+  @NotNull
+  private Boolean clusterModeEnabled = false;
+
+  @NotNull
+  @Valid
+  private AuthenticationConfig authentication;
 
   @Min(0)
   @Max(5)
@@ -55,9 +64,7 @@ public class DeployConfig implements Config {
   @Max(35)
   private Integer snapshotRetentionLimit = 0;
 
-  @Pattern(
-      regexp =
-          "^(mon|tue|wed|thu|fri|sat|sun):[0-9]{2}:[0-9]{2}-(mon|tue|wed|thu|fri|sat|sun):[0-9]{2}:[0-9]{2}$")
+  @Pattern(regexp = "^(mon|tue|wed|thu|fri|sat|sun):[0-9]{2}:[0-9]{2}-(mon|tue|wed|thu|fri|sat|sun):[0-9]{2}:[0-9]{2}$")
   private String preferredMaintenanceWindow;
 
   private Map<String, String> tags = new HashMap<>();
@@ -69,8 +76,6 @@ public class DeployConfig implements Config {
   private String notificationTopicArn;
 
   private Boolean autoMinorVersionUpgrade = true;
-
-  @Valid private List<LogDeliveryConfig> logDeliveryConfigurations = new ArrayList<>();
 
   private List<@Pattern(regexp = "^[a-z]{2}-[a-z]+-[0-9][a-z]$") String> preferredCacheClusterAZs;
 

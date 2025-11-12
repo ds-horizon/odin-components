@@ -1,5 +1,8 @@
 package com.dream11.redis.service;
 
+import java.util.List;
+import java.util.Map;
+
 import com.dream11.redis.Application;
 import com.dream11.redis.client.RedisClient;
 import com.dream11.redis.config.metadata.ComponentMetadata;
@@ -9,21 +12,25 @@ import com.dream11.redis.config.user.DeployConfig;
 import com.dream11.redis.constant.Constants;
 import com.dream11.redis.util.ApplicationUtil;
 import com.google.inject.Inject;
-import java.util.List;
-import java.util.Map;
+
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.services.elasticache.model.ReplicationGroup;
 
 @Slf4j
-@RequiredArgsConstructor(onConstructor = @__({@Inject}))
+@RequiredArgsConstructor(onConstructor = @__({ @Inject }))
 public class RedisService {
-  @NonNull final DeployConfig deployConfig;
-  @NonNull final ComponentMetadata componentMetadata;
-  @NonNull final RedisClient redisClient;
-  @NonNull final AwsAccountData awsAccountData;
-  @NonNull final RedisData redisData;
+  @NonNull
+  final DeployConfig deployConfig;
+  @NonNull
+  final ComponentMetadata componentMetadata;
+  @NonNull
+  final RedisClient redisClient;
+  @NonNull
+  final AwsAccountData awsAccountData;
+  @NonNull
+  final RedisData redisData;
 
   public void deploy() {
 
@@ -32,16 +39,14 @@ public class RedisService {
       identifier = ApplicationUtil.generateRandomId(4);
       Application.getState().setIdentifier(identifier);
     }
-    String name =
-        String.join(
-            "-", this.componentMetadata.getComponentName(), this.componentMetadata.getEnvName());
+    String name = String.join(
+        "-", this.componentMetadata.getComponentName(), this.componentMetadata.getEnvName());
 
-    Map<String, String> tags =
-        ApplicationUtil.merge(
-            List.of(
-                this.deployConfig.getTags(),
-                this.awsAccountData.getTags(),
-                Constants.COMPONENT_TAGS));
+    Map<String, String> tags = ApplicationUtil.merge(
+        List.of(
+            this.deployConfig.getTags(),
+            this.awsAccountData.getTags(),
+            Constants.COMPONENT_TAGS));
 
     createReplicationGroupAndWait(name, identifier, tags);
     log.info("Redis cluster deployment completed successfully");
@@ -64,11 +69,10 @@ public class RedisService {
           Constants.REPLICATION_GROUP_WAIT_RETRY_TIMEOUT,
           Constants.REPLICATION_GROUP_WAIT_RETRY_INTERVAL);
       log.info("Replication group is now available: {}", replicationGroupIdentifier);
-      ReplicationGroup replicationGroup =
-          redisClient.getReplicationGroup(replicationGroupIdentifier);
+      ReplicationGroup replicationGroup = redisClient.getReplicationGroup(replicationGroupIdentifier);
 
       Application.getState().setReplicationGroupIdentifier(replicationGroupIdentifier);
-      if (deployConfig.getNumNodeGroups() > 1) {
+      if (deployConfig.getNumNodeGroups() > 1 || deployConfig.getClusterModeEnabled()) {
         Application.getState()
             .setPrimaryEndpoint(replicationGroup.configurationEndpoint().address());
         Application.getState()
@@ -83,10 +87,12 @@ public class RedisService {
   }
 
   public void undeploy() {
-    log.info("Undeploying Redis...");
-    redisClient.deleteReplicationGroup(Application.getState().getReplicationGroupIdentifier());
+    String replicationGroupIdentifier = Application.getState().getReplicationGroupIdentifier();
+    log.info("Undeploying Redis replication group: {}", replicationGroupIdentifier);
+    redisClient.deleteReplicationGroup(replicationGroupIdentifier);
+    redisClient.waitForReplicationGroupDeletion(replicationGroupIdentifier);
     log.info(
         "Redis undeployment completed successfully for replicationGroup {}",
-        Application.getState().getReplicationGroupIdentifier());
+        replicationGroupIdentifier);
   }
 }
