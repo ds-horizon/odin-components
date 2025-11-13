@@ -5,13 +5,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import java.time.Duration;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-
 import com.dream11.redis.config.metadata.aws.RedisData;
+import com.dream11.redis.config.user.CloudWatchLogsDetails;
 import com.dream11.redis.config.user.DeployConfig;
+import com.dream11.redis.config.user.KinesisFirehoseDetails;
+import com.dream11.redis.config.user.LogDeliveryConfig;
 import com.dream11.redis.config.user.UpdateReplicaCountConfig;
 import com.dream11.redis.constant.Constants;
 import com.dream11.redis.error.ApplicationError;
@@ -25,12 +23,15 @@ import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.retries.api.BackoffStrategy;
 import software.amazon.awssdk.services.elasticache.ElastiCacheClient;
+import software.amazon.awssdk.services.elasticache.model.CloudWatchLogsDestinationDetails;
 import software.amazon.awssdk.services.elasticache.model.CreateReplicationGroupRequest;
 import software.amazon.awssdk.services.elasticache.model.DecreaseReplicaCountRequest;
 import software.amazon.awssdk.services.elasticache.model.DeleteReplicationGroupRequest;
 import software.amazon.awssdk.services.elasticache.model.DescribeReplicationGroupsRequest;
 import software.amazon.awssdk.services.elasticache.model.DescribeReplicationGroupsResponse;
 import software.amazon.awssdk.services.elasticache.model.IncreaseReplicaCountRequest;
+import software.amazon.awssdk.services.elasticache.model.KinesisFirehoseDestinationDetails;
+import software.amazon.awssdk.services.elasticache.model.LogDeliveryConfigurationRequest;
 import software.amazon.awssdk.services.elasticache.model.NodeGroup;
 import software.amazon.awssdk.services.elasticache.model.ReplicationGroup;
 import software.amazon.awssdk.services.elasticache.model.Tag;
@@ -112,6 +113,13 @@ public class RedisClient {
     builder.engineVersion(deployConfig.getRedisVersion());
     builder.clusterMode(deployConfig.getClusterModeEnabled() ? "enabled" : "disabled");
     builder.transitEncryptionEnabled(deployConfig.getTransitEncryptionEnabled());
+
+    // Set log delivery configurations if provided
+    if (deployConfig.getLogDeliveryConfigurations() != null
+        && !deployConfig.getLogDeliveryConfigurations().isEmpty()) {
+      builder.logDeliveryConfigurations(
+          convertToLogDeliveryConfigurationRequests(deployConfig.getLogDeliveryConfigurations()));
+    }
 
     // Set authentication token if enabled
     if (deployConfig.getAuthentication() != null
@@ -221,6 +229,61 @@ public class RedisClient {
   }
 
   /**
+   * Converts LogDeliveryConfig objects to AWS SDK LogDeliveryConfigurationRequest
+   * objects.
+   *
+   * @param logDeliveryConfigs List of log delivery configurations from
+   *                           DeployConfig
+   * @return List of AWS SDK LogDeliveryConfigurationRequest objects
+   */
+  private List<LogDeliveryConfigurationRequest> convertToLogDeliveryConfigurationRequests(
+      List<LogDeliveryConfig> logDeliveryConfigs) {
+    return logDeliveryConfigs.stream()
+        .map(
+            config -> {
+              LogDeliveryConfigurationRequest.Builder builder = LogDeliveryConfigurationRequest.builder()
+                  .logType(config.getLogType())
+                  .destinationType(config.getDestinationType());
+
+              // Set destination details based on destination type
+              software.amazon.awssdk.services.elasticache.model.DestinationDetails.Builder destDetailsBuilder = software.amazon.awssdk.services.elasticache.model.DestinationDetails
+                  .builder();
+              com.dream11.redis.config.user.DestinationDetails userDestDetails = config.getDestinationDetails();
+
+              if ("cloudwatch-logs".equals(config.getDestinationType())
+                  && userDestDetails != null
+                  && userDestDetails.getCloudWatchLogsDetails() != null) {
+                CloudWatchLogsDetails cloudWatchDetails = userDestDetails.getCloudWatchLogsDetails();
+                destDetailsBuilder.cloudWatchLogsDetails(
+                    CloudWatchLogsDestinationDetails.builder()
+                        .logGroup(cloudWatchDetails.getLogGroup())
+                        .build());
+              } else if ("kinesis-firehose".equals(config.getDestinationType())
+                  && userDestDetails != null
+                  && userDestDetails.getKinesisFirehoseDetails() != null) {
+                KinesisFirehoseDetails kinesisDetails = userDestDetails.getKinesisFirehoseDetails();
+                destDetailsBuilder.kinesisFirehoseDetails(
+                    KinesisFirehoseDestinationDetails.builder()
+                        .deliveryStream(kinesisDetails.getDeliveryStream())
+                        .build());
+              }
+
+              builder.destinationDetails(destDetailsBuilder.build());
+
+              // Set optional fields
+              if (config.getEnabled() != null) {
+                builder.enabled(config.getEnabled());
+              }
+              if (config.getLogFormat() != null) {
+                builder.logFormat(config.getLogFormat());
+              }
+
+              return builder.build();
+            })
+        .collect(Collectors.toList());
+  }
+
+  /**
    * Retrieves a replication group by its identifier.
    *
    * @param replicationGroupId The identifier of the replication group
@@ -267,26 +330,12 @@ public class RedisClient {
 
     long endTime = System.currentTimeMillis() + Constants.REPLICATION_GROUP_WAIT_RETRY_TIMEOUT.toMillis();
 
-    while (true) {
-      if (System.currentTimeMillis() > endTime) {
-        throw new GenericApplicationException(
-            ApplicationError.REPLICATION_GROUP_WAIT_TIMEOUT,
-            replicationGroupId,
-            "deleted");
-      }
-
+    while (System.currentTimeMillis() < endTime) {
       try {
         DescribeReplicationGroupsResponse replicationGroupResponse = elastiCacheClient.describeReplicationGroups(
             DescribeReplicationGroupsRequest.builder()
                 .replicationGroupId(replicationGroupId)
                 .build());
-
-        // Check if response is empty (defensive check)
-        if (replicationGroupResponse.replicationGroups() == null
-            || replicationGroupResponse.replicationGroups().isEmpty()) {
-          log.info("Replication group {} has been deleted (empty response)", replicationGroupId);
-          break;
-        }
 
         // Check status if replication group still exists
         String status = replicationGroupResponse.replicationGroups().get(0).status();
@@ -297,9 +346,13 @@ public class RedisClient {
       } catch (software.amazon.awssdk.services.elasticache.model.ReplicationGroupNotFoundException e) {
         // Replication group not found means it's been successfully deleted
         log.info("Replication group {} has been successfully deleted", replicationGroupId);
-        break;
+        return;
       }
     }
+    throw new GenericApplicationException(
+        ApplicationError.REPLICATION_GROUP_WAIT_TIMEOUT,
+        replicationGroupId,
+        "deleted");
   }
 
   @SneakyThrows

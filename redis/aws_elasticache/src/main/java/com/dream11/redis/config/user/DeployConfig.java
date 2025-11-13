@@ -81,6 +81,9 @@ public class DeployConfig implements Config {
 
   private String kmsKeyId;
 
+  @Valid
+  private List<LogDeliveryConfig> logDeliveryConfigurations;
+
   @Override
   public void validate() {
     Config.super.validate();
