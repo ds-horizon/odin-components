@@ -1,13 +1,11 @@
 package com.dream11.redis.config.user;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.dream11.redis.Application;
 import com.dream11.redis.config.Config;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -16,7 +14,6 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
-import lombok.SneakyThrows;
 
 @Data
 public class DeployConfig implements Config {
@@ -82,18 +79,11 @@ public class DeployConfig implements Config {
   private String kmsKeyId;
 
   @Valid
-  private List<LogDeliveryConfig> logDeliveryConfigurations;
+  private List<LogDeliveryConfig> logDeliveryConfigurations = new ArrayList<>();
 
   @Override
   public void validate() {
     Config.super.validate();
   }
 
-  @SneakyThrows
-  public DeployConfig mergeWith(String overrides) {
-    ObjectMapper objectMapper = Application.getObjectMapper();
-    JsonNode node = objectMapper.readValue(objectMapper.writeValueAsString(this), JsonNode.class);
-    return objectMapper.readValue(
-        objectMapper.readerForUpdating(node).readValue(overrides).toString(), DeployConfig.class);
-  }
 }

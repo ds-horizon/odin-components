@@ -1,5 +1,15 @@
 package com.dream11.redis;
 
+import java.io.File;
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.nio.charset.Charset;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+
+import org.apache.commons.io.FileUtils;
+
 import com.dream11.redis.client.RedisClient;
 import com.dream11.redis.config.metadata.ComponentMetadata;
 import com.dream11.redis.config.metadata.aws.AwsAccountData;
@@ -27,23 +37,12 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.inject.Module;
-import java.io.File;
-import java.io.OutputStream;
-import java.io.PrintStream;
-import java.nio.charset.Charset;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.FileUtils;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 
 @Slf4j
@@ -51,19 +50,14 @@ import software.amazon.awssdk.awscore.exception.AwsServiceException;
 public class Application {
 
   @Getter
-  static final ObjectMapper objectMapper =
-      JsonMapper.builder()
-          .configure(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES, false)
-          .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-          .enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS)
-          .disable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
-          .withConfigOverride(
-              ArrayNode.class, mutableConfigOverride -> mutableConfigOverride.setMergeable(false))
-          .build();
-
-  @Getter
-  static final ExecutorService executorService =
-      new ThreadPoolExecutor(0, Integer.MAX_VALUE, 0L, TimeUnit.SECONDS, new SynchronousQueue<>());
+  static final ObjectMapper objectMapper = JsonMapper.builder()
+      .configure(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES, false)
+      .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+      .enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS)
+      .disable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+      .withConfigOverride(
+          ArrayNode.class, mutableConfigOverride -> mutableConfigOverride.setMergeable(false))
+      .build();
 
   ComponentMetadata componentMetadata;
   String config;
@@ -74,11 +68,14 @@ public class Application {
   RedisData redisData;
   RedisClient redisClient;
 
-  @Getter @Setter static State state;
+  @Getter
+  @Setter
+  static State state;
 
   @SneakyThrows
   public static void main(String[] args) {
-    // Setting error stream to null, to avoid library errors like guice, otherwise errors will be
+    // Setting error stream to null, to avoid library errors like guice, otherwise
+    // errors will be
     // printed twice in CLI
     System.setErr(new PrintStream(OutputStream.nullOutputStream()));
     try {
@@ -143,15 +140,13 @@ public class Application {
   @SneakyThrows
   void executeOperation() {
     Class<? extends Operation> operationClass;
-    operationClass =
-        switch (Operations.fromValue(this.operationName)) {
-          case DEPLOY -> {
-            this.deployConfig =
-                Application.getObjectMapper().readValue(this.config, DeployConfig.class);
-            yield Deploy.class;
-          }
-          case UNDEPLOY -> Undeploy.class;
-        };
+    operationClass = switch (Operations.fromValue(this.operationName)) {
+      case DEPLOY -> {
+        this.deployConfig = Application.getObjectMapper().readValue(this.config, DeployConfig.class);
+        yield Deploy.class;
+      }
+      case UNDEPLOY -> Undeploy.class;
+    };
 
     if (Operations.fromValue(this.operationName).equals(Operations.UNDEPLOY)) {
       log.info("Deleting all created resources");
@@ -167,7 +162,6 @@ public class Application {
   }
 
   private void shutdown() {
-    executorService.shutdown();
     this.writeState(); // Write state to file in all cases
   }
 
@@ -188,22 +182,18 @@ public class Application {
 
   @SneakyThrows
   void readConfigFromEnvVariables() {
-    JsonNode node =
-        Application.getObjectMapper().readTree(System.getenv(Constants.COMPONENT_METADATA));
-    this.componentMetadata =
-        Application.getObjectMapper().treeToValue(node, ComponentMetadata.class);
+    JsonNode node = Application.getObjectMapper().readTree(System.getenv(Constants.COMPONENT_METADATA));
+    this.componentMetadata = Application.getObjectMapper().treeToValue(node, ComponentMetadata.class);
     this.componentMetadata.validate();
-    this.awsAccountData =
-        Application.getObjectMapper()
-            .convertValue(
-                this.componentMetadata.getCloudProviderDetails().getAccount().getData(),
-                AwsAccountData.class);
+    this.awsAccountData = Application.getObjectMapper()
+        .convertValue(
+            this.componentMetadata.getCloudProviderDetails().getAccount().getData(),
+            AwsAccountData.class);
     this.awsAccountData.validate();
-    this.redisData =
-        ApplicationUtil.getServiceWithCategory(
-            this.componentMetadata.getCloudProviderDetails().getAccount().getServices(),
-            Constants.ELASTICACHE_CATEGORY,
-            RedisData.class);
+    this.redisData = ApplicationUtil.getServiceWithCategory(
+        this.componentMetadata.getCloudProviderDetails().getAccount().getServices(),
+        Constants.ELASTICACHE_CATEGORY,
+        RedisData.class);
     this.redisData.validate();
     this.config = System.getenv(Constants.CONFIG);
   }

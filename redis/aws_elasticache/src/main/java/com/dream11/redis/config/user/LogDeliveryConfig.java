@@ -1,20 +1,22 @@
 package com.dream11.redis.config.user;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 @Data
 public class LogDeliveryConfig {
     @NotNull
-    private String logType; // "slow-log" or "engine-log"
+    private LogType logType;
 
     @NotNull
-    private String destinationType; // "cloudwatch-logs" or "kinesis-firehose"
+    private DestinationType destinationType;
 
     @NotNull
+    @Valid
     private DestinationDetails destinationDetails;
 
     private Boolean enabled;
 
-    private String logFormat; // "json" or "text"
+    private LogFormat logFormat;
 }

@@ -3,11 +3,12 @@ package com.dream11.redis.client;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import com.dream11.redis.config.metadata.aws.RedisData;
 import com.dream11.redis.config.user.CloudWatchLogsDetails;
 import com.dream11.redis.config.user.DeployConfig;
+import com.dream11.redis.config.user.DestinationDetails;
+import com.dream11.redis.config.user.DestinationType;
 import com.dream11.redis.config.user.KinesisFirehoseDetails;
 import com.dream11.redis.config.user.LogDeliveryConfig;
 import com.dream11.redis.constant.Constants;
@@ -37,7 +38,7 @@ public class RedisClient {
   final ElastiCacheClient elastiCacheClient;
 
   public RedisClient(String region) {
-    this.elastiCacheClient = ElastiCacheClient.builder()
+    elastiCacheClient = ElastiCacheClient.builder()
         .region(Region.of(region))
         .overrideConfiguration(
             overrideConfig -> overrideConfig
@@ -51,8 +52,8 @@ public class RedisClient {
                                 Duration.ofSeconds(
                                     Constants.AWS_CLIENT_RETRY_MAX_BACKOFF_SECONDS)))
                         .build())
-                .apiCallTimeout(Duration.ofMinutes(2))
-                .apiCallAttemptTimeout(Duration.ofSeconds(30)))
+                .apiCallTimeout(Constants.AWS_CLIENT_API_CALL_TIMEOUT)
+                .apiCallAttemptTimeout(Constants.AWS_CLIENT_API_CALL_ATTEMPT_TIMEOUT))
         .build();
   }
 
@@ -64,7 +65,6 @@ public class RedisClient {
    * @param deployConfig       Configuration for deployment
    * @param redisData          Metadata containing subnet groups and security
    *                           groups
-   * @return The primary endpoint of the replication group
    */
   public void createReplicationGroup(
       String replicationGroupId,
@@ -111,8 +111,7 @@ public class RedisClient {
     builder.transitEncryptionEnabled(deployConfig.getTransitEncryptionEnabled());
 
     // Set log delivery configurations if provided
-    if (deployConfig.getLogDeliveryConfigurations() != null
-        && !deployConfig.getLogDeliveryConfigurations().isEmpty()) {
+    if (!deployConfig.getLogDeliveryConfigurations().isEmpty()) {
       builder.logDeliveryConfigurations(
           convertToLogDeliveryConfigurationRequests(deployConfig.getLogDeliveryConfigurations()));
     }
@@ -128,8 +127,7 @@ public class RedisClient {
             "authToken is required when authentication is enabled");
       }
       // AWS requires encryption-in-transit to be enabled when using AUTH tokens
-      if (deployConfig.getTransitEncryptionEnabled() == null
-          || !deployConfig.getTransitEncryptionEnabled()) {
+      if (!deployConfig.getTransitEncryptionEnabled()) {
         throw new GenericApplicationException(
             ApplicationError.CONSTRAINT_VIOLATION,
             "transitEncryptionEnabled must be true when authentication is enabled. "
@@ -199,29 +197,10 @@ public class RedisClient {
     ApplicationUtil.setIfNotNull(builder::kmsKeyId, deployConfig.getKmsKeyId());
   }
 
-  @SneakyThrows
-  public void waitUntilReplicationGroupAvailable(
-      String replicationGroupId, Duration timeout, Duration interval) {
-    long end = System.currentTimeMillis() + timeout.toMillis();
-    while (true) {
-      ReplicationGroup rg = elastiCacheClient
-          .describeReplicationGroups(b -> b.replicationGroupId(replicationGroupId))
-          .replicationGroups()
-          .get(0);
-      if ("available".equalsIgnoreCase(rg.status()))
-        return;
-      if (System.currentTimeMillis() > end)
-        throw new GenericApplicationException(
-            ApplicationError.REPLICATION_GROUP_WAIT_TIMEOUT, replicationGroupId, "available");
-      Thread.sleep(interval.toMillis());
-    }
-  }
-
   /** Converts a map of tags to ElastiCache Tag objects. */
   private List<Tag> convertMapToTags(Map<String, String> tagMap) {
     return tagMap.entrySet().stream()
-        .map(entry -> Tag.builder().key(entry.getKey()).value(entry.getValue()).build())
-        .collect(Collectors.toList());
+        .map(entry -> Tag.builder().key(entry.getKey()).value(entry.getValue()).build()).toList();
   }
 
   /**
@@ -238,25 +217,31 @@ public class RedisClient {
         .map(
             config -> {
               LogDeliveryConfigurationRequest.Builder builder = LogDeliveryConfigurationRequest.builder()
-                  .logType(config.getLogType())
-                  .destinationType(config.getDestinationType());
+                  .logType(config.getLogType().getValue())
+                  .destinationType(config.getDestinationType().getValue());
 
               // Set destination details based on destination type
               software.amazon.awssdk.services.elasticache.model.DestinationDetails.Builder destDetailsBuilder = software.amazon.awssdk.services.elasticache.model.DestinationDetails
                   .builder();
-              com.dream11.redis.config.user.DestinationDetails userDestDetails = config.getDestinationDetails();
+              DestinationDetails userDestDetails = config.getDestinationDetails();
 
-              if ("cloudwatch-logs".equals(config.getDestinationType())
-                  && userDestDetails != null
-                  && userDestDetails.getCloudWatchLogsDetails() != null) {
+              if (config.getDestinationType() == DestinationType.CLOUDWATCH_LOGS) {
+                if (userDestDetails.getCloudWatchLogsDetails() == null) {
+                  throw new GenericApplicationException(
+                      ApplicationError.CONSTRAINT_VIOLATION,
+                      "cloudWatchLogsDetails is required when destinationType is cloudwatch-logs");
+                }
                 CloudWatchLogsDetails cloudWatchDetails = userDestDetails.getCloudWatchLogsDetails();
                 destDetailsBuilder.cloudWatchLogsDetails(
                     CloudWatchLogsDestinationDetails.builder()
                         .logGroup(cloudWatchDetails.getLogGroup())
                         .build());
-              } else if ("kinesis-firehose".equals(config.getDestinationType())
-                  && userDestDetails != null
-                  && userDestDetails.getKinesisFirehoseDetails() != null) {
+              } else if (config.getDestinationType() == DestinationType.KINESIS_FIREHOSE) {
+                if (userDestDetails.getKinesisFirehoseDetails() == null) {
+                  throw new GenericApplicationException(
+                      ApplicationError.CONSTRAINT_VIOLATION,
+                      "kinesisFirehoseDetails is required when destinationType is kinesis-firehose");
+                }
                 KinesisFirehoseDetails kinesisDetails = userDestDetails.getKinesisFirehoseDetails();
                 destDetailsBuilder.kinesisFirehoseDetails(
                     KinesisFirehoseDestinationDetails.builder()
@@ -266,17 +251,16 @@ public class RedisClient {
 
               builder.destinationDetails(destDetailsBuilder.build());
 
-              // Set optional fields
               if (config.getEnabled() != null) {
                 builder.enabled(config.getEnabled());
               }
               if (config.getLogFormat() != null) {
-                builder.logFormat(config.getLogFormat());
+                builder.logFormat(config.getLogFormat().getValue());
               }
 
               return builder.build();
             })
-        .collect(Collectors.toList());
+        .toList();
   }
 
   /**
@@ -291,9 +275,13 @@ public class RedisClient {
     DescribeReplicationGroupsRequest request = DescribeReplicationGroupsRequest.builder()
         .replicationGroupId(replicationGroupId).build();
 
-    return this.elastiCacheClient.describeReplicationGroups(request).replicationGroups().stream()
+    return elastiCacheClient.describeReplicationGroups(request).replicationGroups().stream()
         .findFirst()
         .orElseThrow(() -> new ReplicationGroupNotFoundException(replicationGroupId));
+  }
+
+  public String getReplicationGroupStatus(String replicationGroupId) {
+    return getReplicationGroup(replicationGroupId).status();
   }
 
   /**
@@ -335,7 +323,7 @@ public class RedisClient {
 
         // Check status if replication group still exists
         String status = replicationGroupResponse.replicationGroups().get(0).status();
-        log.debug("Replication group {} deletion in progress. Current status: {}", replicationGroupId, status);
+        log.info("Replication group {} deletion in progress. Current status: {}", replicationGroupId, status);
 
         Thread.sleep(Constants.REPLICATION_GROUP_WAIT_RETRY_INTERVAL.toMillis());
 
