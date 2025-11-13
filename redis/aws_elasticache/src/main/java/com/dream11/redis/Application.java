@@ -20,6 +20,7 @@ import com.dream11.redis.config.metadata.ComponentMetadata;
 import com.dream11.redis.config.metadata.aws.AwsAccountData;
 import com.dream11.redis.config.metadata.aws.RedisData;
 import com.dream11.redis.config.user.DeployConfig;
+import com.dream11.redis.config.user.UpdateNodeGroupCountConfig;
 import com.dream11.redis.config.user.UpdateNodeTypeConfig;
 import com.dream11.redis.config.user.UpdateReplicaCountConfig;
 import com.dream11.redis.constant.Constants;
@@ -33,6 +34,7 @@ import com.dream11.redis.inject.OptionalConfigModule;
 import com.dream11.redis.operation.Deploy;
 import com.dream11.redis.operation.Operation;
 import com.dream11.redis.operation.Undeploy;
+import com.dream11.redis.operation.UpdateNodeGroupCount;
 import com.dream11.redis.operation.UpdateNodeType;
 import com.dream11.redis.operation.UpdateReplicaCount;
 import com.dream11.redis.state.State;
@@ -184,6 +186,18 @@ public class Application {
                 .config(updateReplicaCountConfig)
                 .build());
         yield UpdateReplicaCount.class;
+      }
+      case UPDATE_NODE_GROUP_COUNT -> {
+        this.deployConfig = Application.getState().getDeployConfig();
+        this.deployConfig = this.deployConfig.mergeWith(this.config);
+        UpdateNodeGroupCountConfig updateNodeGroupCountConfig = Application.getObjectMapper().readValue(this.config,
+            UpdateNodeGroupCountConfig.class);
+        modules.add(
+            OptionalConfigModule.<UpdateNodeGroupCountConfig>builder()
+                .clazz(UpdateNodeGroupCountConfig.class)
+                .config(updateNodeGroupCountConfig)
+                .build());
+        yield UpdateNodeGroupCount.class;
       }
     };
 

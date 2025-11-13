@@ -9,6 +9,7 @@ import com.dream11.redis.config.metadata.ComponentMetadata;
 import com.dream11.redis.config.metadata.aws.AwsAccountData;
 import com.dream11.redis.config.metadata.aws.RedisData;
 import com.dream11.redis.config.user.DeployConfig;
+import com.dream11.redis.config.user.UpdateNodeGroupCountConfig;
 import com.dream11.redis.config.user.UpdateNodeTypeConfig;
 import com.dream11.redis.config.user.UpdateReplicaCountConfig;
 import com.dream11.redis.constant.Constants;
@@ -125,7 +126,8 @@ public class RedisService {
     log.info("Replication group modification completed, verifying node type: {}", replicationGroupId);
     String updatedNodeType = this.redisClient.getCacheNodeType(replicationGroupId);
     if (!updatedNodeType.equals(desiredCacheNodeType)) {
-      throw new GenericApplicationException(ApplicationError.NODE_TYPE_UPDATE_FAILED, desiredCacheNodeType, updatedNodeType);
+      throw new GenericApplicationException(ApplicationError.NODE_TYPE_UPDATE_FAILED, desiredCacheNodeType,
+          updatedNodeType);
     }
     log.info("Node type update completed successfully for replication group: {}", replicationGroupId);
   }
@@ -141,6 +143,18 @@ public class RedisService {
         Constants.REPLICATION_GROUP_WAIT_RETRY_INTERVAL);
     log.info("Replication group is now available: {}", replicationGroupIdentifier);
 
+  }
+
+  public void updateNodeGroupCount(@NonNull UpdateNodeGroupCountConfig updateNodeGroupCountConfig) {
+    log.info("Updating node group count...");
+    String replicationGroupIdentifier = Application.getState().getReplicationGroupIdentifier();
+    redisClient.updateNodeGroupCount(replicationGroupIdentifier, updateNodeGroupCountConfig);
+    log.info("Waiting for Replication group to become available: {}", replicationGroupIdentifier);
+    this.redisClient.waitUntilReplicationGroupAvailable(
+        replicationGroupIdentifier,
+        Constants.REPLICATION_GROUP_WAIT_RETRY_TIMEOUT,
+        Constants.REPLICATION_GROUP_WAIT_RETRY_INTERVAL);
+    log.info("Replication group is now available: {}", replicationGroupIdentifier);
   }
 
 }

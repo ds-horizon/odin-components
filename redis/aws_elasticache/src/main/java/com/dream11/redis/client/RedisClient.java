@@ -10,6 +10,7 @@ import com.dream11.redis.config.user.CloudWatchLogsDetails;
 import com.dream11.redis.config.user.DeployConfig;
 import com.dream11.redis.config.user.KinesisFirehoseDetails;
 import com.dream11.redis.config.user.LogDeliveryConfig;
+import com.dream11.redis.config.user.UpdateNodeGroupCountConfig;
 import com.dream11.redis.config.user.UpdateReplicaCountConfig;
 import com.dream11.redis.constant.Constants;
 import com.dream11.redis.error.ApplicationError;
@@ -32,6 +33,7 @@ import software.amazon.awssdk.services.elasticache.model.DescribeReplicationGrou
 import software.amazon.awssdk.services.elasticache.model.IncreaseReplicaCountRequest;
 import software.amazon.awssdk.services.elasticache.model.KinesisFirehoseDestinationDetails;
 import software.amazon.awssdk.services.elasticache.model.LogDeliveryConfigurationRequest;
+import software.amazon.awssdk.services.elasticache.model.ModifyReplicationGroupShardConfigurationRequest;
 import software.amazon.awssdk.services.elasticache.model.NodeGroup;
 import software.amazon.awssdk.services.elasticache.model.ReplicationGroup;
 import software.amazon.awssdk.services.elasticache.model.Tag;
@@ -501,6 +503,89 @@ public class RedisClient {
                   + "Current replicas: %d, Desired: %d. "
                   + "CMD replication groups have fixed replica counts set at creation.",
               current, updateReplicaCountConfig.getReplicasPerNodeGroup()));
+    }
+  }
+
+  @SneakyThrows
+  public void updateNodeGroupCount(String replicationGroupIdentifier,
+      UpdateNodeGroupCountConfig updateNodeGroupCountConfig) {
+    log.info("Fetching replication group details for node group count update: {}", replicationGroupIdentifier);
+    ReplicationGroup replicationGroup = elastiCacheClient.describeReplicationGroups(
+        DescribeReplicationGroupsRequest.builder().replicationGroupId(replicationGroupIdentifier).build())
+        .replicationGroups().get(0);
+
+    log.info("Replication group found: {}, Status: {}, ClusterEnabled: {}",
+        replicationGroup.replicationGroupId(),
+        replicationGroup.status(),
+        replicationGroup.clusterEnabled());
+
+    // Check if cluster mode is enabled (CME) - required for shard configuration
+    // changes
+    Boolean clusterEnabled = replicationGroup.clusterEnabled();
+    boolean clusterModeEnabled = clusterEnabled != null && clusterEnabled;
+
+    if (!clusterModeEnabled) {
+      throw new GenericApplicationException(
+          ApplicationError.CONSTRAINT_VIOLATION,
+          String.format(
+              "Changing node group count is only supported for Cluster Mode Enabled (CME) replication groups. "
+                  + "Replication group %s is in Cluster Mode Disabled (CMD) mode.",
+              replicationGroupIdentifier));
+    }
+
+    // Verify replication group is in available state
+    String status = replicationGroup.status();
+    if (!"available".equalsIgnoreCase(status)) {
+      throw new GenericApplicationException(
+          ApplicationError.CONSTRAINT_VIOLATION,
+          String.format(
+              "Replication group %s is not in 'available' state. Current status: %s. "
+                  + "Node group count can only be modified when the replication group is available.",
+              replicationGroupIdentifier, status));
+    }
+
+    // Get current number of node groups (shards)
+    List<NodeGroup> nodeGroups = replicationGroup.nodeGroups();
+    if (nodeGroups == null || nodeGroups.isEmpty()) {
+      throw new GenericApplicationException(
+          ApplicationError.CONSTRAINT_VIOLATION,
+          String.format("Replication group %s has no node groups", replicationGroupIdentifier));
+    }
+
+    int currentNumNodeGroups = nodeGroups.size();
+    int desiredNumNodeGroups = updateNodeGroupCountConfig.getNumNodeGroups();
+
+    if (desiredNumNodeGroups == currentNumNodeGroups) {
+      log.info("No change: node group count already {}", currentNumNodeGroups);
+      return;
+    }
+
+    if (desiredNumNodeGroups < currentNumNodeGroups) {
+      throw new GenericApplicationException(
+          ApplicationError.CONSTRAINT_VIOLATION,
+          String.format(
+              "Decreasing node group count is not supported. Current: %d, Desired: %d. "
+                  + "You can only increase the number of node groups (shards).",
+              currentNumNodeGroups, desiredNumNodeGroups));
+    }
+
+    // Use the replication group ID from the response to ensure exact match
+    String actualReplicationGroupId = replicationGroup.replicationGroupId();
+    log.info("Updating node group count for CME replication group {} from {} to {}",
+        actualReplicationGroupId, currentNumNodeGroups, desiredNumNodeGroups);
+
+    try {
+      elastiCacheClient.modifyReplicationGroupShardConfiguration(
+          ModifyReplicationGroupShardConfigurationRequest.builder()
+              .replicationGroupId(actualReplicationGroupId)
+              .nodeGroupCount(desiredNumNodeGroups)
+              .applyImmediately(true)
+              .build());
+      log.info("Successfully called modifyReplicationGroupShardConfiguration");
+    } catch (Exception e) {
+      log.error("Error calling modifyReplicationGroupShardConfiguration for replication group {}: {}",
+          actualReplicationGroupId, e.getMessage(), e);
+      throw e;
     }
   }
 
