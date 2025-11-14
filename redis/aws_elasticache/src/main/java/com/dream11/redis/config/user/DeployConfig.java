@@ -8,6 +8,7 @@ import java.util.Map;
 import com.dream11.redis.config.Config;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -36,7 +37,7 @@ public class DeployConfig implements Config {
 
   @NotNull
   @Valid
-  private AuthenticationConfig authentication;
+  private AuthenticationConfig authentication = new AuthenticationConfig();
 
   @Min(0)
   @Max(5)
@@ -44,8 +45,7 @@ public class DeployConfig implements Config {
 
   private String cacheSubnetGroupName;
 
-  @Size(min = 1)
-  private List<@Pattern(regexp = "^sg-[a-f0-9]+$") String> securityGroupIds;
+  private List<@NotNull @Pattern(regexp = "^sg-[a-f0-9]+$") String> securityGroupIds = new ArrayList<>();
 
   private String cacheParameterGroupName;
 
@@ -80,6 +80,14 @@ public class DeployConfig implements Config {
 
   @Valid
   private List<@Valid LogDeliveryConfig> logDeliveryConfigurations = new ArrayList<>();
+
+  @AssertTrue(message = "transitEncryptionEnabled must be true when authentication is enabled. AUTH tokens are only supported when encryption-in-transit is enabled.")
+  boolean isTransitEncryptionEnabledWhenAuthenticationEnabled() {
+    if (authentication != null && authentication.getEnabled() != null && authentication.getEnabled()) {
+      return transitEncryptionEnabled != null && transitEncryptionEnabled;
+    }
+    return true;
+  }
 
   @Override
   public void validate() {

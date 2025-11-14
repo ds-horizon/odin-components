@@ -113,22 +113,7 @@ public class RedisClient {
     }
 
     // Set authentication token if enabled
-    if (deployConfig.getAuthentication() != null
-        && deployConfig.getAuthentication().getEnabled() != null
-        && deployConfig.getAuthentication().getEnabled()) {
-      if (deployConfig.getAuthentication().getAuthToken() == null
-          || deployConfig.getAuthentication().getAuthToken().isEmpty()) {
-        throw new GenericApplicationException(
-            ApplicationError.CONSTRAINT_VIOLATION,
-            "authToken is required when authentication is enabled");
-      }
-      // AWS requires encryption-in-transit to be enabled when using AUTH tokens
-      if (!deployConfig.getTransitEncryptionEnabled()) {
-        throw new GenericApplicationException(
-            ApplicationError.CONSTRAINT_VIOLATION,
-            "transitEncryptionEnabled must be true when authentication is enabled. "
-                + "AUTH tokens are only supported when encryption-in-transit is enabled.");
-      }
+    if (deployConfig.getAuthentication().getEnabled()) {
       builder.authToken(deployConfig.getAuthentication().getAuthToken());
     }
 
@@ -144,8 +129,9 @@ public class RedisClient {
       throw new GenericApplicationException(ApplicationError.SUBNET_GROUP_NOT_FOUND);
     }
 
-    builder.securityGroupIds(deployConfig.getSecurityGroupIds());
-    if (!redisData.getSecurityGroups().isEmpty()) {
+    if (!deployConfig.getSecurityGroupIds().isEmpty()) {
+      builder.securityGroupIds(deployConfig.getSecurityGroupIds());
+    } else if (!redisData.getSecurityGroups().isEmpty()) {
       builder.securityGroupIds(redisData.getSecurityGroups());
     } else {
       throw new GenericApplicationException(ApplicationError.SECURITY_GROUP_NOT_FOUND);

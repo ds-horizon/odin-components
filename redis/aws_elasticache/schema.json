@@ -113,8 +113,7 @@
       "items": {
         "type": "string",
         "pattern": "^sg-[a-f0-9]+$"
-      },
-      "minItems": 1
+      }
     },
     "cacheParameterGroupName": {
       "type": "string",
