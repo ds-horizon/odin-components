@@ -1,0 +1,25 @@
+name: CI
+on:
+  pull_request:
+    types:
+      - synchronize
+      - opened
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup go
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version: 1.22.3
+
+      - name: Verify component readme is upto date
+        run: |
+          set -euo pipefail
+          bash readme-generator.sh
+          # Check if README has been updated
+          git diff --name-only --exit-code || { code=$?; echo "::error::README is out of date. Please run 'bash readme-generator.sh' to automatically update the README."; exit $code; }
