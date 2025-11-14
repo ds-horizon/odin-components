@@ -1,0 +1,219 @@
+package com.dream11.redis;
+
+import java.io.File;
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.nio.charset.Charset;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+
+import org.apache.commons.io.FileUtils;
+
+import com.dream11.redis.client.RedisClient;
+import com.dream11.redis.config.metadata.ComponentMetadata;
+import com.dream11.redis.config.metadata.aws.AwsAccountData;
+import com.dream11.redis.config.metadata.aws.RedisData;
+import com.dream11.redis.config.user.DeployConfig;
+import com.dream11.redis.constant.Constants;
+import com.dream11.redis.constant.Operations;
+import com.dream11.redis.error.ApplicationError;
+import com.dream11.redis.error.ErrorCategory;
+import com.dream11.redis.exception.GenericApplicationException;
+import com.dream11.redis.inject.AwsModule;
+import com.dream11.redis.inject.ConfigModule;
+import com.dream11.redis.operation.Deploy;
+import com.dream11.redis.operation.Operation;
+import com.dream11.redis.operation.Undeploy;
+import com.dream11.redis.state.State;
+import com.dream11.redis.util.ApplicationUtil;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.MapperFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.google.inject.Guice;
+import com.google.inject.Injector;
+import com.google.inject.Module;
+
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.Setter;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
+
+@Slf4j
+@RequiredArgsConstructor
+public class Application {
+
+  @Getter
+  static final ObjectMapper objectMapper = JsonMapper.builder()
+      .configure(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES, false)
+      .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+      .enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS)
+      .disable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+      .withConfigOverride(
+          ArrayNode.class, mutableConfigOverride -> mutableConfigOverride.setMergeable(false))
+      .build();
+
+  ComponentMetadata componentMetadata;
+  String config;
+  final String operationName;
+
+  DeployConfig deployConfig;
+  AwsAccountData awsAccountData;
+  RedisData redisData;
+  RedisClient redisClient;
+
+  @Getter
+  @Setter
+  static State state;
+
+  @SneakyThrows
+  public static void main(String[] args) {
+    // Setting error stream to null, to avoid library errors like guice, otherwise
+    // errors will be
+    // printed twice in CLI
+    System.setErr(new PrintStream(OutputStream.nullOutputStream()));
+    try {
+      if (args.length == 0) {
+        throw new GenericApplicationException(
+            ApplicationError.INVALID_ARGUMENTS, Arrays.toString(Operations.values()));
+      }
+      Application application = new Application(args[0]);
+      application.start();
+    } catch (Exception throwable) {
+      Throwable rootCause = ApplicationUtil.getRootCause(throwable);
+      if (rootCause instanceof GenericApplicationException) {
+        log.error(rootCause.getMessage());
+      } else if (rootCause instanceof AwsServiceException) {
+        log.error("{}: {}", ErrorCategory.AWS_ERROR, rootCause.getMessage());
+      } else {
+        log.error("{}: {}", ErrorCategory.ODIN_ERROR, rootCause.getMessage());
+      }
+      log.debug("Error:", rootCause); // Logging stack trace in debug to avoid it being sent to CLI
+      System.exit(1);
+    }
+  }
+
+  void start() {
+    this.addShutdownHook();
+    this.readConfigFromEnvVariables();
+    this.readState();
+    this.initializeCloudProviderClients();
+    this.executeOperation();
+  }
+
+  private void addShutdownHook() {
+    Runtime.getRuntime()
+        .addShutdownHook(
+            new Thread(
+                () -> {
+                  log.debug("Performing exit steps");
+                  this.shutdown();
+                }));
+  }
+
+  @SneakyThrows
+  void readState() {
+    File stateFile = new File(Constants.COMPONENT_STATE_FILE);
+    if (stateFile.exists()) {
+      log.debug("Reading state from file:[{}]", Constants.COMPONENT_STATE_FILE);
+      String stateContent = FileUtils.readFileToString(stateFile, Charset.defaultCharset());
+      log.debug("State content:[{}]", stateContent);
+      try {
+        State previousState = Application.getObjectMapper().readValue(stateContent, State.class);
+        log.debug("Loaded state:[{}]", previousState);
+        Application.setState(previousState);
+      } catch (JsonProcessingException ex) {
+        throw new GenericApplicationException(ApplicationError.CORRUPTED_STATE_FILE);
+      }
+    } else {
+      log.warn("No state file found.");
+      Application.setState(State.builder().build());
+    }
+  }
+
+  @SneakyThrows
+  void executeOperation() {
+    Class<? extends Operation> operationClass;
+    operationClass = switch (Operations.fromValue(this.operationName)) {
+      case DEPLOY -> {
+        this.deployConfig = Application.getObjectMapper().readValue(this.config, DeployConfig.class);
+        yield Deploy.class;
+      }
+      case UNDEPLOY -> Undeploy.class;
+    };
+
+    if (Operations.fromValue(this.operationName).equals(Operations.UNDEPLOY)) {
+      log.info("Deleting all created resources");
+    } else {
+      log.info("Executing operation:[{}]", Operations.fromValue(this.operationName));
+    }
+
+    this.initializeGuiceModules(this.getGuiceModules()).getInstance(operationClass).execute();
+    if (Operations.fromValue(this.operationName).equals(Operations.DEPLOY)) {
+      Application.getState().setDeployConfig(this.deployConfig);
+    }
+    log.info("Executed operation:[{}]", Operations.fromValue(this.operationName));
+  }
+
+  private void shutdown() {
+    this.writeState(); // Write state to file in all cases
+  }
+
+  @SneakyThrows
+  void writeState() {
+    if (Objects.nonNull(Application.getState())) {
+      Application.getState().incrementVersion();
+      log.debug("Final state: {}", Application.getState());
+      log.debug("Writing state");
+      FileUtils.writeStringToFile(
+          new File(Constants.COMPONENT_STATE_FILE),
+          Application.getObjectMapper().writeValueAsString(Application.getState()),
+          Charset.defaultCharset());
+    } else {
+      log.warn("State is null. Not writing to file");
+    }
+  }
+
+  @SneakyThrows
+  void readConfigFromEnvVariables() {
+    JsonNode node = Application.getObjectMapper().readTree(System.getenv(Constants.COMPONENT_METADATA));
+    this.componentMetadata = Application.getObjectMapper().treeToValue(node, ComponentMetadata.class);
+    this.componentMetadata.validate();
+    this.awsAccountData = Application.getObjectMapper()
+        .convertValue(
+            this.componentMetadata.getCloudProviderDetails().getAccount().getData(),
+            AwsAccountData.class);
+    this.awsAccountData.validate();
+    this.redisData = ApplicationUtil.getServiceWithCategory(
+        this.componentMetadata.getCloudProviderDetails().getAccount().getServices(),
+        Constants.ELASTICACHE_CATEGORY,
+        RedisData.class);
+    this.redisData.validate();
+    this.config = System.getenv(Constants.CONFIG);
+  }
+
+  void initializeCloudProviderClients() {
+    this.redisClient = new RedisClient(this.awsAccountData.getRegion());
+  }
+
+  private Injector initializeGuiceModules(List<Module> modules) {
+    return Guice.createInjector(modules);
+  }
+
+  private List<Module> getGuiceModules() {
+    return List.of(
+        ConfigModule.builder()
+            .componentMetadata(this.componentMetadata)
+            .deployConfig(this.deployConfig)
+            .awsAccountData(this.awsAccountData)
+            .redisData(this.redisData)
+            .build(),
+        AwsModule.builder().redisClient(this.redisClient).build());
+  }
+}
