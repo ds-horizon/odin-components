@@ -144,10 +144,8 @@ public class RedisClient {
       throw new GenericApplicationException(ApplicationError.SUBNET_GROUP_NOT_FOUND);
     }
 
-    if (deployConfig.getSecurityGroupIds() != null
-        && !deployConfig.getSecurityGroupIds().isEmpty()) {
-      builder.securityGroupIds(deployConfig.getSecurityGroupIds());
-    } else if (redisData.getSecurityGroups() != null && !redisData.getSecurityGroups().isEmpty()) {
+    builder.securityGroupIds(deployConfig.getSecurityGroupIds());
+    if (!redisData.getSecurityGroups().isEmpty()) {
       builder.securityGroupIds(redisData.getSecurityGroups());
     } else {
       throw new GenericApplicationException(ApplicationError.SECURITY_GROUP_NOT_FOUND);

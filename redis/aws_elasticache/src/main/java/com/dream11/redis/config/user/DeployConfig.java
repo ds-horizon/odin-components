@@ -79,7 +79,7 @@ public class DeployConfig implements Config {
   private String kmsKeyId;
 
   @Valid
-  private List<LogDeliveryConfig> logDeliveryConfigurations = new ArrayList<>();
+  private List<@Valid LogDeliveryConfig> logDeliveryConfigurations = new ArrayList<>();
 
   @Override
   public void validate() {
