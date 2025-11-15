@@ -1,0 +1,15 @@
+{
+    "type": "object",
+    "title": "Update replica count",
+    "properties": {
+      "replicasPerNodeGroup": {
+        "description": "No of replicas per shard to be updated",
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 5
+      }
+    },
+    "required": [
+      "replicasPerNodeGroup"
+    ]
+  }

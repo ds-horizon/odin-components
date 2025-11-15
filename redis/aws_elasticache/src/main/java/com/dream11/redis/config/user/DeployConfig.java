@@ -5,7 +5,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.dream11.redis.Application;
 import com.dream11.redis.config.Config;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
@@ -15,6 +18,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
+import lombok.SneakyThrows;
 
 @Data
 public class DeployConfig implements Config {
@@ -92,6 +96,20 @@ public class DeployConfig implements Config {
   @Override
   public void validate() {
     Config.super.validate();
+  }
+
+  @SneakyThrows
+  public DeployConfig deepCopy() {
+    return Application.getObjectMapper()
+        .readValue(Application.getObjectMapper().writeValueAsString(this), DeployConfig.class);
+  }
+
+  @SneakyThrows
+  public DeployConfig mergeWith(String overrides) {
+    ObjectMapper objectMapper = Application.getObjectMapper();
+    JsonNode node = objectMapper.readValue(objectMapper.writeValueAsString(this), JsonNode.class);
+    return objectMapper.readValue(
+        objectMapper.readerForUpdating(node).readValue(overrides).toString(), DeployConfig.class);
   }
 
 }

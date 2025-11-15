@@ -10,6 +10,9 @@ import com.dream11.redis.config.metadata.ComponentMetadata;
 import com.dream11.redis.config.metadata.aws.AwsAccountData;
 import com.dream11.redis.config.metadata.aws.RedisData;
 import com.dream11.redis.config.user.DeployConfig;
+import com.dream11.redis.config.user.UpdateNodeGroupCountConfig;
+import com.dream11.redis.config.user.UpdateNodeTypeConfig;
+import com.dream11.redis.config.user.UpdateReplicaCountConfig;
 import com.dream11.redis.constant.Constants;
 import com.dream11.redis.error.ApplicationError;
 import com.dream11.redis.exception.GenericApplicationException;
@@ -21,6 +24,7 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import software.amazon.awssdk.services.elasticache.model.NodeGroup;
 import software.amazon.awssdk.services.elasticache.model.ReplicationGroup;
 import software.amazon.awssdk.services.elasticache.model.ReplicationGroupNotFoundException;
 
@@ -159,5 +163,110 @@ public class RedisService {
         replicationGroupId,
         "deleted");
 
+  }
+
+  public void updateNodeType(@NonNull UpdateNodeTypeConfig updateNodeTypeConfig) {
+    String replicationGroupId = Application.getState().getReplicationGroupIdentifier();
+    log.info(
+        "Updating node type of replication group: {} to {}",
+        replicationGroupId,
+        updateNodeTypeConfig);
+    String currentCacheNodeType = this.redisClient.getCacheNodeType(replicationGroupId);
+    String desiredCacheNodeType = updateNodeTypeConfig.getCacheNodeType();
+    if (currentCacheNodeType.equals(desiredCacheNodeType)) {
+      log.info("Cache node type is already {}, no update needed", currentCacheNodeType);
+      return;
+    }
+    this.redisClient.updateCacheNodeType(replicationGroupId, desiredCacheNodeType);
+
+    log.info("Waiting for Replication group modification to complete: {}");
+    waitUntilReplicationGroupAvailable(
+        replicationGroupId,
+        Constants.REPLICATION_GROUP_WAIT_RETRY_TIMEOUT,
+        Constants.REPLICATION_GROUP_WAIT_RETRY_INTERVAL);
+    log.info("Node type update completed successfully for replication group: {}", replicationGroupId);
+  }
+
+  public void updateReplicaCount(@NonNull UpdateReplicaCountConfig updateReplicaCountConfig) {
+    String replicationGroupId = Application.getState().getReplicationGroupIdentifier();
+
+    log.info("Updating replica count for replication group: {}", replicationGroupId);
+    ReplicationGroup replicationGroup = redisClient.getReplicationGroup(replicationGroupId);
+    log.debug("Replication group found: {}, Status: {}, ClusterEnabled: {}, AutomaticFailover: {}",
+        replicationGroup.replicationGroupId(),
+        replicationGroup.status(),
+        replicationGroup.clusterEnabled(),
+        replicationGroup.automaticFailover());
+
+    if (Boolean.TRUE.equals(replicationGroup.clusterEnabled())) {
+      String automaticFailoverStatus = replicationGroup.automaticFailover() != null
+          ? replicationGroup.automaticFailover().toString()
+          : null;
+      if (automaticFailoverStatus == null || !"enabled".equalsIgnoreCase(automaticFailoverStatus)) {
+        throw new GenericApplicationException(
+            ApplicationError.CONSTRAINT_VIOLATION,
+            String.format(
+                "Automatic failover must be enabled to change replica count for replication group %s. "
+                    + "Current automatic failover status: %s. ",
+                replicationGroupId, automaticFailoverStatus));
+      }
+
+    }
+
+    List<NodeGroup> nodeGroups = replicationGroup.nodeGroups();
+    int current = nodeGroups.get(0).nodeGroupMembers().size() - 1;
+    if (current == updateReplicaCountConfig.getReplicasPerNodeGroup()) {
+      log.info("No change: replicas per shard already {}", current);
+      return;
+    }
+    if (updateReplicaCountConfig.getReplicasPerNodeGroup() > current) {
+      log.info("Calling increaseReplicaCount with replicationGroupId: {}, newReplicaCount: {}",
+          replicationGroupId, updateReplicaCountConfig.getReplicasPerNodeGroup());
+      redisClient.increaseReplicaCount(replicationGroupId, updateReplicaCountConfig.getReplicasPerNodeGroup());
+    } else {
+      log.info("Calling decreaseReplicaCount with replicationGroupId: {}, newReplicaCount: {}",
+          replicationGroupId, updateReplicaCountConfig.getReplicasPerNodeGroup());
+      redisClient.decreaseReplicaCount(replicationGroupId, updateReplicaCountConfig.getReplicasPerNodeGroup());
+    }
+    log.info("Waiting for Replication group to become available: {}", replicationGroupId);
+    waitUntilReplicationGroupAvailable(replicationGroupId,
+        Constants.REPLICATION_GROUP_WAIT_RETRY_TIMEOUT, Constants.REPLICATION_GROUP_WAIT_RETRY_INTERVAL);
+    log.info("Replication group is now available: {}", replicationGroupId);
+
+  }
+
+  public void updateNodeGroupCount(@NonNull UpdateNodeGroupCountConfig updateNodeGroupCountConfig) {
+    String replicationGroupId = Application.getState().getReplicationGroupIdentifier();
+    log.info("Updating node group count for replication group: {}", replicationGroupId);
+    ReplicationGroup replicationGroup = redisClient.getReplicationGroup(replicationGroupId);
+    log.debug("Replication group found: {}, Status: {}, ClusterEnabled: {}, AutomaticFailover: {}",
+        replicationGroup.replicationGroupId(),
+        replicationGroup.status(),
+        replicationGroup.clusterEnabled(),
+        replicationGroup.automaticFailover());
+
+    if (Boolean.FALSE.equals(replicationGroup.clusterEnabled())) {
+      throw new GenericApplicationException(
+          ApplicationError.CONSTRAINT_VIOLATION,
+          String.format(
+              "Changing node group count is only supported for Cluster Mode Enabled (CME) replication groups. "
+                  + "Replication group %s is in Cluster Mode Disabled (CMD) mode.",
+              replicationGroupId));
+    }
+    List<NodeGroup> nodeGroups = replicationGroup.nodeGroups();
+    if (nodeGroups.size() == updateNodeGroupCountConfig.getNumNodeGroups()) {
+      log.info("No change: node group count already {}", nodeGroups.size());
+      return;
+    }
+
+    redisClient.updateReplicationGroupShardConfiguration(replicationGroupId,
+        updateNodeGroupCountConfig.getNumNodeGroups());
+    log.info("Node group count updated successfully for replication group: {}", replicationGroupId);
+    log.info("Waiting for Replication group to become available: {}", replicationGroupId);
+    this.waitUntilReplicationGroupAvailable(
+        replicationGroupId,
+        Constants.REPLICATION_GROUP_WAIT_RETRY_TIMEOUT,
+        Constants.REPLICATION_GROUP_WAIT_RETRY_INTERVAL);
+    log.info("Replication group is now available: {}", replicationGroupId);
   }
 }

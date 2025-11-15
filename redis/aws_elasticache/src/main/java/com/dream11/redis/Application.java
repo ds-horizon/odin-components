@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -15,6 +16,9 @@ import com.dream11.redis.config.metadata.ComponentMetadata;
 import com.dream11.redis.config.metadata.aws.AwsAccountData;
 import com.dream11.redis.config.metadata.aws.RedisData;
 import com.dream11.redis.config.user.DeployConfig;
+import com.dream11.redis.config.user.UpdateNodeGroupCountConfig;
+import com.dream11.redis.config.user.UpdateNodeTypeConfig;
+import com.dream11.redis.config.user.UpdateReplicaCountConfig;
 import com.dream11.redis.constant.Constants;
 import com.dream11.redis.constant.Operations;
 import com.dream11.redis.error.ApplicationError;
@@ -22,9 +26,13 @@ import com.dream11.redis.error.ErrorCategory;
 import com.dream11.redis.exception.GenericApplicationException;
 import com.dream11.redis.inject.AwsModule;
 import com.dream11.redis.inject.ConfigModule;
+import com.dream11.redis.inject.OptionalConfigModule;
 import com.dream11.redis.operation.Deploy;
 import com.dream11.redis.operation.Operation;
 import com.dream11.redis.operation.Undeploy;
+import com.dream11.redis.operation.UpdateNodeGroupCount;
+import com.dream11.redis.operation.UpdateNodeType;
+import com.dream11.redis.operation.UpdateReplicaCount;
 import com.dream11.redis.state.State;
 import com.dream11.redis.util.ApplicationUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -140,12 +148,49 @@ public class Application {
   @SneakyThrows
   void executeOperation() {
     Class<? extends Operation> operationClass;
+    List<Module> modules = new ArrayList<>();
+    this.deployConfig = Objects.isNull(Application.getState().getDeployConfig())
+        ? null
+        : Application.getState().getDeployConfig().deepCopy();
     operationClass = switch (Operations.fromValue(this.operationName)) {
       case DEPLOY -> {
         this.deployConfig = Application.getObjectMapper().readValue(this.config, DeployConfig.class);
         yield Deploy.class;
       }
       case UNDEPLOY -> Undeploy.class;
+      case UPDATE_NODE_TYPE -> {
+        this.deployConfig = this.deployConfig.mergeWith(this.config);
+        UpdateNodeTypeConfig updateNodeTypeConfig = Application.getObjectMapper().readValue(this.config,
+            UpdateNodeTypeConfig.class);
+        modules.add(
+            OptionalConfigModule.<UpdateNodeTypeConfig>builder()
+                .clazz(UpdateNodeTypeConfig.class)
+                .config(updateNodeTypeConfig)
+                .build());
+        yield UpdateNodeType.class;
+      }
+      case UPDATE_REPLICA_COUNT -> {
+        this.deployConfig = this.deployConfig.mergeWith(this.config);
+        UpdateReplicaCountConfig updateReplicaCountConfig = Application.getObjectMapper().readValue(this.config,
+            UpdateReplicaCountConfig.class);
+        modules.add(
+            OptionalConfigModule.<UpdateReplicaCountConfig>builder()
+                .clazz(UpdateReplicaCountConfig.class)
+                .config(updateReplicaCountConfig)
+                .build());
+        yield UpdateReplicaCount.class;
+      }
+      case UPDATE_NODE_GROUP_COUNT -> {
+        this.deployConfig = this.deployConfig.mergeWith(this.config);
+        UpdateNodeGroupCountConfig updateNodeGroupCountConfig = Application.getObjectMapper().readValue(this.config,
+            UpdateNodeGroupCountConfig.class);
+        modules.add(
+            OptionalConfigModule.<UpdateNodeGroupCountConfig>builder()
+                .clazz(UpdateNodeGroupCountConfig.class)
+                .config(updateNodeGroupCountConfig)
+                .build());
+        yield UpdateNodeGroupCount.class;
+      }
     };
 
     if (Operations.fromValue(this.operationName).equals(Operations.UNDEPLOY)) {
@@ -155,7 +200,7 @@ public class Application {
     }
 
     this.initializeGuiceModules(this.getGuiceModules()).getInstance(operationClass).execute();
-    if (Operations.fromValue(this.operationName).equals(Operations.DEPLOY)) {
+    if (Arrays.asList(Operations.DEPLOY, Operations.UPDATE_NODE_TYPE, Operations.UPDATE_REPLICA_COUNT, Operations.UPDATE_NODE_GROUP_COUNT).contains(Operations.fromValue(this.operationName))) {
       Application.getState().setDeployConfig(this.deployConfig);
     }
     log.info("Executed operation:[{}]", Operations.fromValue(this.operationName));

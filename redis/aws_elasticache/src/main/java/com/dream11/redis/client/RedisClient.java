@@ -15,6 +15,7 @@ import com.dream11.redis.exception.GenericApplicationException;
 import com.dream11.redis.exception.ReplicationGroupNotFoundException;
 import com.dream11.redis.util.ApplicationUtil;
 
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.regions.Region;
@@ -22,10 +23,13 @@ import software.amazon.awssdk.retries.api.BackoffStrategy;
 import software.amazon.awssdk.services.elasticache.ElastiCacheClient;
 import software.amazon.awssdk.services.elasticache.model.CloudWatchLogsDestinationDetails;
 import software.amazon.awssdk.services.elasticache.model.CreateReplicationGroupRequest;
+import software.amazon.awssdk.services.elasticache.model.DecreaseReplicaCountRequest;
 import software.amazon.awssdk.services.elasticache.model.DeleteReplicationGroupRequest;
 import software.amazon.awssdk.services.elasticache.model.DescribeReplicationGroupsRequest;
+import software.amazon.awssdk.services.elasticache.model.IncreaseReplicaCountRequest;
 import software.amazon.awssdk.services.elasticache.model.KinesisFirehoseDestinationDetails;
 import software.amazon.awssdk.services.elasticache.model.LogDeliveryConfigurationRequest;
+import software.amazon.awssdk.services.elasticache.model.ModifyReplicationGroupShardConfigurationRequest;
 import software.amazon.awssdk.services.elasticache.model.ReplicationGroup;
 import software.amazon.awssdk.services.elasticache.model.Tag;
 
@@ -264,6 +268,57 @@ public class RedisClient {
         DeleteReplicationGroupRequest.builder().replicationGroupId(replicationGroupId).build());
 
     log.info("Delete request submitted for replication group: {}", replicationGroupId);
+  }
+
+  @SneakyThrows
+  public String getCacheNodeType(String replicationGroupId) {
+    DescribeReplicationGroupsRequest request = DescribeReplicationGroupsRequest.builder()
+        .replicationGroupId(replicationGroupId)
+        .build();
+
+    return elastiCacheClient.describeReplicationGroups(request)
+        .replicationGroups()
+        .stream()
+        .findFirst()
+        .map(ReplicationGroup::cacheNodeType)
+        .orElseThrow(() -> new ReplicationGroupNotFoundException(replicationGroupId));
+
+  }
+
+  @SneakyThrows
+  public void updateCacheNodeType(String replicationGroupId, String newCacheNodeType) {
+    elastiCacheClient.modifyReplicationGroup(builder -> builder
+        .replicationGroupId(replicationGroupId)
+        .cacheNodeType(newCacheNodeType)
+        .applyImmediately(true) // Set to true for immediate update, false to apply during maintenance window
+        .build());
+  }
+
+  @SneakyThrows
+  public void increaseReplicaCount(String replicationGroupId, int newReplicaCount) {
+    elastiCacheClient.increaseReplicaCount(IncreaseReplicaCountRequest.builder()
+        .replicationGroupId(replicationGroupId)
+        .newReplicaCount(newReplicaCount)
+        .applyImmediately(true)
+        .build());
+  }
+
+  @SneakyThrows
+  public void decreaseReplicaCount(String replicationGroupId, int newReplicaCount) {
+    elastiCacheClient.decreaseReplicaCount(DecreaseReplicaCountRequest.builder()
+        .replicationGroupId(replicationGroupId)
+        .newReplicaCount(newReplicaCount)
+        .applyImmediately(true)
+        .build());
+  }
+
+  @SneakyThrows
+  public void updateReplicationGroupShardConfiguration(String replicationGroupId, int newNodeGroupCount) {
+    elastiCacheClient.modifyReplicationGroupShardConfiguration(ModifyReplicationGroupShardConfigurationRequest.builder()
+        .replicationGroupId(replicationGroupId)
+        .nodeGroupCount(newNodeGroupCount)
+        .applyImmediately(true)
+        .build());
   }
 
 }
