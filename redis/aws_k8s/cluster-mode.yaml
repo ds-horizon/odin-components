@@ -1,0 +1,134 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ componentMetadata.envName }}
+
+---
+{% if baseConfig.username and baseConfig.password %}
+# ACL secret (make sure default is ON during bootstrap)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: redis-acl
+  namespace: {{ componentMetadata.envName }}
+type: Opaque
+stringData:
+  user.acl: |
+    user {{ baseConfig.username }} on >{{ baseConfig.password }} ~* &* +@all
+    user default on >{{ baseConfig.password }} ~* &* +@all
+---
+{% endif %}
+
+# Password secret the operator/redis-cli will use during bootstrap
+apiVersion: v1
+kind: Secret
+metadata:
+  name: redis-secret
+  namespace: {{ componentMetadata.envName }}
+type: Opaque
+stringData:
+  username: "{{ baseConfig.username }}"
+  password: "{{ baseConfig.password }}"
+
+---
+apiVersion: redis.redis.opstreelabs.in/v1beta2
+kind: RedisCluster
+metadata:
+  name: ${RELEASE_NAME}-cluster
+  namespace: {{ componentMetadata.envName }}
+spec:
+  clusterSize: {{ flavourConfig.cluster.clusterSize | default(3) }}
+  persistenceEnabled: {{ flavourConfig.persistence.enabled | default(true) }}
+
+  podSecurityContext:
+    fsGroup: {{ flavourConfig.securityContext.fsGroup | default(1000) }}
+    runAsUser: {{ flavourConfig.securityContext.runAsUser | default(1000) }}
+    runAsNonRoot: {{ flavourConfig.securityContext.runAsNonRoot | default(true) }}
+
+  {% if baseConfig.username and baseConfig.password %}
+  # Wire ACL to the ACL secret
+  acl:
+    secret:
+      secretName: redis-acl
+  {% endif %}
+
+  kubernetesConfig:
+    image: quay.io/opstree/redis:{{ baseConfig.version.redis | default('v7.0.12') }}
+    imagePullPolicy: {{ flavourConfig.imagePullPolicy | default('IfNotPresent') }}
+    resources:
+      requests:
+        cpu: {{ flavourConfig.resources.requests.cpu }}
+        memory: {{ flavourConfig.resources.requests.memory }}
+      limits:
+        cpu: {{ flavourConfig.resources.limits.cpu }}
+        memory: {{ flavourConfig.resources.limits.memory }}
+    # ← Correct place for the password secret in v1beta2
+    redisSecret:
+      name: redis-secret
+      key: password
+
+  redisExporter:
+    enabled: true
+    image: quay.io/opstree/redis-exporter:v1.44.0
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    env:
+      - name: REDIS_EXPORTER_LOG_FORMAT
+        value: "json"
+      - name: REDIS_USER
+        valueFrom:
+          secretKeyRef:
+            name: redis-secret
+            key: username
+      - name: REDIS_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: redis-secret
+            key: password
+
+  redisFollower:
+    replicas: {{ flavourConfig.cluster.replicasPerMaster * flavourConfig.cluster.clusterSize | default(3) }}
+
+  storage:
+    nodeConfVolume: true
+    nodeConfVolumeClaimTemplate:
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: {{ flavourConfig.storage.storageClassName }}
+        resources:
+          requests:
+            storage: {{ flavourConfig.storage.nodeConfStorageSize | default('1Gi') }}
+    volumeClaimTemplate:
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: {{ flavourConfig.storage.storageClassName }}
+        resources:
+          requests:
+            storage: {{ flavourConfig.storage.storageSize | default('10Gi') }}
+
+  {% if flavourConfig.nodeSelector %}
+  nodeSelector:
+    {% for key, value in flavourConfig.nodeSelector.items() %}
+    {{ key }}: {{ value }}
+    {% endfor %}
+  {% endif %}
+
+  {% if flavourConfig.tolerations and flavourConfig.tolerations|length > 0 %}
+  tolerations:
+    {{ flavourConfig.tolerations | to_yaml | indent(4) }}
+  {% endif %}
+
+  {% if flavourConfig.priorityClassName %}
+  priorityClassName: {{ flavourConfig.priorityClassName }}
+  {% endif %}
+
+  {% if flavourConfig.serviceAccount %}
+  serviceAccountName: {{ flavourConfig.serviceAccount }}
+  {% endif %}

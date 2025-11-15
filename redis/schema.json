@@ -2,37 +2,24 @@
   "title": "Redis Component Definition",
   "type": "object",
   "properties": {
-    "redisVersion": {
+    "version": {
       "type": "string",
       "enum": ["7.1", "7.0", "6.2", "6.0", "5.0.6"],
       "description": "Redis engine version that determines feature availability, protocol compatibility, and performance characteristics. Newer versions offer improved performance, security patches, and additional features. Version selection impacts client library compatibility. Must be explicitly provided. **Production:** Use 7.1 or 7.0 for latest features and performance improvements; 6.2 for stability with broad client support."
     },
-    "clusterModeEnabled": {
-      "type": "boolean",
-      "description": "Specifies whether to run in Redis Cluster mode for sharding and horizontal scaling. For large datasets, enabling this is recommended. **Default: `false`** (single-shard setup).",
-      "default": false
+    "username": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "minLength": 3,
+      "maxLength": 64,
+      "description": "Username for Redis authentication using ACL. When provided (along with password), enables Redis authentication. Must be alphanumeric with hyphens/underscores. Length: 3-64 characters. **Example:** `appuser`, `redis-admin`. **Production:** Use descriptive, non-default names. Leave empty to disable authentication."
     },
-    "authentication": {
-      "type": "object",
-      "description": "Controls whether to enable the Redis AUTH command for password protection. It is highly recommended to enable this for production.",
-      "properties": {
-        "enabled": {
-          "type": "boolean",
-          "description": "Enables Redis AUTH command for password-based access control. When true, clients must authenticate before executing commands. Adds minimal performance overhead but critical for security. **Default: `false`** (disabled for development simplicity). **Production:** Always enable for any environment with sensitive data or external access.",
-          "default": false
-        },
-        "authToken": {
-          "type": "string",
-          "description": "Secret password required for Redis AUTH when authentication is enabled. Use strong passwords (minimum 16 characters with mixed case, numbers, special characters). Store securely using secrets management systems, never hardcode. Rotate regularly per security policies. **Production:** Use secrets manager integration (AWS Secrets Manager, HashCorp Vault) for automated rotation."
-        }
-      },
-      "required": ["enabled"],
-      "if": {
-        "properties": { "enabled": { "const": true } }
-      },
-      "then": {
-        "required": ["authToken"]
-      }
+    "password": {
+      "type": "string",
+      "minLength": 16,
+      "maxLength": 256,
+      "pattern": "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&#])[A-Za-z\\d@$!%*?&#]+$",
+      "description": "Password for Redis authentication using ACL. **Requirements:** Minimum 16 characters, must contain: uppercase, lowercase, digit, special character (@$!%*?&#). When provided (along with username), enables authentication. **Production:** Use secrets manager (AWS Secrets Manager, Vault); rotate regularly; never hardcode in configs. Leave empty to disable authentication."
     },
     "discovery": {
       "type": "object",
@@ -47,8 +34,37 @@
     }
   },
   "required": [
-    "redisVersion",
-    "authentication",
+    "version",
     "discovery"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "then": {
+        "required": ["password"],
+        "errorMessage": "username requires password to be set"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "password": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "then": {
+        "required": ["username"],
+        "errorMessage": "password requires username to be set"
+      }
+    }
   ]
 }

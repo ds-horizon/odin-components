@@ -76,8 +76,6 @@ Before enabling usage of this flavour of Redis, ensure:
 5. **Optional - Prometheus Operator**: For ServiceMonitor-based metrics collection
 6. **Optional - IAM Role for Service Account (IRSA)**: For S3 backup access
 
-{{ .Markdown 2 }}
-
 ## Configuration
 
 ### Namespace

@@ -18,8 +18,6 @@ This flavour uses **cost-optimized defaults** to help you get started quickly:
 - **Cluster Mode Support**: Optional Redis Cluster mode for horizontal scaling
 - **Flexible Scaling**: Add replicas and enable HA features as needed
 
-{{ .Markdown 2 }}
-
 ## Configuration Examples
 
 ### Minimal Development Configuration
