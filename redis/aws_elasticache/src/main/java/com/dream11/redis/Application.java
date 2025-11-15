@@ -198,9 +198,10 @@ public class Application {
     } else {
       log.info("Executing operation:[{}]", Operations.fromValue(this.operationName));
     }
-
-    this.initializeGuiceModules(this.getGuiceModules()).getInstance(operationClass).execute();
-    if (Arrays.asList(Operations.DEPLOY, Operations.UPDATE_NODE_TYPE, Operations.UPDATE_REPLICA_COUNT, Operations.UPDATE_NODE_GROUP_COUNT).contains(Operations.fromValue(this.operationName))) {
+    modules.addAll(this.getGuiceModules());
+    this.initializeGuiceModules(modules).getInstance(operationClass).execute();
+    if (Arrays.asList(Operations.DEPLOY, Operations.UPDATE_NODE_TYPE, Operations.UPDATE_REPLICA_COUNT,
+        Operations.UPDATE_NODE_GROUP_COUNT).contains(Operations.fromValue(this.operationName))) {
       Application.getState().setDeployConfig(this.deployConfig);
     }
     log.info("Executed operation:[{}]", Operations.fromValue(this.operationName));
