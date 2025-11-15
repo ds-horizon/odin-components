@@ -204,7 +204,7 @@
   "required": [
     "imageRegistry",
     "imageRepository",
-    "imageTag",
+    "tagSuffix",
     "storageClass",
     "writer",
     "reader"

@@ -1,7 +1,7 @@
 {
   "imageRegistry": "docker.io",
   "imageRepository": "bitnamilegacy/mysql",
-  "imageTag": ".23",
+  "tagSuffix": ".23",
   "storageClass": "ebs-gp3",
   "reader": {
     "resources": {
