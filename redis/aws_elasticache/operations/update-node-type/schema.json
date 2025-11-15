@@ -1,0 +1,14 @@
+{
+    "type": "object",
+    "title": "Update node type",
+    "properties": {
+      "cacheNodeType": {
+        "description": "instance type to move to",
+        "type": "string"
+      }
+    },
+    "required": [
+      "cacheNodeType"
+    ],
+    "additionalProperties": false
+  }
