@@ -1,13 +1,15 @@
 image:
-  registry: {{ flavourConfig.metrics.image.registry }}
-  repository: {{ flavourConfig.metrics.image.repository }}
+  registry: {{ flavourConfig.image.registry }}
+  repository: {{ flavourConfig.image.repository }}
 
 auth:
   username: {{ baseConfig.username }}
   password: {{ baseConfig.password }}
 
 global:
+  {%- if flavourConfig.storageClass %}
   storageClass: {{ flavourConfig.storageClass }}
+  {% endif %}
   imagePullSecrets:
     - "{{ componentMetadata.cloudProviderDetails.account.services | selectattr('category', 'eq', 'KUBERNETES') | map(attribute='data') | map(attribute='pullSecrets') | list | first }}"  
 
