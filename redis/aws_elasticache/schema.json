@@ -5,14 +5,20 @@
     {
       "if": {
         "properties": {
-          "automaticFailoverEnabled": { "const": true }
-        }
+          "replicasPerNodeGroup": { "minimum": 1 }
+          }
       },
       "then": {
         "properties": {
-          "replicasPerNodeGroup": { "minimum": 1 }
+          "automaticFailoverEnabled": { "const": true }
         },
-        "errorMessage": "automaticFailoverEnabled requires at least 1 replica (replicasPerNodeGroup must be >= 1)"
+        "errorMessage": "automaticFailoverEnabled should be enabled when replicas are required(i.e. when replicasPerNodeGroup > 0)"
+      },
+      "else": {
+        "properties": {
+          "automaticFailoverEnabled": { "const": false }
+        },
+        "errorMessage": "automaticFailoverEnabled should be enabled when replicas are required(i.e. when replicasPerNodeGroup > 0)"
       }
     },
     {
@@ -50,6 +56,23 @@
           "clusterModeEnabled": { "const": true }
         },
         "errorMessage": "numNodeGroups can only be greater than 1 when clusterModeEnabled is true"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "authentication": {
+            "properties": {
+              "enabled": { "const": true }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "transitEncryptionEnabled": { "const": true }
+        },
+        "errorMessage": "transitEncryptionEnabled must be true when authentication is enabled. AUTH tokens are only supported when encryption-in-transit is enabled."
       }
     }
   ],
@@ -90,8 +113,7 @@
       "items": {
         "type": "string",
         "pattern": "^sg-[a-f0-9]+$"
-      },
-      "minItems": 1
+      }
     },
     "cacheParameterGroupName": {
       "type": "string",
@@ -172,9 +194,14 @@
           "enabled": {
             "type": "boolean",
             "description": "Whether this log configuration is enabled"
+          },
+          "logFormat": {
+            "type": "string",
+            "enum": ["json", "text"],
+            "description": "Format of the log"
           }
         },
-        "required": ["logType", "destinationType", "destinationDetails"]
+        "required": ["logType", "destinationType", "destinationDetails", "logFormat"]
       },
       "default": []
     },

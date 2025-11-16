@@ -2,7 +2,6 @@ package com.dream11.mysql.service;
 
 import com.dream11.mysql.Application;
 import com.dream11.mysql.client.RDSClient;
-import com.dream11.mysql.config.user.DeployConfig;
 import com.dream11.mysql.config.user.ReaderConfig;
 import com.dream11.mysql.config.user.WriterConfig;
 import com.dream11.mysql.exception.DBClusterNotFoundException;
@@ -22,13 +21,13 @@ import software.amazon.awssdk.services.rds.model.DBInstance;
 
 @Slf4j
 @RequiredArgsConstructor(onConstructor = @__({@Inject}))
-public class StateCorrectionService {
+public class StateService {
 
   @NonNull final RDSClient rdsClient;
-  @NonNull DeployConfig deployConfig;
 
-  public void correctState() {
+  public void reconcileState() {
     State state = Application.getState();
+    log.debug("Reconciling state...");
 
     if (state.getClusterParameterGroupName() != null) {
       try {
@@ -81,8 +80,15 @@ public class StateCorrectionService {
 
       if (member.isClusterWriter().equals(Boolean.TRUE)) {
         state.setWriterInstanceIdentifier(instanceIdentifier);
-        this.deployConfig.setWriter(
-            WriterConfig.builder().instanceType(instanceType).promotionTier(promotionTier).build());
+        if (state.getDeployConfig() != null) {
+          state
+              .getDeployConfig()
+              .setWriter(
+                  WriterConfig.builder()
+                      .instanceType(instanceType)
+                      .promotionTier(promotionTier)
+                      .build());
+        }
         log.debug("Found writer instance: {}", instanceIdentifier);
       } else {
         state
@@ -102,6 +108,8 @@ public class StateCorrectionService {
         log.debug("Found reader instance: {} of type: {}", instanceIdentifier, instanceType);
       }
     }
-    this.deployConfig.setReaders(new ArrayList<>(readers.values()));
+    if (state.getDeployConfig() != null) {
+      state.getDeployConfig().setReaders(new ArrayList<>(readers.values()));
+    }
   }
 }
