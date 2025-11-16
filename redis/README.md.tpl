@@ -7,6 +7,8 @@ Deploy and manage Redis on various platforms.
 - [aws_k8s](aws_k8s) - Self-managed Redis on AWS EKS using OpsTree Operator
 - [local_k8s](local_k8s) - Self-managed Redis on local Kubernetes (kind, k3s, minikube, Docker Desktop) using OpsTree Operator
 
+{{ .Markdown 2 }}
+
 ## Running locally
 
 * Update `example/*.json` accordingly
