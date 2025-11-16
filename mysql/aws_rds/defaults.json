@@ -7,12 +7,11 @@
   "encryptionAtRest": false,
   "enableIAMDatabaseAuthentication": false,
   "deletionConfig": {
-    "skipFinalSnapshot": false
+    "skipFinalSnapshot": true
   },
   "instanceConfig": {
     "publiclyAccessible": false,
     "autoMinorVersionUpgrade": true,
-    "deletionProtection": false,
     "enablePerformanceInsights": false,
     "networkType": "IPV4"
   }

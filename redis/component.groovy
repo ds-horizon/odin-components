@@ -39,7 +39,6 @@ Odin.component {
                 count 2
                 intervalSeconds 3
             }
-
           linearRetryPolicy {
               intervalSeconds 2
               count 3
