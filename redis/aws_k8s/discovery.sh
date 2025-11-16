@@ -5,7 +5,7 @@ set -euo pipefail
 # These are set by the deployment framework or can be provided manually
 : ${RELEASE_NAME:={{ componentMetadata.name }}}
 : ${NAMESPACE:={{ componentMetadata.envName }}}
-: ${DEPLOYMENT_MODE:={{ flavourConfig.deploymentMode | default('standalone') }}}
+: ${DEPLOYMENT_MODE:={{ flavourConfig.deploymentMode }}}
 
 # Function to get service endpoint
 get_redis_endpoint() {
