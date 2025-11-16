@@ -1,0 +1,92 @@
+redisCluster:
+  # Cluster topology from flavour
+  clusterSize: {{ flavourConfig.cluster.clusterSize | default(3) }}
+
+  # Enable master–follower anti-affinity so leaders and followers prefer different nodes
+  enableMasterSlaveAntiAffinity: true
+
+  # Leader and follower replica counts
+  leader:
+    replicas: {{ flavourConfig.cluster.clusterSize | default(3) }}
+    pdb:
+      enabled: {{ flavourConfig.podDisruptionBudget.enabled | default(true) }}
+      minAvailable: {{ flavourConfig.podDisruptionBudget.minAvailable | default(1) }}
+
+  follower:
+    # Total follower replicas = clusterSize * replicasPerMaster
+    replicas: {{ flavourConfig.cluster.clusterSize * flavourConfig.cluster.replicasPerMaster | default(3) }}
+    pdb:
+      enabled: {{ flavourConfig.podDisruptionBudget.enabled | default(true) }}
+      minAvailable: {{ flavourConfig.podDisruptionBudget.minAvailable | default(1) }}
+
+  # Image pull policy and resources
+  imagePullPolicy: {{ flavourConfig.imagePullPolicy | default('IfNotPresent') }}
+  resources:
+    requests:
+      cpu: {{ flavourConfig.resources.requests.cpu }}
+      memory: {{ flavourConfig.resources.requests.memory }}
+    limits:
+      cpu: {{ flavourConfig.resources.limits.cpu }}
+      memory: {{ flavourConfig.resources.limits.memory }}
+
+redisExporter:
+  enabled: {{ flavourConfig.metrics.enabled | default(true) }}
+  image: quay.io/opstree/redis-exporter
+  tag: "v1.44.0"
+  imagePullPolicy: {{ flavourConfig.imagePullPolicy | default('IfNotPresent') }}
+  resources:
+    requests:
+      cpu: {{ flavourConfig.metrics.exporterResources.requests.cpu | default('50m') }}
+      memory: {{ flavourConfig.metrics.exporterResources.requests.memory | default('64Mi') }}
+    limits:
+      cpu: {{ flavourConfig.metrics.exporterResources.limits.cpu | default('200m') }}
+      memory: {{ flavourConfig.metrics.exporterResources.limits.memory | default('256Mi') }}
+
+storageSpec:
+  # Data volume for Redis data
+  volumeClaimTemplate:
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: {{ flavourConfig.storage.storageClassName }}
+      resources:
+        requests:
+          storage: {{ flavourConfig.storage.storageSize }}
+
+  # Node configuration volume (nodes.conf)
+  nodeConfVolume: true
+  nodeConfVolumeClaimTemplate:
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: {{ flavourConfig.storage.storageClassName }}
+      resources:
+        requests:
+          storage: {{ flavourConfig.storage.nodeConfStorageSize | default('1Gi') }}
+
+podSecurityContext:
+  runAsNonRoot: {{ flavourConfig.securityContext.runAsNonRoot | default(true) }}
+  runAsUser: {{ flavourConfig.securityContext.runAsUser | default(1000) }}
+  fsGroup: {{ flavourConfig.securityContext.fsGroup | default(1000) }}
+
+priorityClassName: {{ flavourConfig.priorityClassName | default('') }}
+serviceAccountName: {{ flavourConfig.serviceAccount | default('default') }}
+
+nodeSelector:
+  {% if flavourConfig.nodeSelector %}
+  {% for key, value in flavourConfig.nodeSelector.items() %}
+  {{ key }}: {{ value }}
+  {% endfor %}
+  {% endif %}
+
+tolerations:
+  {% if flavourConfig.tolerations and flavourConfig.tolerations|length > 0 %}
+  {% for tol in flavourConfig.tolerations %}
+  - key: {{ tol.key }}
+    operator: {{ tol.operator }}
+    value: {{ tol.value }}
+    effect: {{ tol.effect }}
+  {% endfor %}
+  {% endif %}
+
+

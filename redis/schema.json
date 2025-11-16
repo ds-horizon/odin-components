@@ -7,20 +7,6 @@
       "enum": ["7.1", "7.0", "6.2", "6.0", "5.0.6"],
       "description": "Redis engine version that determines feature availability, protocol compatibility, and performance characteristics. Newer versions offer improved performance, security patches, and additional features. Version selection impacts client library compatibility. Must be explicitly provided. **Production:** Use 7.1 or 7.0 for latest features and performance improvements; 6.2 for stability with broad client support."
     },
-    "username": {
-      "type": "string",
-      "pattern": "^[a-zA-Z0-9_-]+$",
-      "minLength": 3,
-      "maxLength": 64,
-      "description": "Username for Redis authentication using ACL. When provided (along with password), enables Redis authentication. Must be alphanumeric with hyphens/underscores. Length: 3-64 characters. **Example:** `appuser`, `redis-admin`. **Production:** Use descriptive, non-default names. Leave empty to disable authentication."
-    },
-    "password": {
-      "type": "string",
-      "minLength": 16,
-      "maxLength": 256,
-      "pattern": "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&#])[A-Za-z\\d@$!%*?&#]+$",
-      "description": "Password for Redis authentication using ACL. **Requirements:** Minimum 16 characters, must contain: uppercase, lowercase, digit, special character (@$!%*?&#). When provided (along with username), enables authentication. **Production:** Use secrets manager (AWS Secrets Manager, Vault); rotate regularly; never hardcode in configs. Leave empty to disable authentication."
-    },
     "discovery": {
       "type": "object",
       "description": "Defines how clients discover and connect to the Redis instance.",
@@ -36,35 +22,5 @@
   "required": [
     "version",
     "discovery"
-  ],
-  "allOf": [
-    {
-      "if": {
-        "properties": {
-          "username": {
-            "type": "string",
-            "minLength": 1
-          }
-        }
-      },
-      "then": {
-        "required": ["password"],
-        "errorMessage": "username requires password to be set"
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "password": {
-            "type": "string",
-            "minLength": 1
-          }
-        }
-      },
-      "then": {
-        "required": ["username"],
-        "errorMessage": "password requires username to be set"
-      }
-    }
   ]
 }

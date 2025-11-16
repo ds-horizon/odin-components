@@ -155,11 +155,6 @@
       "type": "object",
       "description": "Persistent storage configuration using Kubernetes PVCs. Required for data durability.",
       "properties": {
-        "enabled": {
-          "type": "boolean",
-          "description": "Enable persistent storage for Redis data. **Default: `true`**. **Production:** Always enable for production.",
-          "default": true
-        },
         "storageClassName": {
           "type": "string",
           "description": "Kubernetes StorageClass name. For AWS EKS, typically 'gp3', 'gp2', or 'io1'. **Default: `ebs-gp3`**. **Production:** Use gp3 for cost-effectiveness; io1/io2 for high IOPS workloads.",
@@ -178,60 +173,7 @@
           "default": "1Gi"
         }
       },
-      "required": ["enabled", "storageClassName", "storageSize"]
-    },
-    "persistence": {
-      "type": "object",
-      "description": "Redis persistence configuration. When enabled, activates both RDB snapshots and AOF logging via Opstree operator's persistenceEnabled flag.",
-      "properties": {
-        "enabled": {
-          "type": "boolean",
-          "description": "Enable Redis persistence (activates both RDB and AOF). Sets operator's persistenceEnabled=true which configures: RDB (save 900 1, save 300 10, save 60 10000) + AOF (appendonly yes). **Default: `true`**. **Production:** Always enable.",
-          "default": true
-        },
-        "aofFsyncPolicy": {
-          "type": "string",
-          "enum": ["always", "everysec", "no"],
-          "description": "AOF fsync policy controlling durability vs performance. **always:** fsync after every write (slowest, safest). **everysec:** fsync every second (recommended balance). **no:** let OS decide (fastest, least safe - up to 30s data loss). **Default: `everysec`**. **Production:** Use 'everysec' for balance; 'always' only for critical data.",
-          "default": "everysec"
-        }
-      },
-      "required": ["enabled"]
-    },
-    "redisConfig": {
-      "type": "object",
-      "description": "Redis configuration parameters mapped to redis.conf directives.",
-      "properties": {
-        "maxmemory": {
-          "type": "string",
-          "pattern": "^[0-9]+(mb|gb|MB|GB)$",
-          "description": "Maximum memory Redis can use. Should be 75-80% of container memory limit to avoid OOM. **Default: `1gb`**. **Production:** Set to 75% of resources.limits.memory.",
-          "default": "1gb"
-        },
-        "maxmemoryPolicy": {
-          "type": "string",
-          "enum": [
-            "noeviction",
-            "allkeys-lru",
-            "allkeys-lfu",
-            "allkeys-random",
-            "volatile-lru",
-            "volatile-lfu",
-            "volatile-random",
-            "volatile-ttl"
-          ],
-          "description": "Memory eviction policy when maxmemory is reached. **noeviction:** return errors on write (safe for cache-aside). **allkeys-lru:** evict least recently used keys (good for pure cache). **volatile-lru:** evict LRU keys with TTL (good for mixed workload). **Default: `allkeys-lru`**. **Production:** Choose based on use case - allkeys-lru for cache, noeviction for persistent data.",
-          "default": "allkeys-lru"
-        },
-        "additionalConfig": {
-          "type": "object",
-          "description": "Additional Redis configuration directives to append to redis.conf. Key-value pairs map to 'key value' format. Example: {'timeout': '300', 'tcp-keepalive': '60'}",
-          "additionalProperties": {
-            "type": "string"
-          },
-          "default": {}
-        }
-      }
+      "required": ["storageClassName", "storageSize"]
     },
     "metrics": {
       "type": "object",
@@ -327,11 +269,6 @@
       },
       "default": []
     },
-    "topologySpreadConstraints": {
-      "type": "array",
-      "description": "Topology spread constraints for distributing pods across zones/nodes. Example: spread across AZs for HA. **Default: `[]`**. **Production:** Use to spread across AZs.",
-      "default": []
-    },
     "podDisruptionBudget": {
       "type": "object",
       "description": "PodDisruptionBudget to limit voluntary disruptions during node maintenance.",
@@ -366,5 +303,5 @@
       "default": "IfNotPresent"
     }
   },
-  "required": ["deploymentMode", "resources", "storage", "persistence"]
+  "required": ["deploymentMode", "resources", "storage"]
 }
