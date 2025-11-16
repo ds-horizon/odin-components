@@ -39,10 +39,6 @@ Odin.component {
                 count 2
                 intervalSeconds 3
             }
-<<<<<<< HEAD
-
-=======
->>>>>>> 0ad2c63151815c7e741323f91a07e84f1bd5dc85
           linearRetryPolicy {
               intervalSeconds 2
               count 3
@@ -83,12 +79,9 @@ Odin.component {
         }
 
         undeploy {
-            String lastState = getLastState()
-            if (lastState != null && !lastState.isEmpty()) {
-                run "echo '${lastState}' > state.json"
-            }
-            run "bash execute.sh undeploy"
-            out "cat state.json"
+            downloadLogging.delegate = delegate
+            downloadLogging()            
+            run "bash undeploy.sh"
         }
     }
 }

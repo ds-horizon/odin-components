@@ -19,6 +19,10 @@ redisCluster:
       enabled: {{ flavourConfig.podDisruptionBudget.enabled | default(true) }}
       minAvailable: {{ flavourConfig.podDisruptionBudget.minAvailable | default(1) }}
 
+  # Redis image and version mapping from root schema 'version'
+  image: quay.io/opstree/redis
+  tag: {% if baseConfig.version == "7.1" %}v7.1.0{% elif baseConfig.version == "7.0" %}v7.0.15{% elif baseConfig.version == "6.2" %}v6.2.14{% else %}v7.0.15{% endif %}
+
   # Image pull policy and resources
   imagePullPolicy: {{ flavourConfig.imagePullPolicy | default('IfNotPresent') }}
   resources:

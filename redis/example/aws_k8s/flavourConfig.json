@@ -1,0 +1,49 @@
+{
+  "deploymentMode": "standalone",
+  "cluster": {
+    "clusterSize": 3,
+    "replicasPerMaster": 1
+  },
+  "resources": {
+    "requests": {
+      "cpu": "500m",
+      "memory": "1Gi"
+    },
+    "limits": {
+      "cpu": "1000m",
+      "memory": "2Gi"
+    }
+  },
+  "storage": {
+    "storageClassName": "ebs-gp3",
+    "storageSize": "10Gi",
+    "nodeConfStorageSize": "1Gi"
+  },
+  "metrics": {
+    "enabled": true,
+    "exporterResources": {
+      "requests": {
+        "cpu": "100m",
+        "memory": "128Mi"
+      },
+      "limits": {
+        "cpu": "200m",
+        "memory": "256Mi"
+      }
+    }
+  },
+  "securityContext": {
+    "runAsNonRoot": true,
+    "runAsUser": 1000,
+    "fsGroup": 1000
+  },
+  "nodeSelector": {},
+  "tolerations": [],
+  "podDisruptionBudget": {
+    "enabled": true,
+    "minAvailable": 1
+  },
+  "serviceAccount": "default",
+  "priorityClassName": "",
+  "imagePullPolicy": "IfNotPresent"
+}

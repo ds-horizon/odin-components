@@ -1,0 +1,48 @@
+{
+  "componentMetadata": {
+    "cloudProviderDetails": {
+      "account": {
+        "services": [
+          {
+            "name": "RDS",
+            "category": "RELATIONAL_DATABASE",
+            "data": {
+              "subnetGroup": "staging"
+            }
+          },
+          {
+            "name": "VPC",
+            "category": "NETWORK",
+            "data": {
+              "securityGroups": {
+                "internal": [
+                  "sg-00c046724582c9700"
+                ]
+              }
+            }
+          }
+        ],
+        "data": {
+          "region": "us-east-1"
+        }
+      }
+    },
+    "tags": {
+      "resource-type": "rds"
+    },
+    "kubeConfigPath": "~/.kube/config",
+    "name": "test-rds-2",
+    "envName": "oam",
+    "pullSecret": "dsjfrog",
+    "annotations": {
+      "reader": {
+        "consul.hashicorp.com/service-sync": "true",
+        "consul.hashicorp.com/service-name": "test-rds-2-reader"
+      },
+      "writer": {
+        "consul.hashicorp.com/service-sync": "true",
+        "consul.hashicorp.com/service-name": "test-rds-2-writer"
+      }
+    }
+  }
+}

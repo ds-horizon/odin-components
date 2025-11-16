@@ -1,0 +1,4 @@
+{
+  "flavour": "aws_rds_aurora",
+  "stage": "${STAGE}"
+}

@@ -1,0 +1,11 @@
+{
+  "flavour": "${FLAVOUR}",
+  "stage": "${STAGE}",
+  "config": {
+    "stageName": "${STAGE}"
+  },
+  "stateConfig": {
+    "provider": "S3",
+    "uri": "s3://odin-components-state-stag/test/sha-1/test-mysql-2-aws-container-mysql.txt"
+  }
+}

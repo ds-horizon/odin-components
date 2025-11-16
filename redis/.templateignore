@@ -1,2 +1,4 @@
 ./README.md.tpl
 ./aws_elasticache/README.md.tpl
+./aws_k8s/README.md.tpl
+./local_k8s/README.md.tpl

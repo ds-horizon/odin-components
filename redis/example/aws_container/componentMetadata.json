@@ -1,0 +1,226 @@
+{
+  "cloudProviderDetails": {
+    "account": {
+      "services": [
+        {
+          "id": "1",
+          "data": {
+            "vpcId": "vpc-0e338612bdf92de98",
+            "securityGroups": {
+              "internal": [
+                "sg-00c046724582c9700"
+              ]
+            },
+            "lbSubnets": {
+              "public": [
+                "subnet-0988e2fffed806e8c",
+                "subnet-019b89d42796dbab1",
+                "subnet-05e8284b94a2e1d39",
+                "subnet-0decfdd125568816e",
+                "subnet-05ab33a4d950a76d8",
+                "subnet-06400cc3e8e7c4760"
+              ],
+              "private": [
+                "subnet-0d3bd6968704a61cb",
+                "subnet-0efad4b711d3bc05f",
+                "subnet-0f3b2f3b06663646e",
+                "subnet-04edd27d636b09641",
+                "subnet-02f9fada3aba8307b",
+                "subnet-065f2f61cd83444d5"
+              ]
+            },
+            "ec2Subnets": {
+              "public": [],
+              "private": [
+                "subnet-02f9fada3aba8307b",
+                "subnet-065f2f61cd83444d5",
+                "subnet-0d3bd6968704a61cb",
+                "subnet-0efad4b711d3bc05f",
+                "subnet-04edd27d636b09641"
+              ]
+            },
+            "lbSecurityGroups": {
+              "external": [
+                "sg-0fa86f238c5dcede6",
+                "sg-069bce318581d9f26",
+                "sg-07c78d0a3074f0854",
+                "sg-0ecb8fca97ece259a",
+                "sg-097ccd65ec43bed75"
+              ],
+              "internal": [
+                "sg-00c046724582c9700"
+              ]
+            },
+            "ec2SecurityGroups": {
+              "external": [],
+              "internal": [
+                "sg-00c046724582c9700"
+              ]
+            }
+          },
+          "name": "VPC",
+          "category": "NETWORK"
+        },
+        {
+          "id": "2",
+          "data": {
+            "region": "us-east-1",
+            "domains": [
+              {
+                "id": "Z2DGZRIWMGKQ4K",
+                "name": "d11dev.com",
+                "isActive": true,
+                "certificateArn": "arn:aws:acm:us-east-1:954754807219:certificate/ce03472f-5209-4cac-a36d-e65087d7e9ce"
+              },
+              {
+                "id": "Z3703R6X4TUTE7",
+                "name": "dream11-stag.local",
+                "isActive": false,
+                "certificateArn": "arn:aws:acm:us-east-1:954754807219:certificate/e9233860-6b60-40ca-9db3-3d3f12559817"
+              }
+            ],
+            "assumeRoleARN": "arn:aws:iam::954754807219:role/odin-component-provisioner-role"
+          },
+          "name": "R53",
+          "category": "DISCOVERY"
+        },
+        {
+          "id": "3",
+          "data": {
+            "placeholder": {
+              "PUBLIC_HOSTED_ZONE": "d11dev.com",
+              "PRIVATE_HOSTED_ZONE": "dream11-stag.local"
+            }
+          },
+          "name": "ConfigSuite",
+          "category": "CONFIGURATION"
+        },
+        {
+          "id": "4",
+          "data": {
+            "iamRoles": [
+              "arn:aws:iam::954754807219:role/AuroraS3Role"
+            ],
+            "subnetGroup": "staging"
+          },
+          "name": "RDS",
+          "category": "RELATIONAL_DATABASE"
+        },
+                {
+                    "id": "5",
+                    "name": "GKE",
+                    "category": "KUBERNETES",
+                    "data": {
+                        "clusters": [
+                            {
+                                "name": "devx-stg-internal-cluster"
+                            }
+                        ],
+                        "environmentVariables": {
+                            "DEPLOYMENT_TYPE": "container",
+                            "SERVICE_NAME": "odindemo"
+                        },
+                        "pullSecrets": "dsjfrog",
+                        "serviceIAMRole": "arn:aws:iam::954754807219:role/devx-stg-internal-cluster-odin-runner",
+                        "serviceAnnotations": {
+                            "consul.hashicorp.com/service-name": "test",
+                            "consul.hashicorp.com/service-sync": "true"
+                        },
+                        "serviceAccountAnnotations": {
+                            "eks.amazonaws.com/role-arn": "arn:aws:iam::954754807219:role/devx-stg-internal-cluster-odin-runner"
+                        }
+                    }
+                }       
+      ],
+      "data": {
+        "projectId": "d11-dev-001",
+        "region": "us-east-1",
+        "tags": {
+          "environment_name": "sha-1",
+          "component_name": "test-mysql-1",
+          "component_type": "mysql",
+          "service_name": "test-mysql",
+          "resource_type": "mysql",
+          "provisioned-by-user": "sharad.vishe@dream11.com",
+          "org_name": "dream11"
+        }
+      }
+    },
+    "linked_accounts": [
+      {
+        "id": "2",
+        "data": {
+          "url": "https://dreamsports.jfrog.io/artifactory",
+          "password": "",
+          "username": "infraautomation@dream11.com",
+          "description": "Dreamsports jfrog account"
+        },
+        "name": "dsjfrog",
+        "category": "ARTIFACTORY",
+        "provider": "Jfrog",
+        "services": [
+          {
+            "id": "13",
+            "data": {
+              "url": "https://dreamsports.jfrog.io/artifactory/d11-helm-charts",
+              "password": "",
+              "username": "infraautomation@dream11.com"
+            },
+            "name": "HelmRegistry",
+            "category": "HELM_REGISTRY"
+          },
+          {
+            "id": "10",
+            "data": {
+              "artifacts": {
+                "purpose": "artifact",
+                "repository": "d11-repo/com/dream11"
+              },
+              "serviceDefinitions": {
+                "purpose": "service-definitions",
+                "repository": "service-definitions"
+              }
+            },
+            "name": "Storage",
+            "category": "STORAGE"
+          },
+          {
+            "id": "9",
+            "data": {
+              "repository": "dreamsports.jfrog.io/d11-docker-artifacts"
+            },
+            "name": "DockerRegistry",
+            "category": "DOCKER_REGISTRY"
+          }
+        ]
+      },
+      {
+        "id": "14",
+        "data": {},
+        "name": "odinconfig",
+        "category": "INFRASTRUCTURE_MANAGEMENT",
+        "provider": "Odin",
+        "services": [
+          {
+            "id": "15",
+            "data": {
+              "discoveryAnnotations": {
+                "writer": {
+                  "discovery.odin/address": "test-mysql-1-writer.dream11-stag.local"
+                },
+                "reader": {
+                  "discovery.odin/address": "test-mysql-1-reader.dream11-stag.local"
+                }
+              }
+            },
+            "name": "DiscoveryConfig",
+            "category": "DISCOVERY"
+          }
+        ]
+      }
+    ]
+  },
+  "kubeConfigPath": "~/.kube/config",
+  "name": "test-mysql-1",
+  "envName": "sha-1"
+}

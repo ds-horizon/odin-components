@@ -7,6 +7,7 @@ set -euo pipefail
   export RELEASE_NAME={{ componentMetadata.name }}
   export NAMESPACE={{ componentMetadata.envName }}
   export DEPLOYMENT_MODE={{ flavourConfig.deploymentMode }}
+  export REDIS_VERSION={{ baseConfig.version }}
 
 
   # Script directory (for loading per-mode Helm values files)
@@ -17,8 +18,23 @@ set -euo pipefail
   echo "================================================================"
   echo "Release Name: ${RELEASE_NAME}"
   echo "Namespace: ${NAMESPACE}"
+  echo "Redis Version: ${REDIS_VERSION}"
   echo "Deployment Mode: ${DEPLOYMENT_MODE}"
   echo "================================================================"
+
+  # Validate Redis version against Opstree operator support
+  # Opstree supports Redis >= 6.2; we explicitly allow 6.2, 7.0, 7.1 from the root schema.
+  case "${REDIS_VERSION}" in
+    7.1|7.0|6.2)
+      echo "Redis version ${REDIS_VERSION} is supported by Opstree operator."
+      ;;
+    *)
+      echo "ERROR: Redis version ${REDIS_VERSION} is not supported by the Opstree Redis Operator." 1>&2
+      echo "Supported versions for aws_k8s flavour are: 6.2, 7.0, 7.1." 1>&2
+      echo "Please update the root 'version' in redis/schema.json or choose a different flavour." 1>&2
+      exit 1
+      ;;
+  esac
 
   # Check if Opstree Redis Operator is installed
   echo "Checking Opstree Redis Operator installation..."
