@@ -57,7 +57,7 @@ Odin.component {
 
     flavour {
         name "aws_k8s"
-      
+
         deploy {
             downloadLogging.delegate = delegate
             downloadLogging()            
@@ -81,6 +81,37 @@ Odin.component {
         undeploy {
             downloadLogging.delegate = delegate
             downloadLogging()            
+            run "bash undeploy.sh"
+        }
+    }
+
+    flavour {
+        name "local_k8s"
+
+        deploy {
+            downloadLogging.delegate = delegate
+            downloadLogging()
+            run "bash deploy.sh"
+
+            discovery {
+                run "bash discovery.sh"
+            }
+        }
+
+        healthcheck {
+            linearRetryPolicy {
+                count 2
+                intervalSeconds 3
+            }
+
+            tcp {
+                port "6379"
+            }
+        }
+
+        undeploy {
+            downloadLogging.delegate = delegate
+            downloadLogging()
             run "bash undeploy.sh"
         }
     }

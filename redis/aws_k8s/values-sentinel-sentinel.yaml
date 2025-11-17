@@ -4,7 +4,7 @@ redisSentinel:
 
   # Sentinel image and version mapping from root schema 'version'
   image: quay.io/opstree/redis-sentinel
-  tag: {% if baseConfig.version == "7.1" %}v7.1.0{% elif baseConfig.version == "7.0" %}v7.0.15{% elif baseConfig.version == "6.2" %}v6.2.14{% else %}v7.0.15{% endif %}
+  tag: {% if baseConfig.version == "7.2" %}v7.2.11{% elif baseConfig.version == "7.0" %}v7.0.15{% elif baseConfig.version == "6.2" %}v6.2.14{% else %}v7.0.15{% endif %}
 
   # Image pull policy and resources for Sentinel pods
   imagePullPolicy: {{ flavourConfig.imagePullPolicy | default('IfNotPresent') }}

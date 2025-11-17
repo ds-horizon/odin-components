@@ -16,7 +16,7 @@ set -euo pipefail
     local display_name=$3
 
     echo "Waiting for ${display_name} (expected pods: ${expected_pods})..."
-    local max_wait=1200 # up to 20 minutes
+    local max_wait=300 # up to 5 minutes
     local waited=0
 
     while [[ ${waited} -lt ${max_wait} ]]; do
@@ -39,17 +39,16 @@ set -euo pipefail
       sleep 5
       waited=$((waited + 5))
     done
-
+    
     echo "ERROR: Timed out waiting for ${display_name} pods to become Ready (expected ${expected_pods})." 1>&2
     return 1
   }
-
 
   # Script directory (for loading per-mode Helm values files)
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
   echo "================================================================"
-  echo "Redis Deployment - Opstree Operator"
+  echo "Redis Deployment - Opstree Operator (local_k8s)"
   echo "================================================================"
   echo "Release Name: ${RELEASE_NAME}"
   echo "Namespace: ${NAMESPACE}"
@@ -60,8 +59,8 @@ set -euo pipefail
   # Validate Redis version against Opstree operator support and deployment mode
   # Opstree supports Redis >= 6.2; we explicitly allow 6.2, 7.0, 7.1 from the root schema.
   if [[ "${REDIS_VERSION}" != "7.1" && "${REDIS_VERSION}" != "7.0" && "${REDIS_VERSION}" != "6.2" ]]; then
-    echo "ERROR: Redis version ${REDIS_VERSION} is not supported by the Opstree Redis Operator." 1>&2
-    echo "Supported versions for aws_k8s flavour are: 6.2, 7.0, 7.1." 1>&2
+    echo "ERROR: Redis version ${REDIS_VERSION} is not supported by the Opstree Redis Operator for local_k8s." 1>&2
+    echo "Supported versions for local_k8s flavour are: 6.2, 7.0, 7.1." 1>&2
     echo "Please update the root 'version' in redis/schema.json or choose a different flavour." 1>&2
     exit 1
   elif [[ "${DEPLOYMENT_MODE}" == "cluster" && "${REDIS_VERSION}" == "6.2" ]]; then
@@ -74,7 +73,7 @@ set -euo pipefail
   fi
 
   # Deploy Redis using Opstree Helm charts from ot-helm based on deployment mode
-  echo "Deploying Redis using Helm (ot-helm)..."
+  echo "Deploying Redis using Helm charts"
 
   case "${DEPLOYMENT_MODE}" in
     standalone)
@@ -87,7 +86,7 @@ set -euo pipefail
         --namespace "${NAMESPACE}" \
         -f "${VALUES_FILE}" \
         --wait \
-        --timeout 15m
+        --timeout 10m
 
       # Standalone: expect exactly 1 Redis pod
       wait_for_pods "${RELEASE_NAME}-standalone" 1 "Redis Standalone"
@@ -105,7 +104,7 @@ set -euo pipefail
         --namespace "${NAMESPACE}" \
         -f "${REPL_VALUES_FILE}" \
         --wait \
-        --timeout 15m
+        --timeout 10m
 
       # Sentinel replication group pods (1 master + replicas)
       wait_for_pods "${RELEASE_NAME}-replication" {{ flavourConfig.sentinel.replicationSize }} "Redis Sentinel Replication"
@@ -119,7 +118,7 @@ set -euo pipefail
         --namespace "${NAMESPACE}" \
         -f "${SENTINEL_VALUES_FILE}" \
         --wait \
-        --timeout 15m
+        --timeout 10m
 
       # Sentinel pods themselves
       wait_for_pods "${RELEASE_NAME}-sentinel" {{ flavourConfig.sentinel.sentinelSize }} "Redis Sentinel"
@@ -135,7 +134,7 @@ set -euo pipefail
         --namespace "${NAMESPACE}" \
         -f "${VALUES_FILE}" \
         --wait \
-        --timeout 20m
+        --timeout 15m
 
       # Cluster leaders and followers:
       # - leaders: clusterSize
@@ -153,7 +152,9 @@ set -euo pipefail
 
   echo ""
   echo "================================================================"
-  echo "Deployment completed!"
+  echo "Deployment completed"
   echo "================================================================"
 
 }
+
+

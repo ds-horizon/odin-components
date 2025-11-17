@@ -6,7 +6,7 @@ redisStandalone:
   # Image pull policy from flavour
   imagePullPolicy: {{ flavourConfig.imagePullPolicy | default('IfNotPresent') }}
 
-  # Resource requests and limits from flavour
+  # Resource requests and limits from flavour (smaller defaults for local)
   resources:
     requests:
       cpu: {{ flavourConfig.resources.requests.cpu }}
@@ -22,17 +22,18 @@ redisExporter:
   imagePullPolicy: {{ flavourConfig.imagePullPolicy | default('IfNotPresent') }}
   resources:
     requests:
-      cpu: {{ flavourConfig.metrics.exporterResources.requests.cpu | default('50m') }}
-      memory: {{ flavourConfig.metrics.exporterResources.requests.memory | default('64Mi') }}
+      cpu: {{ flavourConfig.metrics.exporterResources.requests.cpu | default('25m') }}
+      memory: {{ flavourConfig.metrics.exporterResources.requests.memory | default('32Mi') }}
     limits:
-      cpu: {{ flavourConfig.metrics.exporterResources.limits.cpu | default('200m') }}
-      memory: {{ flavourConfig.metrics.exporterResources.limits.memory | default('256Mi') }}
+      cpu: {{ flavourConfig.metrics.exporterResources.limits.cpu | default('100m') }}
+      memory: {{ flavourConfig.metrics.exporterResources.limits.memory | default('128Mi') }}
 
 storageSpec:
   volumeClaimTemplate:
     spec:
       accessModes:
         - ReadWriteOnce
+      # For local clusters this may resolve to the default StorageClass if empty
       storageClassName: {{ flavourConfig.storage.storageClassName }}
       resources:
         requests:

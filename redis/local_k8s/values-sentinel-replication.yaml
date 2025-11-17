@@ -1,12 +1,13 @@
-redisStandalone:
+redisReplication:
+  # Replication cluster size (1 master + N replicas). Keep small for local.
+  clusterSize: {{ flavourConfig.sentinel.replicationSize | default(2) }}
+
   # Redis image and version mapping from root schema 'version'
   image: quay.io/opstree/redis
   tag: {% if baseConfig.version == "7.2" %}v7.2.11{% elif baseConfig.version == "7.0" %}v7.0.15{% elif baseConfig.version == "6.2" %}v6.2.14{% else %}v7.0.15{% endif %}
 
-  # Image pull policy from flavour
+  # Image pull policy and resources for data nodes (reduced for local)
   imagePullPolicy: {{ flavourConfig.imagePullPolicy | default('IfNotPresent') }}
-
-  # Resource requests and limits from flavour
   resources:
     requests:
       cpu: {{ flavourConfig.resources.requests.cpu }}
@@ -22,11 +23,11 @@ redisExporter:
   imagePullPolicy: {{ flavourConfig.imagePullPolicy | default('IfNotPresent') }}
   resources:
     requests:
-      cpu: {{ flavourConfig.metrics.exporterResources.requests.cpu | default('50m') }}
-      memory: {{ flavourConfig.metrics.exporterResources.requests.memory | default('64Mi') }}
+      cpu: {{ flavourConfig.metrics.exporterResources.requests.cpu | default('25m') }}
+      memory: {{ flavourConfig.metrics.exporterResources.requests.memory | default('32Mi') }}
     limits:
-      cpu: {{ flavourConfig.metrics.exporterResources.limits.cpu | default('200m') }}
-      memory: {{ flavourConfig.metrics.exporterResources.limits.memory | default('256Mi') }}
+      cpu: {{ flavourConfig.metrics.exporterResources.limits.cpu | default('100m') }}
+      memory: {{ flavourConfig.metrics.exporterResources.limits.memory | default('128Mi') }}
 
 storageSpec:
   volumeClaimTemplate:
@@ -62,5 +63,9 @@ tolerations:
     effect: {{ tol.effect }}
   {% endfor %}
   {% endif %}
+
+pdb:
+  enabled: {{ flavourConfig.podDisruptionBudget.enabled | default(false) }}
+  minAvailable: {{ flavourConfig.podDisruptionBudget.minAvailable | default(1) }}
 
 
