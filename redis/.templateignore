@@ -1,2 +1,5 @@
 ./README.md.tpl
 ./aws_elasticache/README.md.tpl
+./aws_elasticache/operations/update-node-type/README.md.tpl
+./aws_elasticache/operations/update-nodegroup-count/README.md.tpl
+./aws_elasticache/operations/update-replica-count/README.md.tpl
