@@ -1,7 +1,0 @@
-{
-  "version": "6.2",
-  "discovery": {
-    "primary": "test-redis-cluster.default.svc.cluster.local",
-    "reader": "test-redis-cluster.default.svc.cluster.local"
-  }
-}
