@@ -11,8 +11,12 @@ global:
   storageClass: {{ flavourConfig.storageClass }}
   {% endif %}
   imagePullSecrets:
-    - "{{ componentMetadata.cloudProviderDetails.account.services | selectattr('category', 'eq', 'KUBERNETES') | map(attribute='data') | map(attribute='pullSecrets') | list | first }}"  
-
+  {%- for secret in componentMetadata.cloudProviderDetails.account.services | selectattr('category', 'eq', 'KUBERNETES') | map(attribute='data') | map(attribute='pullSecrets') %}
+  {%- if secret %}
+      - "{{ secret }}"
+  {%- endif %}
+  {%- endfor %}
+  
 {% if flavourConfig.reader.replicaCount == 0 %}
 architecture: standalone
 {% else %}
