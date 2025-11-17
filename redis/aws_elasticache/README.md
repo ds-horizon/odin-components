@@ -53,6 +53,7 @@ This flavour uses **cost-optimized defaults** to help you get started quickly:
 |----------------------|-------------------------------|----------|-----------------------------------------------------------------------------------------|
 | `destinationDetails` | [object](#destinationdetails) | **Yes**  | Destination-specific configuration (log group for CloudWatch, stream for Kinesis)       |
 | `destinationType`    | string                        | **Yes**  | AWS service to send logs to Possible values are: `cloudwatch-logs`, `kinesis-firehose`. |
+| `logFormat`          | string                        | **Yes**  | Format of the log Possible values are: `json`, `text`.                                  |
 | `logType`            | string                        | **Yes**  | Type of Redis log to capture Possible values are: `slow-log`, `engine-log`.             |
 | `enabled`            | boolean                       | No       | Whether this log configuration is enabled                                               |
 

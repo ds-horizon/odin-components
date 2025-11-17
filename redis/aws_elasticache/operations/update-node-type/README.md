@@ -6,6 +6,6 @@ Updates Node type
 
 #### Properties
 
-| Property        | Type   | Required | Description              |
-|-----------------|--------|----------|--------------------------|
-| `cacheNodeType` | string | **Yes**  | instance type to move to |
+| Property        | Type   | Required | Description                                                                                 |
+|-----------------|--------|----------|---------------------------------------------------------------------------------------------|
+| `cacheNodeType` | string | **Yes**  | AWS EC2 instance type determining compute, memory, and network capacity for each Redis node |
