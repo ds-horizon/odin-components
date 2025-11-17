@@ -9,3 +9,5 @@ Adds node groups (shards) to ElastiCache replication group for horizontal scalin
 | Property        | Type    | Required | Description              |
 |-----------------|---------|----------|--------------------------|
 | `numNodeGroups` | integer | **Yes**  | No of shards to be added |
+
+
