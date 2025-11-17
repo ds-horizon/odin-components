@@ -36,6 +36,36 @@ Odin.component {
             }
         }
 
+        operate {
+            name "update-node-type"
+            String lastState = getLastState()
+            if (lastState != null && !lastState.isEmpty()) {
+                run "echo '${lastState}' > state.json"
+            }
+            run "CONFIG='${getOperationConfigWithDefaults()}' bash execute.sh update-node-type"
+            out "cat state.json"
+        }
+
+        operate {
+            name "update-nodegroup-count"
+            String lastState = getLastState()
+            if (lastState != null && !lastState.isEmpty()) {
+                run "echo '${lastState}' > state.json"
+            }
+            run "CONFIG='${getOperationConfigWithDefaults()}' bash execute.sh update-nodegroup-count"
+            out "cat state.json"
+        }
+
+        operate {
+            name "update-replica-count"
+            String lastState = getLastState()
+            if (lastState != null && !lastState.isEmpty()) {
+                run "echo '${lastState}' > state.json"
+            }
+            run "CONFIG='${getOperationConfigWithDefaults()}' bash execute.sh update-replica-count"
+            out "cat state.json"
+        }
+
 
 
         undeploy {
