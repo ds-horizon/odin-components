@@ -35,8 +35,9 @@ Defines how clients discover and connect to the Redis instance.
 
 #### Properties
 
-| Property   | Type   | Required | Description                                                                                                                                                                                                                                                                                                                                                                      |
-|------------|--------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `endpoint` | string | **Yes**  | Logical DNS name where clients connect for read/write operations. Acts as the primary entry point to your Redis instance, abstracting the underlying infrastructure. Modern Redis clients handle read/write routing intelligently, automatically discovering replicas and routing reads appropriately in cluster mode. Must be provided by user based on their DNS architecture. |
+| Property  | Type   | Required | Description                                                                                                                 |
+|-----------|--------|----------|-----------------------------------------------------------------------------------------------------------------------------|
+| `primary` | string | **Yes**  | Logical DNS name where clients connect for read/write operations. Must be provided by user based on their DNS architecture. |
+| `reader`  | string | **Yes**  | Logical DNS name where clients connect for read operations. Must be provided by user based on their DNS architecture.       |
 
 
