@@ -25,43 +25,99 @@ You need a local Kubernetes cluster. Choose one:
 - **Docker Desktop** - Enable Kubernetes in Docker Desktop settings
 
 ### Opstree Redis Operator
-Install the Redis Operator:
+Install the Redis Operator (once per local cluster):
 ```bash
 helm repo add ot-helm https://ot-container-kit.github.io/helm-charts/
-helm install redis-operator ot-helm/redis-operator --namespace ot-operators --create-namespace
+helm upgrade --install redis-operator ot-helm/redis-operator \
+  --namespace redis-operator \
+  --create-namespace \
+  --wait
 ```
 
 Verify installation:
 ```bash
-kubectl get pods -n ot-operators
+kubectl get pods -n redis-operator
 ```
+
+## Current Implementation (Helm + Opstree Operator)
+
+This flavour uses the **same Helm + Opstree operator approach as `aws_k8s`**, but tuned for local clusters:
+
+- `local_k8s/deploy.sh`:
+  - Reads `baseConfig.version` and `flavourConfig` from `local_k8s/schema.json`.
+  - Validates Redis version: **`6.2`**, **`7.0`**, **`7.2`** only.
+  - Rejects `deploymentMode: "cluster"` with `version: "6.2"` (same `cluster-announce-hostname` limitation as `aws_k8s`).
+  - Ensures `redis-operator` is installed via Helm in the `redis-operator` namespace.
+  - Calls `helm upgrade --install` with mode‑specific values files:
+
+    | `deploymentMode` | Helm chart(s)                      | Values file(s)                                           |
+    |------------------|------------------------------------|----------------------------------------------------------|
+    | `standalone`     | `ot-helm/redis`                    | `local_k8s/values-standalone.yaml`                      |
+    | `sentinel`       | `ot-helm/redis-replication`        | `local_k8s/values-sentinel-replication.yaml`            |
+    |                  | `ot-helm/redis-sentinel`           | `local_k8s/values-sentinel-sentinel.yaml`               |
+    | `cluster`        | `ot-helm/redis-cluster`            | `local_k8s/values-cluster.yaml`                         |
+
+  - Uses shorter Helm timeouts than `aws_k8s` (sized for laptop clusters).
+  - After Helm `--wait`, runs a **pod‑level readiness check** which:
+    - Counts pods by prefix (`<release>-standalone`, `<release>-cluster-leader`, etc.).
+    - Ensures the expected number of pods are `Running` and all containers are `Ready`.
+
+- `local_k8s/discovery.sh`:
+  - Returns a DNS endpoint based on `deploymentMode`, identical to `aws_k8s/discovery.sh`:
+
+    | Mode        | Service name returned                |
+    |------------|---------------------------------------|
+    | standalone | `${RELEASE_NAME}-standalone`          |
+    | sentinel   | `${RELEASE_NAME}-replication`         |
+    | cluster    | `${RELEASE_NAME}-cluster-leader`      |
+
+  - The DNS is `<service>.<namespace>.svc.cluster.local`.
 
 ## Configuration
 
 ### Namespace
 
-**Note:** The Kubernetes namespace for Redis deployment is provided by `COMPONENT_METADATA` and does not need to be configured in the flavour schema.
+**Note:** The Kubernetes namespace for Redis deployment is provided by `COMPONENT_METADATA` and does not need to be configured in the `local_k8s` schema.
 
 ### Storage Class
-By default, `persistence.storageClass` is empty (`""`), which means Kubernetes will automatically use your cluster's default StorageClass. This works out-of-the-box for most local Kubernetes distributions:
+
+For local clusters, `local_k8s/schema.json` exposes a `storage` object:
+
+- `storage.storageClassName` (string, default `""` → use cluster default StorageClass).
+- `storage.storageSize` (string, default `"1Gi"` for local).
+- `storage.nodeConfStorageSize` (string, default `"256Mi"`; used only in cluster mode).
+
+Most local distributions ship with a default StorageClass that works out of the box:
 
 - **kind**: Uses `standard` (rancher.io/local-path)
 - **k3s**: Uses `local-path`
 - **minikube**: Uses `standard` (k8s.io/minikube-hostpath)
 - **Docker Desktop**: Uses `hostpath`
 
-**You typically don't need to specify `storageClass`** - leave it empty to use the cluster default.
+**You typically don't need to specify `storage.storageClassName`** – leaving it empty uses the cluster default.  
+Specify it only if you have multiple StorageClasses and want a particular one.
 
-Only specify explicitly if you need a non-default StorageClass:
-```json
-{
-  "persistence": {
-    "enabled": true,
-    "storageClass": "local-path",  // Only if you need non-default
-    "size": "10Gi"
-  }
-}
-```
+## Limitations (local_k8s flavour)
+
+This flavour is intentionally minimal and geared towards local development/testing. Important limitations:
+
+- **Persistence cannot be disabled**
+  - The Opstree operator always uses PVCs and enables persistence internally.
+  - `local_k8s` does not support an “ephemeral Redis” mode; use small `storage.storageSize` for cheap throwaway instances.
+
+- **Cluster + Redis 6.2 is not supported**
+  - `deploymentMode: "cluster"` with `baseConfig.version: "6.2"` is rejected for the same reason as `aws_k8s`: the 6.2 image does not support `cluster-announce-hostname` used by the cluster chart.
+
+- **No built‑in backups or cloud integrations**
+  - `local_k8s` does not provision backups, S3 integration, IRSA, load balancers, or CloudWatch.
+  - Any persistence/backup story for local clusters should be implemented externally (e.g., scripts, Jobs).
+
+- **Metrics via sidecar only**
+  - When `metrics.enabled` is true, we add a `redis-exporter` sidecar, but we do **not** create `ServiceMonitor` or Prometheus CRDs.
+  - You must configure scraping (port‑forward, Service, ServiceMonitor) yourself if you run Prometheus locally.
+
+- **Not for production**
+  - Resource defaults (`resources.*`, `storage.*`, `sentinel.*`, `cluster.*`) are sized for laptops and are not appropriate for production workloads.
 
 ### Accessing Redis from Host Machine
 For accessing Redis from your host (outside the cluster):
@@ -85,70 +141,34 @@ Then connect to `localhost:6379`
 ## Deployment Modes
 
 ### Standalone (Development)
-Simplest setup for local development:
-```json
-{
-  "deployment": {
-    "mode": "standalone"
-  },
-  "replica": {
-    "count": 0
-  }
-}
-```
+Simplest setup for local development.  
+In the current schema, this is expressed with:
+- `deploymentMode: "standalone"`
+- `resources` and `storage` sized for your laptop.
 
 ### Sentinel (HA Testing)
-Test high availability locally:
-```json
-{
-  "deployment": {
-    "mode": "sentinel",
-    "config": {
-      "replica": {
-        "count": 2
-      },
-      "sentinel": {
-    "enabled": true,
-    "replicas": 3
-  }
-    }
-  }
-}
-```
+Test high availability locally with:
+- `deploymentMode: "sentinel"`
+- `sentinel.replicationSize` (default `2`: 1 master + 1 replica).
+- `sentinel.sentinelSize` (default `3`).
 
 ### Cluster Mode (Sharding Testing)
-Test Redis Cluster locally:
-```json
-{
-  "deployment": {
-    "mode": "cluster",
-    "config": {
-    "numShards": 3,
-    "replicasPerShard": 1
-  }
-  }
-}
-```
+Test Redis Cluster locally with:
+- `deploymentMode: "cluster"`
+- `cluster.clusterSize` (default `3` masters).
+- `cluster.replicasPerMaster` (default `0` for local to keep pod count low).
 
 ## Resource Limits
 
-For local development, you may want to reduce resource usage:
-```json
-{
-  "master": {
-    "resources": {
-      "requests": {
-        "cpu": "250m",
-        "memory": "512Mi"
-      },
-      "limits": {
-        "cpu": "500m",
-        "memory": "1Gi"
-      }
-    }
-  }
-}
-```
+For local development, you may want to reduce resource usage via the `resources` object in `local_k8s/schema.json`:
+
+- Defaults for local clusters (approximate):
+  - `resources.requests.cpu`: `"100m"`
+  - `resources.requests.memory`: `"128Mi"`
+  - `resources.limits.cpu`: `"500m"`
+  - `resources.limits.memory`: `"512Mi"`
+
+Increase these values only when your local cluster has enough capacity.
 
 ## Troubleshooting
 
@@ -178,380 +198,60 @@ Test connection from within cluster:
 kubectl run -it --rm redis-cli --image=redis:7 --restart=Never -- redis-cli -h redis-master.<namespace>.svc.cluster.local ping
 ```
 
-## Redis Local K8s (Local Kubernetes) Flavour Configuration
-
-### Properties
-
-| Property           | Type                        | Required | Description                                                                                                                   |
-|--------------------|-----------------------------|----------|-------------------------------------------------------------------------------------------------------------------------------|
-| `deployment`       | [object](#deployment)       | **Yes**  | Deployment mode configuration determining Redis topology and high availability characteristics.                               |
-| `additionalConfig` | [object](#additionalconfig) | No       | Additional Redis configuration parameters to override defaults.                                                               |
-| `master`           | [object](#master)           | No       | Resource allocation and configuration for Redis master node(s). The master handles all write operations.                      |
-| `nodeSelector`     | [object](#nodeselector)     | No       | Kubernetes node selector for constraining Redis pods to specific nodes.                                                       |
-| `persistence`      | [object](#persistence)      | No       | Persistent storage configuration using Kubernetes PersistentVolumeClaims (PVCs). Enables data durability across pod restarts. |
-| `service`          | [object](#service)          | No       | Kubernetes Service configuration controlling how Redis is exposed.                                                            |
-| `updateStrategy`   | [object](#updatestrategy)   | No       | Kubernetes StatefulSet update strategy.                                                                                       |
-
-### additionalConfig
-
-Additional Redis configuration parameters to override defaults.
-
-| Property | Type | Required | Description |
-|----------|------|----------|-------------|
-
-### deployment
-
-Deployment mode configuration determining Redis topology and high availability characteristics.
-
-#### Properties
-
-| Property | Type              | Required                               | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-|----------|-------------------|----------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `mode`   | string            | **Yes**                                | Redis deployment topology. **Standalone:** Single Redis instance with optional read replicas (no automatic failover) - simplest and most cost-effective for development, testing, and non-critical workloads. **Sentinel:** Master-replica topology with Sentinel processes for automatic failover (recommended for production HA). **Cluster:** Horizontal scaling with data sharding across multiple master nodes, each with replicas. Cluster mode requires `clusterModeEnabled: true` in root schema. **Default: `standalone`** (simplest, lowest cost). **Production:** Use sentinel for HA with single dataset, cluster for horizontal scaling needs. **IMPORTANT:** Changing deployment mode requires application code changes. Possible values are: `standalone`, `sentinel`, `cluster`. |
-| `config` | [object](#config) | When `mode=cluster` or `mode=sentinel` | Mode-specific configuration. Contents depend on deployment.mode: standalone/sentinel use replica and sentinel objects, cluster uses numShards and replicasPerShard. See: [standalone](#config-standalone), [sentinel](#config-sentinel), [cluster](#config-cluster).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-
-#### config-cluster
-
-_Used when `mode = "cluster"`_
-
-##### Properties
-
-| Property           | Type   | Required | Description                                                                                                                                                                                      |
-|--------------------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `numShards`        | number | **Yes**  | Number of shards (master nodes) in Redis Cluster. Each shard handles a portion of the 16,384 hash slots. Minimum 3 required. **Default: `3`**. **Only valid when deployment.mode is 'cluster'**. |
-| `replicasPerShard` | number | **Yes**  | Number of replicas per shard in cluster mode. Total pods = numShards × (1 + replicasPerShard). **Default: `1`**. **Only valid when deployment.mode is 'cluster'**.                               |
-
----
-
-#### config-sentinel
-
-_Used when `mode = "sentinel"`_
-
-##### Properties
-
-| Property   | Type                | Required | Description                                                                                                                                                                                                      |
-|------------|---------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `replica`  | [object](#replica)  | **Yes**  | Replica configuration for standalone or sentinel mode. Replicas serve read operations and provide failover redundancy. In sentinel mode, replicas enable automatic failover when master fails.                   |
-| `sentinel` | [object](#sentinel) | **Yes**  | Redis Sentinel configuration for high availability and automatic failover. Required when deployment.mode is 'sentinel'. Sentinel monitors master and replicas, performing automatic promotion when master fails. |
-
-###### replica
-
-Replica configuration for standalone or sentinel mode. Replicas serve read operations and provide failover redundancy. In sentinel mode, replicas enable automatic failover when master fails.
-
-**Properties**
-
-| Property    | Type                 | Required | Description                                                                                                                                                                                                                                                                                                                                                |
-|-------------|----------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `count`     | number               | **Yes**  | Number of read replicas for the Redis master. Replicas provide high availability through automatic failover (when using sentinel mode) and read scaling. Each replica maintains a full copy of the data. Valid range: 0-5. Set to 0 for standalone without HA. **Default: `0`** (no replicas). **Production:** Use 1-2 replicas with sentinel mode for HA. |
-| `resources` | [object](#resources) | **Yes**  | Kubernetes resource requests and limits for replica pods. Typically same as master since replicas maintain full data copies and may be promoted to master.                                                                                                                                                                                                 |
-
-**resources**
-
-Kubernetes resource requests and limits for replica pods. Typically same as master since replicas maintain full data copies and may be promoted to master.
-
-**Properties**
-
-| Property   | Type                | Required | Description |
-|------------|---------------------|----------|-------------|
-| `limits`   | [object](#limits)   | **Yes**  |             |
-| `requests` | [object](#requests) | **Yes**  |             |
-
-**limits**
-
-**Properties**
-
-| Property | Type   | Required | Description                                      |
-|----------|--------|----------|--------------------------------------------------|
-| `cpu`    | string | **Yes**  | Maximum CPU for replicas. **Default: `1000m`**.  |
-| `memory` | string | **Yes**  | Maximum memory for replicas. **Default: `2Gi`**. |
-
-**requests**
-
-**Properties**
-
-| Property | Type   | Required | Description                                                                              |
-|----------|--------|----------|------------------------------------------------------------------------------------------|
-| `cpu`    | string | **Yes**  | Minimum CPU guaranteed for replicas. **Default: `500m`**.                                |
-| `memory` | string | **Yes**  | Minimum memory guaranteed for replicas. Must hold full dataset copy. **Default: `1Gi`**. |
-
-###### sentinel
-
-Redis Sentinel configuration for high availability and automatic failover. Required when deployment.mode is 'sentinel'. Sentinel monitors master and replicas, performing automatic promotion when master fails.
-
-**Properties**
-
-| Property    | Type                 | Required | Description                                                                                                                                                         |
-|-------------|----------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `quorum`    | number               | **Yes**  | Minimum number of Sentinels that must agree master is down before initiating failover. Should be majority of sentinels (e.g., 2 for 3 sentinels). **Default: `2`**. |
-| `replicas`  | number               | **Yes**  | Number of Sentinel processes. Must be odd number (3, 5, 7) for proper quorum. **Default: `3`**. Possible values are: `3`, `5`, `7`.                                 |
-| `resources` | [object](#resources) | **Yes**  | Kubernetes resource allocation for Sentinel processes. Sentinels are lightweight, requiring minimal resources.                                                      |
-
-**resources**
-
-Kubernetes resource allocation for Sentinel processes. Sentinels are lightweight, requiring minimal resources.
-
-**Properties**
-
-| Property   | Type                | Required | Description |
-|------------|---------------------|----------|-------------|
-| `limits`   | [object](#limits)   | **Yes**  |             |
-| `requests` | [object](#requests) | **Yes**  |             |
-
-**limits**
-
-**Properties**
-
-| Property | Type   | Required | Description                                        |
-|----------|--------|----------|----------------------------------------------------|
-| `cpu`    | string | **Yes**  | Maximum CPU for Sentinel. **Default: `200m`**.     |
-| `memory` | string | **Yes**  | Maximum memory for Sentinel. **Default: `256Mi`**. |
-
-**requests**
-
-**Properties**
-
-| Property | Type   | Required | Description                                        |
-|----------|--------|----------|----------------------------------------------------|
-| `cpu`    | string | **Yes**  | Minimum CPU for Sentinel. **Default: `100m`**.     |
-| `memory` | string | **Yes**  | Minimum memory for Sentinel. **Default: `128Mi`**. |
-
----
-
-#### config-standalone
-
-_Used when `mode = "standalone"`_
-
-No additional configuration required for standalone mode.
-
----
-
-#### config
-
-Mode-specific configuration. Contents depend on deployment.mode: standalone/sentinel use replica and sentinel objects, cluster uses numShards and replicasPerShard.
-
-##### Properties
-
-| Property           | Type                | Required             | Description                                                                                                                                                                                                      |
-|--------------------|---------------------|----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `numShards`        | number              | When `mode=cluster`  | Number of shards (master nodes) in Redis Cluster. Each shard handles a portion of the 16,384 hash slots. Minimum 3 required. **Default: `3`**. **Only valid when deployment.mode is 'cluster'**.                 |
-| `replicasPerShard` | number              | When `mode=cluster`  | Number of replicas per shard in cluster mode. Total pods = numShards × (1 + replicasPerShard). **Default: `1`**. **Only valid when deployment.mode is 'cluster'**.                                               |
-| `replica`          | [object](#replica)  | When `mode=sentinel` | Replica configuration for standalone or sentinel mode. Replicas serve read operations and provide failover redundancy. In sentinel mode, replicas enable automatic failover when master fails.                   |
-| `sentinel`         | [object](#sentinel) | When `mode=sentinel` | Redis Sentinel configuration for high availability and automatic failover. Required when deployment.mode is 'sentinel'. Sentinel monitors master and replicas, performing automatic promotion when master fails. |
-
-##### replica
-
-Replica configuration for standalone or sentinel mode. Replicas serve read operations and provide failover redundancy. In sentinel mode, replicas enable automatic failover when master fails.
-
-###### Properties
-
-| Property    | Type                 | Required | Description                                                                                                                                                                                                                                                                                                                                                |
-|-------------|----------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `count`     | number               | **Yes**  | Number of read replicas for the Redis master. Replicas provide high availability through automatic failover (when using sentinel mode) and read scaling. Each replica maintains a full copy of the data. Valid range: 0-5. Set to 0 for standalone without HA. **Default: `0`** (no replicas). **Production:** Use 1-2 replicas with sentinel mode for HA. |
-| `resources` | [object](#resources) | **Yes**  | Kubernetes resource requests and limits for replica pods. Typically same as master since replicas maintain full data copies and may be promoted to master.                                                                                                                                                                                                 |
-
-###### resources
-
-Kubernetes resource requests and limits for replica pods. Typically same as master since replicas maintain full data copies and may be promoted to master.
-
-**Properties**
-
-| Property   | Type                | Required | Description |
-|------------|---------------------|----------|-------------|
-| `limits`   | [object](#limits)   | **Yes**  |             |
-| `requests` | [object](#requests) | **Yes**  |             |
-
-**limits**
-
-**Properties**
-
-| Property | Type   | Required | Description                                      |
-|----------|--------|----------|--------------------------------------------------|
-| `cpu`    | string | **Yes**  | Maximum CPU for replicas. **Default: `1000m`**.  |
-| `memory` | string | **Yes**  | Maximum memory for replicas. **Default: `2Gi`**. |
-
-**requests**
-
-**Properties**
-
-| Property | Type   | Required | Description                                                                              |
-|----------|--------|----------|------------------------------------------------------------------------------------------|
-| `cpu`    | string | **Yes**  | Minimum CPU guaranteed for replicas. **Default: `500m`**.                                |
-| `memory` | string | **Yes**  | Minimum memory guaranteed for replicas. Must hold full dataset copy. **Default: `1Gi`**. |
-
-##### sentinel
-
-Redis Sentinel configuration for high availability and automatic failover. Required when deployment.mode is 'sentinel'. Sentinel monitors master and replicas, performing automatic promotion when master fails.
-
-###### Properties
-
-| Property    | Type                 | Required | Description                                                                                                                                                         |
-|-------------|----------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `quorum`    | number               | **Yes**  | Minimum number of Sentinels that must agree master is down before initiating failover. Should be majority of sentinels (e.g., 2 for 3 sentinels). **Default: `2`**. |
-| `replicas`  | number               | **Yes**  | Number of Sentinel processes. Must be odd number (3, 5, 7) for proper quorum. **Default: `3`**. Possible values are: `3`, `5`, `7`.                                 |
-| `resources` | [object](#resources) | **Yes**  | Kubernetes resource allocation for Sentinel processes. Sentinels are lightweight, requiring minimal resources.                                                      |
-
-###### resources
-
-Kubernetes resource allocation for Sentinel processes. Sentinels are lightweight, requiring minimal resources.
-
-**Properties**
-
-| Property   | Type                | Required | Description |
-|------------|---------------------|----------|-------------|
-| `limits`   | [object](#limits)   | **Yes**  |             |
-| `requests` | [object](#requests) | **Yes**  |             |
-
-**limits**
-
-**Properties**
-
-| Property | Type   | Required | Description                                        |
-|----------|--------|----------|----------------------------------------------------|
-| `cpu`    | string | **Yes**  | Maximum CPU for Sentinel. **Default: `200m`**.     |
-| `memory` | string | **Yes**  | Maximum memory for Sentinel. **Default: `256Mi`**. |
-
-**requests**
-
-**Properties**
-
-| Property | Type   | Required | Description                                        |
-|----------|--------|----------|----------------------------------------------------|
-| `cpu`    | string | **Yes**  | Minimum CPU for Sentinel. **Default: `100m`**.     |
-| `memory` | string | **Yes**  | Minimum memory for Sentinel. **Default: `128Mi`**. |
-
-### master
-
-Resource allocation and configuration for Redis master node(s). The master handles all write operations.
-
-#### Properties
-
-| Property    | Type                 | Required | Description                                              |
-|-------------|----------------------|----------|----------------------------------------------------------|
-| `resources` | [object](#resources) | **Yes**  | Kubernetes resource requests and limits for master pods. |
-
-#### resources
-
-Kubernetes resource requests and limits for master pods.
-
-##### Properties
-
-| Property   | Type                | Required | Description |
-|------------|---------------------|----------|-------------|
-| `limits`   | [object](#limits)   | **Yes**  |             |
-| `requests` | [object](#requests) | **Yes**  |             |
-
-##### limits
-
-###### Properties
-
-| Property | Type   | Required | Description                                    |
-|----------|--------|----------|------------------------------------------------|
-| `cpu`    | string | **Yes**  | Maximum CPU for master. **Default: `1000m`**.  |
-| `memory` | string | **Yes**  | Maximum memory for master. **Default: `2Gi`**. |
-
-##### requests
-
-###### Properties
-
-| Property | Type   | Required | Description                                               |
-|----------|--------|----------|-----------------------------------------------------------|
-| `cpu`    | string | **Yes**  | Minimum CPU guaranteed for master. **Default: `500m`**.   |
-| `memory` | string | **Yes**  | Minimum memory guaranteed for master. **Default: `1Gi`**. |
-
-### nodeSelector
-
-Kubernetes node selector for constraining Redis pods to specific nodes.
-
-| Property | Type | Required | Description |
-|----------|------|----------|-------------|
-
-### persistence
-
-Persistent storage configuration using Kubernetes PersistentVolumeClaims (PVCs). Enables data durability across pod restarts.
-
-#### Properties
-
-| Property       | Type           | Required | Description                                                                                                 |
-|----------------|----------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `enabled`      | boolean        | **Yes**  | Enable persistent storage for Redis data. **Default: `true`**.                                              |
-| `aof`          | [object](#aof) | No       | Append-Only File (AOF) configuration.                                                                       |
-| `rdb`          | [object](#rdb) | No       | Redis Database (RDB) snapshot configuration.                                                                |
-| `size`         | string         | No       | Size of persistent volume per Redis pod. **Default: `10Gi`**.                                               |
-| `storageClass` | string         | No       | Kubernetes StorageClass name. When empty (default), uses cluster's default StorageClass. **Default: `""`**. |
-
-#### aof
-
-Append-Only File (AOF) configuration.
-
-##### Properties
-
-| Property      | Type    | Required | Description                                                                                 |
-|---------------|---------|----------|---------------------------------------------------------------------------------------------|
-| `enabled`     | boolean | No       | Enable AOF persistence. **Default: `false`**.                                               |
-| `fsyncPolicy` | string  | No       | AOF fsync policy. **Default: `everysec`**. Possible values are: `always`, `everysec`, `no`. |
-
-#### rdb
-
-Redis Database (RDB) snapshot configuration.
-
-##### Properties
-
-| Property       | Type    | Required | Description                                                                          |
-|----------------|---------|----------|--------------------------------------------------------------------------------------|
-| `enabled`      | boolean | No       | Enable RDB snapshots. **Default: `true`**.                                           |
-| `saveInterval` | string  | No       | RDB snapshot save intervals in Redis format. **Default: `"900 1 300 10 60 10000"`**. |
-
-### service
-
-Kubernetes Service configuration controlling how Redis is exposed.
-
-#### Properties
-
-| Property      | Type                   | Required | Description                                                                                                      |
-|---------------|------------------------|----------|------------------------------------------------------------------------------------------------------------------|
-| `annotations` | [object](#annotations) | No       | Service annotations. **Default: `{}`**.                                                                          |
-| `type`        | string                 | No       | Kubernetes Service type. **Default: `ClusterIP`**. Possible values are: `ClusterIP`, `LoadBalancer`, `NodePort`. |
-
-#### annotations
-
-Service annotations. **Default: `{}`**.
-
-| Property | Type | Required | Description |
-|----------|------|----------|-------------|
-
-### updateStrategy
-
-Kubernetes StatefulSet update strategy.
-
-#### Properties
-
-| Property        | Type                     | Required | Description                                                                                           |
-|-----------------|--------------------------|----------|-------------------------------------------------------------------------------------------------------|
-| `rollingUpdate` | [object](#rollingupdate) | No       |                                                                                                       |
-| `type`          | string                   | No       | Update strategy type. **Default: `RollingUpdate`**. Possible values are: `RollingUpdate`, `OnDelete`. |
-
-#### rollingUpdate
-
-##### Properties
-
-| Property         | Type   | Required | Description                                               |
-|------------------|--------|----------|-----------------------------------------------------------|
-| `maxUnavailable` | number | No       | Maximum pods unavailable during update. **Default: `1`**. |
-
-
+## Redis Local K8s Flavour Configuration
+
+### Schema (current local_k8s implementation)
+
+The `local_k8s/schema.json` file mirrors the `aws_k8s` schema but with **smaller defaults** for laptops:
+
+| Property              | Type    | Required | Description                                                                                                  |
+|-----------------------|---------|----------|--------------------------------------------------------------------------------------------------------------|
+| `deploymentMode`      | string  | **Yes**  | `standalone` \| `sentinel` \| `cluster`.                                                                    |
+| `cluster`             | object  | When `deploymentMode = "cluster"` | `clusterSize` (masters), `replicasPerMaster` (replicas per master).          |
+| `sentinel`            | object  | When `deploymentMode = "sentinel"` | `replicationSize`, `sentinelSize`, `quorum`, and failover timers.        |
+| `resources`           | object  | **Yes**  | Global CPU/memory `requests` and `limits` for all Redis pods (tuned low for local usage).                   |
+| `storage`             | object  | **Yes**  | `storageClassName` (default `""`), `storageSize` (default `1Gi`), `nodeConfStorageSize` (default `256Mi`).  |
+| `metrics`             | object  | No       | `enabled` (default `true`), `exporterResources` for the `redis-exporter` sidecar.                           |
+| `securityContext`     | object  | No       | `runAsNonRoot`, `runAsUser`, `fsGroup` (defaults 1000).                                                     |
+| `nodeSelector`        | object  | No       | Optional node selector for constraining pods.                                                               |
+| `tolerations`         | array   | No       | Optional tolerations for tainted nodes.                                                                     |
+| `podDisruptionBudget` | object  | No       | Hints for local PDB; disabled (`enabled: false`) by default.                                                |
+| `serviceAccount`      | string  | No       | ServiceAccount name (`default` by default).                                                                 |
+| `priorityClassName`   | string  | No       | Optional pod priority; usually left empty for local clusters.                                               |
+| `imagePullPolicy`     | string  | No       | `Always` \| `IfNotPresent` (default) \| `Never`.                                                            |
+
+Redis version is still taken from the **root** `redis/schema.json` (`baseConfig.version`), and is mapped to concrete image tags in the local values files:
+
+- `6.2` → `quay.io/opstree/redis:v6.2.14`
+- `7.0` → `quay.io/opstree/redis:v7.0.15`
+- `7.2` → `quay.io/opstree/redis:v7.2.11`
+
+Cluster mode with `version: "6.2"` is rejected for the same reasons as in `aws_k8s` (image does not support `cluster-announce-hostname`).
+
+### Metrics
+
+- When `metrics.enabled` is `true` (default for local), this flavour:
+  - Adds a `redis-exporter` sidecar container to the Redis pods.
+  - Uses `metrics.exporterResources.*` to size the exporter container (defaults are very small).
+- The flavour does **not** create `ServiceMonitor` or other Prometheus CRDs.
+  - For kind/minikube/etc., expose metrics by:
+    - Port‑forwarding a Redis pod, or
+    - Creating your own `Service`/`ServiceMonitor` if you run Prometheus Operator locally.
 
 ## Differences from AWS Container Flavour
 
-**Why can't we symlink to aws_k8s schema?**
-See [FLAVOUR_DIFFERENCES.md](./FLAVOUR_DIFFERENCES.md) for detailed explanation of differences between local_k8s and aws_k8s flavours.
+See [FLAVOUR_DIFFERENCES.md](./FLAVOUR_DIFFERENCES.md) for a detailed explanation of differences between `local_k8s` and `aws_k8s`.
 
-Key differences:
-- **Storage**: Both use empty storageClass (cluster default), but local K8s has pre-configured defaults while EKS 1.30+ requires external StorageClass setup
-- **Setup Required**: None (pre-configured defaults) vs Must create and configure default StorageClass
-- **Load Balancing**: NodePort/port-forward vs AWS NLB
-- **IAM**: No IRSA integration locally
-- **Multi-AZ**: Single node/zone vs multi-AZ spreading
-- **Backups**: Not supported vs Automated S3 backups
+At a high level:
+- **Same schema shape**, different defaults:
+  - `resources`, `storage`, `sentinel`, `cluster`, `metrics`, etc. exist in both flavours.
+  - Local defaults are much smaller (CPU/memory/storage) to fit on laptops.
+- **Storage**:
+  - Both flavours require persistence and PVCs.
+  - `local_k8s` defaults to `storageClassName: ""` (use whatever the local cluster provides).
+- **Platform integrations**:
+  - `local_k8s` does not integrate with IAM/IRSA, AWS NLBs, CloudWatch, or S3 backups.
+  - Multi‑AZ and advanced traffic/DR patterns are out of scope for local clusters.
 
 ## Example Configurations
 

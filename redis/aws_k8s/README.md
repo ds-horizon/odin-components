@@ -30,6 +30,158 @@ This flavour uses **standalone defaults** optimized for simplicity and cost:
 
 **Implementation Reference:** If you're developing provisioning logic or contributing to this component, see [IMPLEMENTATION_MAPPING.md](IMPLEMENTATION_MAPPING.md) for detailed mappings between Odin schema properties and OpsTree Redis Operator CRD fields.
 
+## Current Implementation (Helm + Opstree Operator)
+
+This flavour deploys Redis on AWS EKS using the **Opstree Redis Operator** and its official Helm charts:
+
+- `ot-helm/redis` (standalone)
+- `ot-helm/redis-replication` + `ot-helm/redis-sentinel` (sentinel mode)
+- `ot-helm/redis-cluster` (cluster mode)
+
+Instead of applying CRDs directly, we:
+
+- Use **Helm** to create the Opstree CRs.
+- Let the **operator** own pod/service lifecycles.
+- Map the Odin `aws_k8s` schema into per‑mode `values-*.yaml` files using Jinja templates.
+
+### What deploy.sh does
+
+- Reads:
+  - `baseConfig.version` from the root `redis/schema.json`.
+  - `flavourConfig` as defined in `aws_k8s/schema.json`.
+- Validates the Redis version:
+  - Supported logical versions: **`6.2`**, **`7.0`**, **`7.2`**.
+  - **Cluster mode + 6.2 is blocked**:
+    - `deploymentMode: "cluster"` with `version: "6.2"` fails fast with a clear error.
+    - Reason: the 6.2 image doesn’t support `cluster-announce-hostname` used by the cluster chart.
+- Ensures the **Opstree Redis Operator** is installed (via `ot-helm/redis-operator`).
+- Calls `helm upgrade --install` with per‑mode values files:
+
+| `deploymentMode` | Helm chart(s)                      | Values file(s)                              |
+|------------------|------------------------------------|---------------------------------------------|
+| `standalone`     | `ot-helm/redis`                    | `aws_k8s/values-standalone.yaml`           |
+| `sentinel`       | `ot-helm/redis-replication`        | `aws_k8s/values-sentinel-replication.yaml` |
+|                  | `ot-helm/redis-sentinel`           | `aws_k8s/values-sentinel-sentinel.yaml`    |
+| `cluster`        | `ot-helm/redis-cluster`            | `aws_k8s/values-cluster.yaml`              |
+
+- Uses `--wait`/`--timeout` on Helm **and then** runs a custom readiness loop:
+  - Counts pods by **name prefix**:
+    - Standalone: `${RELEASE_NAME}-standalone-*`
+    - Sentinel replication: `${RELEASE_NAME}-replication-*`
+    - Sentinel sentinels: `${RELEASE_NAME}-sentinel-*`
+    - Cluster leaders: `${RELEASE_NAME}-cluster-leader-*`
+    - Cluster followers: `${RELEASE_NAME}-cluster-follower-*`
+  - Waits until the **expected number of pods** (derived from `sentinel.*` and `cluster.*`) are `Running` and all containers are `Ready`.
+
+### What discovery.sh returns
+
+`aws_k8s/discovery.sh` exposes a single DNS endpoint (used as `discovery.endpoint`) based on `deploymentMode`:
+
+| Mode        | Service name returned                        | Purpose                                      |
+|------------|-----------------------------------------------|----------------------------------------------|
+| standalone | `${RELEASE_NAME}-standalone`                  | Simple single‑instance Redis                 |
+| sentinel   | `${RELEASE_NAME}-replication`                 | Master+replica service; Sentinel handles HA  |
+| cluster    | `${RELEASE_NAME}-cluster-leader`              | Any leader node for cluster‑aware clients    |
+
+The service DNS is `<service>.<namespace>.svc.cluster.local`.
+
+### Version → image tag mapping
+
+Logical Redis versions from the root schema are mapped to concrete Opstree image tags in the values files:
+
+| `baseConfig.version` | Redis image tag                      |
+|----------------------|--------------------------------------|
+| `6.2`                | `quay.io/opstree/redis:v6.2.14`      |
+| `7.0`                | `quay.io/opstree/redis:v7.0.15`      |
+| `7.2`                | `quay.io/opstree/redis:v7.2.11`      |
+
+Sentinel uses matching tags from `quay.io/opstree/redis-sentinel:<tag>`.
+
+### Schema fields actually used (aws_k8s/schema.json)
+
+The current implementation uses a **different schema shape** from the legacy `deployment/config` model described later in this README. The authoritative schema is `aws_k8s/schema.json`. Key fields:
+
+- **Deployment topology**
+  - `deploymentMode`: `"standalone" | "sentinel" | "cluster"`.
+  - `cluster.clusterSize`: number of masters in cluster mode.
+  - `cluster.replicasPerMaster`: number of replicas per master in cluster mode.
+  - `sentinel.replicationSize`: total replication group size (master + replicas).
+  - `sentinel.sentinelSize`: number of Sentinel pods (quorum).
+  - `sentinel.quorum`, `sentinel.downAfterMilliseconds`, `sentinel.parallelSyncs`, `sentinel.failoverTimeout`: Sentinel tuning knobs mapped into `redisSentinelConfig`.
+
+- **Resources**
+  - `resources.requests.cpu`, `resources.requests.memory`: minimum resources for all Redis pods.
+  - `resources.limits.cpu`, `resources.limits.memory`: maximum resources for all Redis pods.
+
+- **Storage**
+  - `storage.storageClassName`: StorageClass to use (e.g. `gp3`, `gp2`).
+  - `storage.storageSize`: data PVC size per pod.
+  - `storage.nodeConfStorageSize`: node‑conf PVC size for cluster mode.
+  - Persistence is **always enabled** for this flavour (see limitations below).
+
+- **Metrics**
+  - `metrics.enabled`: enables the `redis-exporter` sidecar when true.
+  - `metrics.exporterResources.requests/limits`: resources for the metrics container.
+
+- **Pod security & scheduling**
+  - `securityContext.runAsNonRoot`, `runAsUser`, `fsGroup`.
+  - `nodeSelector`: arbitrary key/value labels.
+  - `tolerations`: full list of taint tolerations.
+  - `podDisruptionBudget.enabled`, `podDisruptionBudget.minAvailable`.
+  - `serviceAccount`: ServiceAccount name for pods.
+  - `priorityClassName`: optional pod priority.
+  - `imagePullPolicy`: `Always` / `IfNotPresent` / `Never`.
+
+All of these fields are mapped into the per‑mode values files (`values-standalone.yaml`, `values-cluster.yaml`, `values-sentinel-*.yaml`) and then into the corresponding Opstree CRDs via the Helm charts.
+
+For a **field‑by‑field mapping**, how defaults behave, and which older properties are intentionally ignored, see `aws_k8s/IMPLEMENTATION_MAPPING.md`.
+
+### Supported capabilities
+
+- **Modes**
+  - Standalone Redis (1 PVC‑backed pod).
+  - Sentinel HA topology (1 master + replicas + sentinels).
+  - Sharded Redis Cluster (masters + followers) with Opstree’s built‑in anti‑affinity.
+
+- **Persistence & storage**
+  - All modes use **PVC‑backed** storage for data (and `nodes.conf` in cluster mode).
+  - StorageClass and size are configurable via `storage.*`.
+
+- **Metrics**
+  - `redis-exporter` sidecar is enabled when `metrics.enabled` is true.
+  - Metrics can be scraped by your own Prometheus configuration; this flavour does **not** create `ServiceMonitor` objects.
+
+- **Readiness & robustness**
+  - Helm `--wait`/`--timeout` covers operator‑level resources.
+  - A separate shell‑level readiness loop ensures that the **actual Redis pods** are Running and Ready before the deploy stage completes.
+
+### Limitations and non‑goals (aws_k8s flavour)
+
+Compared to the original design described later in this README, the current Helm/operator flavour has some important limitations:
+
+- **No `storage.enabled` / ephemeral mode**
+  - The Opstree operator always creates PVCs and sets `PERSISTENCE_ENABLED=true` internally.
+  - We therefore do **not** implement a `storage.enabled=false` / “in‑memory only” switch for this flavour.
+  - Use smaller `storage.storageSize` values for dev/test instead of disabling persistence.
+
+- **Cluster + Redis 6.2 is unsupported**
+  - `deploymentMode: "cluster"` with `baseConfig.version: "6.2"` fails fast.
+  - Use `7.0` or `7.2` for cluster mode.
+
+- **Backups / S3 / IRSA are not wired**
+  - Although this README includes examples of S3 backups, backup CronJobs, and IRSA, the current `aws_k8s` implementation **does not** create any backup resources.
+  - Implement backups externally using your own Jobs/CronJobs and S3 tooling.
+
+- **NetworkPolicy and TLS not managed by this flavour**
+  - No NetworkPolicies are created; zero‑trust networking is expected to be handled by your cluster‑level security policies.
+  - TLS, ACLs, and Secrets Manager/CSI integration are not configured by this flavour; treat them as platform responsibilities.
+
+- **Operator & chart version coupling**
+  - Behaviour is validated against `redis-operator` v0.22.x and matching `ot-helm` charts.
+  - Upgrading operator/chart versions can change behaviour; always test in non‑production first.
+
+> **Note:** Many sections below (backup, TLS, NetworkPolicy, CloudWatch, etc.) describe *recommended patterns* rather than what the `aws_k8s` flavour currently provisions. The authoritative implementation is the Helm/operator flow described here and in `IMPLEMENTATION_MAPPING.md`.
+
 ## Prerequisites (For Odin Admins)
 
 Before enabling usage of this flavour of Redis, ensure:
@@ -77,6 +229,69 @@ Before enabling usage of this flavour of Redis, ensure:
 6. **Optional - IAM Role for Service Account (IRSA)**: For S3 backup access
 
 ## Redis AWS K8s (EKS) Flavour Configuration
+
+### Schema (current aws_k8s implementation)
+
+The current Helm/operator implementation uses the schema defined in `aws_k8s/schema.json`. At a high level:
+
+| Property                | Type      | Required | Description                                                                                                   |
+|-------------------------|-----------|----------|---------------------------------------------------------------------------------------------------------------|
+| `deploymentMode`        | string    | **Yes**  | Redis mode: `standalone`, `sentinel`, or `cluster`.                                                          |
+| `cluster`               | object    | When `deploymentMode = "cluster"` | Cluster topology: `clusterSize` (masters), `replicasPerMaster`.                                |
+| `sentinel`              | object    | When `deploymentMode = "sentinel"` | Sentinel topology and timings: `replicationSize`, `sentinelSize`, `quorum`, etc.              |
+| `resources`             | object    | **Yes**  | CPU/memory `requests` and `limits` applied to all Redis pods (masters, replicas, sentinels, cluster nodes).  |
+| `storage`               | object    | **Yes**  | PVC configuration: `storageClassName`, `storageSize`, `nodeConfStorageSize` (for cluster mode).             |
+| `metrics`               | object    | No       | Controls `redis-exporter` sidecar (`enabled`, `exporterResources`).                                          |
+| `securityContext`       | object    | No       | `runAsNonRoot`, `runAsUser`, `fsGroup` for pod security context.                                             |
+| `nodeSelector`          | object    | No       | Optional node selection constraints.                                                                         |
+| `tolerations`           | array     | No       | Optional taint tolerations for scheduling.                                                                   |
+| `podDisruptionBudget`   | object    | No       | PDB hints: `enabled`, `minAvailable`.                                                                        |
+| `serviceAccount`        | string    | No       | ServiceAccount name used by Redis pods.                                                                      |
+| `priorityClassName`     | string    | No       | Optional pod priority class name.                                                                            |
+| `imagePullPolicy`       | string    | No       | Image pull policy: `Always`, `IfNotPresent` (default), or `Never`.                                           |
+
+The `baseConfig.version` field (in the root `redis/schema.json`) is also used to choose the Redis image tag:
+
+- `6.2` → `quay.io/opstree/redis:v6.2.14`
+- `7.0` → `quay.io/opstree/redis:v7.0.15`
+- `7.2` → `quay.io/opstree/redis:v7.2.11`
+
+> For an exhaustive mapping of these properties into the Opstree Helm charts and CRDs, see `aws_k8s/IMPLEMENTATION_MAPPING.md`.
+
+### Legacy top‑level properties and their status
+
+The large configuration table below documents an **older CRD‑based schema** (with `deployment`, `persistence`, `backup`, etc.).  
+In the current Helm/operator implementation, those properties are either:
+
+- Replaced by fields in `aws_k8s/schema.json`, or
+- Ignored / not implemented.
+
+Summary of how each legacy top‑level property maps today:
+
+| Legacy property            | Status in current `aws_k8s` flavour                          | Notes                                                                                           |
+|----------------------------|--------------------------------------------------------------|-------------------------------------------------------------------------------------------------|
+| `deployment`               | **Replaced**                                                 | Replaced by `deploymentMode`, `cluster`, and `sentinel` objects in `aws_k8s/schema.json`.       |
+| `additionalConfig`         | **Not wired**                                                | Not passed into Helm or the operator; advanced `redis.conf` overrides are not currently used.   |
+| `antiAffinity`             | **Not wired**                                                | We rely on Opstree chart defaults (e.g., cluster anti‑affinity); no direct `antiAffinity` prop. |
+| `backup`                   | **Not implemented**                                          | No backup CronJobs/S3 logic; implement backups externally if needed.                            |
+| `master`                   | **Replaced**                                                 | Per‑role resources are collapsed into global `resources.*` used for all Redis pods.             |
+| `metrics`                  | **Partially replaced**                                       | Current `metrics` shape is different; we only use `metrics.enabled` and `metrics.exporterResources.*`. |
+| `networkPolicy`            | **Not implemented**                                          | This flavour does not create NetworkPolicy resources.                                           |
+| `nodeSelector`             | **Implemented**                                              | Mapped directly from `aws_k8s/schema.json` into the Helm values.                                |
+| `persistence`              | **Replaced / behaviour changed**                             | Replaced by `storage.*`. Persistence cannot be disabled; PVCs are always created by the operator. |
+| `podDisruptionBudget`      | **Implemented (where supported by charts)**                  | Mapped into values for modes whose Helm charts expose PDB settings.                             |
+| `priorityClassName`        | **Implemented**                                              | Mapped directly from schema into Helm values.                                                   |
+| `securityContext`          | **Implemented**                                              | `runAsNonRoot`, `runAsUser`, `fsGroup` passed into pod security context in values files.        |
+| `serviceAccount`           | **Implemented**                                              | Used as the pod ServiceAccount name.                                                            |
+| `service`                  | **Partially applicable**                                     | We rely mostly on chart‑provided Services; we do not expose all historical `service` options.   |
+| `tolerations`              | **Implemented**                                              | Mapped directly into Helm values.                                                               |
+| `topologySpreadConstraints`| **Not wired**                                                | Not currently mapped; rely on node groups/AZ placement and chart anti‑affinity where available. |
+| `updateStrategy`           | **Not wired**                                                | StatefulSet update strategy is controlled by the charts/operator, not this flavour.             |
+
+The detailed property sections that follow belong to the **legacy model**. Use them as conceptual guidance only; for the actual, implemented configuration surface, prefer:
+
+- This section (schema summary and legacy property status), and
+- `aws_k8s/IMPLEMENTATION_MAPPING.md`.
 
 ### Properties
 
@@ -501,236 +716,12 @@ Kubernetes StatefulSet update strategy.
 
 
 
-## Configuration
-
-### Namespace
-
-**Note:** The Kubernetes namespace for Redis deployment is provided by `COMPONENT_METADATA` and does not need to be configured in the flavour schema.
-
-## Configuration Examples
-
-### Minimal Development Configuration (Default)
-```json
-{}
-```
-This uses all defaults: standalone mode with a single Redis instance - perfect for development with minimal resources (1 pod).
-
-**Cost Estimate**: ~$30-50/month (t3.medium node, 10GB gp3 storage)
-
-**Application Connection**:
-```javascript
-// Standard Redis connection
-const redis = new Redis({
-  host: 'discovery.endpoint',  // From root schema
-  port: 6379,
-  password: 'your-auth-token'
-});
-```
-
-### Custom Storage for Development
-```json
-{
-  "persistence": {
-    "size": "5Gi"
-  }
-}
-```
-Reduces storage to 5GB for even lower costs.
-
-**Cost Estimate**: ~$25-40/month
-
-### Production Sentinel with Multi-AZ
-```json
-{
-  "deployment": {
-    "mode": "sentinel",
-    "config": {
-  "replicaCount": 2,
-  "master": {
-    "resources": {
-      "requests": { "cpu": "1000m", "memory": "2Gi" },
-      "limits": { "cpu": "2000m", "memory": "4Gi" }
-    }
-  },
-  "replica": {
-    "resources": {
-      "requests": { "cpu": "1000m", "memory": "2Gi" },
-      "limits": { "cpu": "2000m", "memory": "4Gi" }
-    }
-  },
-  "persistence": {
-    "enabled": true,
-    "storageClass": "gp3-encrypted",
-    "size": "50Gi",
-    "aof": {
-      "enabled": true
-    }
-  },
-  "sentinel": {
-    "enabled": true,
-    "replicas": 3,
-    "quorum": 2
-  },
-  "antiAffinity": "required",
-  "topologySpreadConstraints": [
-    {
-      "maxSkew": 1,
-      "topologyKey": "topology.kubernetes.io/zone",
-      "whenUnsatisfiable": "DoNotSchedule"
-    }
-  ],
-  "metrics": {
-    "enabled": true,
-    "serviceMonitor": {
-      "enabled": true,
-      "interval": "30s"
-    }
-  },
-  "backup": {
-    "enabled": true,
-    "schedule": "0 2 * * *",
-    "s3Bucket": "my-redis-backups",
-    "s3Region": "us-east-1",
-    "retention": 30
-  },
-  "podDisruptionBudget": {
-    "enabled": true,
-    "minAvailable": 2
-  }
-}
-```
-This creates a highly available production setup:
-- 1 master + 2 replicas (spread across 3 AZs)
-- Encrypted storage (gp3-encrypted StorageClass for at-rest encryption)
-- AOF persistence for durability
-- Required anti-affinity (strict pod spreading)
-- Automated daily S3 backups (30-day retention)
-- Prometheus monitoring with ServiceMonitor
-- PodDisruptionBudget ensures 2 pods always available
-
-**Cost Estimate**: ~$300-400/month (3 m5.xlarge nodes, 150GB gp3, S3 backups)
-
-### Redis Cluster Mode (Horizontal Scaling)
-```json
-{
-  "deployment": {
-    "mode": "cluster",
-    "config": {
-  "cluster": {
-    "numShards": 3,
-    "replicasPerShard": 1
-  },
-  "master": {
-    "resources": {
-      "requests": { "cpu": "1000m", "memory": "4Gi" },
-      "limits": { "cpu": "2000m", "memory": "8Gi" }
-    }
-  },
-  "replica": {
-    "resources": {
-      "requests": { "cpu": "1000m", "memory": "4Gi" },
-      "limits": { "cpu": "2000m", "memory": "8Gi" }
-    }
-  },
-  "persistence": {
-    "enabled": true,
-    "size": "100Gi"
-  },
-  "antiAffinity": "required",
-  "topologySpreadConstraints": [
-    {
-      "maxSkew": 1,
-      "topologyKey": "topology.kubernetes.io/zone",
-      "whenUnsatisfiable": "DoNotSchedule"
-    }
-  ],
-  "metrics": {
-    "enabled": true,
-    "serviceMonitor": {
-      "enabled": true
-    }
-  }
-}
-```
-This creates a sharded Redis Cluster for horizontal scaling:
-- 3 shards (masters) + 3 replicas = 6 nodes total
-- Each shard handles ~33% of keyspace (16,384 hash slots distributed)
-- Scales write throughput linearly (~75K writes/sec total)
-- Spread across multiple AZs for resilience
-- Note: Requires `clusterModeEnabled: true` in root schema
-
-**Cost Estimate**: ~$600-800/month (6 r5.large nodes, 600GB gp3)
-
-### External Access via Network Load Balancer
-```json
-{
-  "service": {
-    "type": "LoadBalancer",
-    "annotations": {
-      "service.beta.kubernetes.io/aws-load-balancer-type": "nlb",
-      "service.beta.kubernetes.io/aws-load-balancer-internal": "true",
-      "service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled": "true"
-    }
-  }
-}
-```
-Exposes Redis via internal AWS Network Load Balancer for cross-VPC or on-premises access. Use internal NLB for security.
-
-**Additional Cost**: ~$16-20/month (NLB charges)
-
-### Network Policy for Zero-Trust Security
-```json
-{
-  "networkPolicy": {
-    "enabled": true,
-    "allowedNamespaces": ["application", "backend-services"]
-  }
-}
-```
-Restricts Redis access to only specified namespaces using Kubernetes NetworkPolicy. Requires CNI with NetworkPolicy support (Calico, AWS VPC CNI with network policy).
-
-### S3 Backups with IRSA
-```json
-{
-  "serviceAccount": "redis-backup-sa",
-  "backup": {
-    "enabled": true,
-    "schedule": "0 */6 * * *",
-    "s3Bucket": "prod-redis-backups",
-    "s3Region": "us-east-1",
-    "retention": 90
-  }
-}
-```
-Configures automated backups every 6 hours to S3 with 90-day retention. Requires:
-1. Create S3 bucket with versioning enabled
-2. Create IAM role with S3 write permissions
-3. Create ServiceAccount annotated with IAM role ARN (IRSA)
-   ```bash
-   eksctl create iamserviceaccount \
-     --name redis-backup-sa \
-     --namespace <namespace> \
-     --cluster my-cluster \
-     --attach-policy-arn arn:aws:iam::ACCOUNT:policy/RedisS3BackupPolicy \
-     --approve
-   ```
-
 ## Deployment Modes
 
 **IMPORTANT**: Each deployment mode requires **different application code** for connecting to Redis. Choose your mode based on requirements, then configure your application accordingly.
 
 ### Standalone Mode (Default)
 **Use Case**: Development, testing, non-critical caching, single-tenant applications
-
-**Configuration**:
-```json
-{
-  "deployment": {
-    "mode": "standalone"
-  },
-  "replicaCount": 0
-}
-```
 
 **Characteristics**:
 - Single Redis instance (1 pod)
@@ -809,21 +800,6 @@ rdb := redis.NewClient(&redis.Options{
 
 ### Sentinel Mode (Recommended for Production)
 **Use Case**: Production HA, single dataset, automatic failover
-
-**Configuration**:
-```json
-{
-  "deployment": {
-    "mode": "sentinel",
-    "config": {
-  "replicaCount": 2,
-  "sentinel": {
-    "enabled": true,
-    "replicas": 3,
-    "quorum": 2
-  }
-}
-```
 
 **Characteristics**:
 - 1 master + N replicas (typically 1-2 replicas)
@@ -973,20 +949,6 @@ rdb := redis.NewFailoverClient(&redis.FailoverOptions{
 
 ### Cluster Mode (Horizontal Scaling)
 **Use Case**: Large datasets (>50GB), high write throughput, horizontal scaling
-
-**Configuration**:
-```json
-{
-  "deployment": {
-    "mode": "cluster",
-    "config": {
-  "cluster": {
-    "numShards": 3,
-    "replicasPerShard": 1
-  }
-}
-```
-**Note**: Requires `clusterModeEnabled: true` in root schema
 
 **Characteristics**:
 - Data sharded across multiple master nodes (3-500 shards)
@@ -1147,25 +1109,9 @@ When migrating from Standalone/Sentinel → Cluster:
 
 ### Multi-AZ Distribution
 
-Distribute Redis pods across AWS Availability Zones for resilience against AZ failures:
-
-```json
-{
-  "antiAffinity": "required",
-  "topologySpreadConstraints": [
-    {
-      "maxSkew": 1,
-      "topologyKey": "topology.kubernetes.io/zone",
-      "whenUnsatisfiable": "DoNotSchedule"
-    }
-  ]
-}
-```
-
-**How it works**:
-- `antiAffinity: required` prevents Redis pods on same node
-- `topologySpreadConstraints` spreads pods evenly across AZs
-- If AZ fails, Sentinel/Cluster promotes replica in healthy AZ
+Distribute Redis pods across AWS Availability Zones for resilience against AZ failures using:
+- Multiple node groups spanning AZs.
+- Opstree’s own anti‑affinity and pod scheduling options where available in the charts.
 
 **Caveat**: EBS volumes are AZ-specific. If AZ fails:
 - Pod can't restart in different AZ (volume is AZ-locked)
@@ -1196,45 +1142,8 @@ Protect availability during voluntary disruptions (node drains, cluster upgrades
 
 ### Automated Backups
 
-Configure S3 backups for disaster recovery:
-
-```json
-{
-  "backup": {
-    "enabled": true,
-    "schedule": "0 2 * * *",
-    "s3Bucket": "my-redis-backups",
-    "s3Region": "us-east-1",
-    "retention": 30
-  }
-}
-```
-
-**Backup Strategy**:
-1. CronJob triggers Redis SAVE command (RDB snapshot)
-2. Copies dump.rdb from Redis pod to S3
-3. Implements retention policy (deletes old backups)
-
-**Best Practices**:
-- Schedule during low-traffic periods (2-4 AM)
-- Enable S3 versioning for backup protection
-- Use S3 cross-region replication for geo-redundancy
-- Implement 3-2-1 rule: 3 copies, 2 media types, 1 offsite
-- Test restore procedures monthly
-
-**S3 Bucket Setup**:
-```bash
-# Create bucket with versioning
-aws s3 mb s3://my-redis-backups --region us-east-1
-aws s3api put-bucket-versioning \
-  --bucket my-redis-backups \
-  --versioning-configuration Status=Enabled
-
-# Enable cross-region replication (optional)
-aws s3api put-bucket-replication \
-  --bucket my-redis-backups \
-  --replication-configuration file://replication.json
-```
+The current `aws_k8s` flavour does **not** provision any backup/restore automation.  
+If you need automated backups (to S3 or otherwise), implement them externally using your own Jobs/CronJobs and storage tooling.
 
 ### Recovery Procedures
 
@@ -1284,24 +1193,11 @@ Redis exports 100+ metrics via redis-exporter on port 9121:
 - `redis_replication_lag`: Replica lag (seconds)
 - `redis_cluster_state`: Cluster health (cluster mode)
 
-### ServiceMonitor Configuration
+When `metrics.enabled` is `true` in `aws_k8s/flavourConfig`, this flavour:
+- Adds a `redis-exporter` sidecar container to the Redis pods with resources from `metrics.exporterResources`.
+- **Does not** create any `ServiceMonitor` or Prometheus CRDs.
 
-If using Prometheus Operator, enable automatic scraping:
-
-```json
-{
-  "metrics": {
-    "enabled": true,
-    "serviceMonitor": {
-      "enabled": true,
-      "interval": "30s",
-      "namespace": "monitoring"
-    }
-  }
-}
-```
-
-Prometheus Operator automatically discovers and scrapes Redis metrics.
+If you use Prometheus Operator, you must define your own `Service`/`ServiceMonitor` to scrape the exporter endpoints.
 
 ### Grafana Dashboards
 
@@ -1441,18 +1337,6 @@ parameters:
 volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: true
 reclaimPolicy: Retain  # Optional: Keep volumes after PVC deletion for compliance
-```
-
-**Step 2: Use Encrypted StorageClass in Redis Configuration**
-
-```json
-{
-  "persistence": {
-    "enabled": true,
-    "storageClass": "gp3-encrypted",  // <-- Reference encrypted StorageClass
-    "size": "50Gi"
-  }
-}
 ```
 
 #### Setting Up KMS Key for Encryption
@@ -1697,23 +1581,8 @@ For production Redis on EKS:
 
 ### Network Policies
 
-Implement zero-trust networking with Kubernetes NetworkPolicy:
-
-```json
-{
-  "networkPolicy": {
-    "enabled": true,
-    "allowedNamespaces": ["application", "backend"]
-  }
-}
-```
-
-**How it works**:
-- Denies all ingress traffic by default
-- Allows only from specified namespaces on port 6379
-- Requires CNI with NetworkPolicy support (Calico, Cilium, AWS VPC CNI with network policy)
-
-**Example NetworkPolicy Created**:
+Implement zero-trust networking with Kubernetes `NetworkPolicy` objects managed at the platform level.  
+For example:
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -1742,29 +1611,8 @@ spec:
 
 Enable TLS for data in transit (configured in root schema):
 
-```json
-{
-  "authentication": {
-    "enabled": true,
-    "authToken": "${REDIS_PASSWORD}"
-  }
-}
-```
-
-**Note**: TLS configuration (`transitEncryption`) should be added to root schema following LSP principles, as it's a universal concept across all flavors.
-
-For now, configure via `additionalConfig`:
-```json
-{
-  "additionalConfig": {
-    "tls-port": "6379",
-    "port": "0",
-    "tls-cert-file": "/tls/tls.crt",
-    "tls-key-file": "/tls/tls.key",
-    "tls-ca-cert-file": "/tls/ca.crt"
-  }
-}
-```
+TLS support is **not managed by this flavour**.  
+Configure TLS for Redis at the operator/chart/platform layer according to your security standards (cert-manager, Secrets + volume mounts, mTLS, etc.) and then adjust your clients’ connection settings accordingly.
 
 ### Pod Security Standards
 
