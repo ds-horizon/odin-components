@@ -1,14 +1,6 @@
 import com.dream11.Odin
 import com.dream11.OdinUtil
 
-def downloadLogging = {
-    download {
-        provider "S3"
-        uri      "s3://components-state-odin-dsl-central-prod/odin_run_files/logging.sh"
-        relativeDestination "logging.sh"
-    }
-}
-
 Odin.component {
     dslVersion "v0.0.2"
 
@@ -48,25 +40,26 @@ Odin.component {
             }
         }
 
-        undeploy {
-            downloadLogging.delegate = delegate
-            downloadLogging()            
+        undeploy {            
             run "bash undeploy.sh"
         }
     }   
 
     flavour {
         name "aws_k8s"
-
         deploy {
-            downloadLogging.delegate = delegate
-            downloadLogging()            
+            String lastState = getLastState()
+            if (lastState != null && !lastState.isEmpty()) {
+                run "echo '${lastState}' > state.json"
+            }                       
             run "bash deploy.sh"
+            out "cat state.json"
 
             discovery {
                 run "bash discovery.sh"
             }
         }
+
         healthcheck {
             linearRetryPolicy {
                 count 2
@@ -79,19 +72,26 @@ Odin.component {
         }
 
         undeploy {
-            downloadLogging.delegate = delegate
-            downloadLogging()            
+            String lastState = getLastState()    
+            if (lastState != null && !lastState.isEmpty()) {
+                run "echo '${lastState}' > state.json"
+            }else{
+                run "echo '{}' > state.json"
+            }           
             run "bash undeploy.sh"
+            out "cat state.json"
         }
     }
 
     flavour {
         name "local_k8s"
-
         deploy {
-            downloadLogging.delegate = delegate
-            downloadLogging()
+            String lastState = getLastState()
+            if (lastState != null && !lastState.isEmpty()) {
+                run "echo '${lastState}' > state.json"
+            }                       
             run "bash deploy.sh"
+            out "cat state.json"
 
             discovery {
                 run "bash discovery.sh"
@@ -110,9 +110,14 @@ Odin.component {
         }
 
         undeploy {
-            downloadLogging.delegate = delegate
-            downloadLogging()
+            String lastState = getLastState()    
+            if (lastState != null && !lastState.isEmpty()) {
+                run "echo '${lastState}' > state.json"
+            }else{
+                run "echo '{}' > state.json"
+            }           
             run "bash undeploy.sh"
+            out "cat state.json"
         }
     }
 }

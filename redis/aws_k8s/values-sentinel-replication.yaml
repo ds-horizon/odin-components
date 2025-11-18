@@ -3,7 +3,7 @@ redisReplication:
   clusterSize: {{ flavourConfig.sentinel.replicationSize | default(3) }}
 
   # Redis image and version mapping from root schema 'version'
-  image: quay.io/opstree/redis
+  image: {{ flavourConfig.image | default('quay.io/opstree/redis') }}
   tag: {% if baseConfig.version == "7.2" %}v7.2.11{% elif baseConfig.version == "7.0" %}v7.0.15{% elif baseConfig.version == "6.2" %}v6.2.14{% else %}v7.0.15{% endif %}
 
   # Image pull policy and resources for data nodes
@@ -18,8 +18,8 @@ redisReplication:
 
 redisExporter:
   enabled: {{ flavourConfig.metrics.enabled | default(true) }}
-  image: quay.io/opstree/redis-exporter
-  tag: "v1.44.0"
+  image: {{ flavourConfig.metrics.redisExporterImage | default('quay.io/opstree/redis-exporter') }}
+  tag: {{ flavourConfig.metrics.redisExporterTag | default('v1.44.0') }}
   imagePullPolicy: {{ flavourConfig.imagePullPolicy | default('IfNotPresent') }}
   resources:
     requests:

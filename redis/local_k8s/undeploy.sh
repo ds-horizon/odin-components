@@ -43,17 +43,24 @@ set -euo pipefail
       ;;
   esac
 
-  # Delete unbound PVCs that belong to this release (leftover from operator defaults)
-  echo ""
-  echo "Checking for unbound PVCs for release ${RELEASE_NAME}..."
-  UNBOUND_PVCS=$(kubectl get pvc -n "${NAMESPACE}" --no-headers 2>/dev/null | grep "${RELEASE_NAME}-" | awk '$2!="Bound"{print $1}' || true)
-  if [[ -n "${UNBOUND_PVCS}" ]]; then
-    echo "Found unbound PVC(s) to delete:"
-    echo "${UNBOUND_PVCS}"
-    kubectl delete pvc -n "${NAMESPACE}" ${UNBOUND_PVCS} || true
-  else
-    echo "No unbound PVCs found for release ${RELEASE_NAME}"
+  if [[ "${DEPLOYMENT_MODE}" == "sentinel" ]]; then
+    # Replication chart creates the PVCs; sentinel chart typically does not.
+    INSTANCE_NAME="${RELEASE_NAME}-replication"
+  else 
+    INSTANCE_NAME="${RELEASE_NAME}-${DEPLOYMENT_MODE}"
   fi
+  echo "Checking for PVCs"
+  PVC_NAMES=$(kubectl get pvc -n ${NAMESPACE} -l app.kubernetes.io/instance=${INSTANCE_NAME} | awk '(NR>1){print $1}')
+
+
+  if [[ -z "${PVC_NAMES}" ]]; then
+    echo "No PVCs found for release ${RELEASE_NAME}"
+    exit 0
+  fi
+
+  echo "Deleting PVCs: ${PVC_NAMES}"
+  echo "${PVC_NAMES}" | xargs kubectl delete pvc -n "${NAMESPACE}"
+  echo "PVCs deleted successfully"
 
   echo ""
   echo "================================================================"

@@ -96,6 +96,16 @@
       },
       "required": ["replicationSize", "sentinelSize", "quorum"]
     },
+    "image": {
+      "type": "string",
+      "description": "Docker image repository (including registry) for Redis data pods (standalone, cluster, replication) in local clusters. If not set, defaults to `quay.io/opstree/redis`. You can point this to your own registry, e.g. a local kind or minikube registry mirror.",
+      "default": "quay.io/opstree/redis"
+    },
+    "sentinelImage": {
+      "type": "string",
+      "description": "Docker image repository (including registry) for Redis Sentinel pods in local clusters. If not set, defaults to `quay.io/opstree/redis-sentinel`. You can point this to your own registry, e.g. a local kind or minikube registry mirror.",
+      "default": "quay.io/opstree/redis-sentinel"
+    },
     "resources": {
       "type": "object",
       "description": "Kubernetes resource requests and limits for Redis pods. Applies to all Redis nodes. Defaults are much smaller than aws_k8s to fit laptops.",
@@ -173,6 +183,16 @@
           "type": "boolean",
           "description": "Enable Redis Exporter sidecar for Prometheus metrics. **Default: `true`**.",
           "default": true
+        },
+        "redisExporterImage": {
+          "type": "string",
+          "description": "Docker image (including registry/repository) for the Redis Exporter sidecar in local clusters. Defaults to the public Opstree exporter image. Override this to point at your own registry mirror.",
+          "default": "quay.io/opstree/redis-exporter"
+        },
+        "redisExporterTag": {
+          "type": "string",
+          "description": "Docker image tag for the Redis Exporter sidecar. **Default: `v1.44.0`**.",
+          "default": "v1.44.0"
         },
         "exporterResources": {
           "type": "object",

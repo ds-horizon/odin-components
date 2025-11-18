@@ -1,11 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source ./logging.sh
+setup_error_handling
 
-# Environment variables from component metadata
-# These are set by the deployment framework or can be provided manually
-: ${RELEASE_NAME:={{ componentMetadata.name }}}
-: ${NAMESPACE:={{ componentMetadata.envName }}}
-: ${DEPLOYMENT_MODE:={{ flavourConfig.deploymentMode }}}
+{
+
+  # Resolve RELEASE_NAME from state.json (to stay in sync with deploy.sh)
+  if [[ -f state.json ]] && jq -e '.releaseName' state.json > /dev/null; then
+    export RELEASE_NAME=$(jq -r '.releaseName' state.json)
+  else
+    echo "ERROR: No state file found for component" 1>&2
+    exit 1
+  fi
+
+  export NAMESPACE={{ componentMetadata.envName }}
+  export DEPLOYMENT_MODE={{ flavourConfig.deploymentMode | default('standalone') }}
 
 # Function to get service endpoint
 get_redis_endpoint() {
@@ -40,6 +49,8 @@ case "${DEPLOYMENT_MODE}" in
     ;;
 esac
 
-# Print the endpoint (this will be captured by the discovery stage)
-echo "${ENDPOINT}"
 
+  # IMPORTANT: print ONLY the JSON on stdout; all other logs go to stderr.
+  echo "{\"primary\":\"${ENDPOINT}\", \"reader\":\"${ENDPOINT}\"}"
+
+} 2> >(log_errors_with_timestamp)

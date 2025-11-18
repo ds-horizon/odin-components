@@ -1,14 +1,38 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source ./logging.sh
+source ./constants
+setup_error_handling
+
+export CURRENT_SHA=""
+
+update_state() {
+  status=$?
+  if [[ $status -eq 0 ]]; then
+    jq -n --arg name "${RELEASE_NAME}" --arg sha "${CURRENT_SHA}" \
+      '{releaseName: $name, sha: $sha}' > state.json
+  fi
+}
+
+trap 'update_state' EXIT
+
+if [[ -f state.json ]] && jq -e '.releaseName' state.json > /dev/null; then
+  export PREVIOUS_SHA=$(jq -r '.sha' state.json)
+  export RELEASE_NAME=$(jq -r '.releaseName' state.json)
+  echo "Using existing RELEASE_NAME from state.json: ${RELEASE_NAME}" | log_with_timestamp
+else
+  export PREVIOUS_SHA=""
+  export RELEASE_NAME={{ componentMetadata.name }}
+  echo "Generated new RELEASE_NAME: ${RELEASE_NAME}" | log_with_timestamp
+fi
+
 
 {
+
   # Environment variables
-  export KUBECONFIG={{ componentMetadata.kubeConfigPath }}
-  export RELEASE_NAME={{ componentMetadata.name }}
   export NAMESPACE={{ componentMetadata.envName }}
   export DEPLOYMENT_MODE={{ flavourConfig.deploymentMode }}
   export REDIS_VERSION={{ baseConfig.version }}
-
   # Helper: wait for pods with a given name prefix to be Running & Ready
   wait_for_pods() {
     local pod_prefix=$1
@@ -16,7 +40,7 @@ set -euo pipefail
     local display_name=$3
 
     echo "Waiting for ${display_name} (expected pods: ${expected_pods})..."
-    local max_wait=1200 # up to 20 minutes
+    local max_wait=1500 # up to 30 minutes
     local waited=0
 
     while [[ ${waited} -lt ${max_wait} ]]; do
@@ -82,7 +106,8 @@ set -euo pipefail
       HELM_RELEASE="${RELEASE_NAME}-standalone"
       VALUES_FILE="${SCRIPT_DIR}/values-standalone.yaml"
 
-      helm upgrade "${HELM_RELEASE}" ot-helm/redis \
+      helm upgrade "${HELM_RELEASE}" ${HELM_REPO}/${REDIS_CHART_NAME} \
+        --version ${REDIS_CHART_VERSION} \
         --install \
         --namespace "${NAMESPACE}" \
         -f "${VALUES_FILE}" \
@@ -100,7 +125,8 @@ set -euo pipefail
       REPL_RELEASE="${RELEASE_NAME}-replication"
       REPL_VALUES_FILE="${SCRIPT_DIR}/values-sentinel-replication.yaml"
 
-      helm upgrade "${REPL_RELEASE}" ot-helm/redis-replication \
+      helm upgrade "${REPL_RELEASE}" ${HELM_REPO}/${REDIS_REPLICATION_CHART_NAME} \
+        --version ${REDIS_REPLICATION_CHART_VERSION} \
         --install \
         --namespace "${NAMESPACE}" \
         -f "${REPL_VALUES_FILE}" \
@@ -114,7 +140,8 @@ set -euo pipefail
       SENTINEL_RELEASE="${RELEASE_NAME}-sentinel"
       SENTINEL_VALUES_FILE="${SCRIPT_DIR}/values-sentinel-sentinel.yaml"
 
-      helm upgrade "${SENTINEL_RELEASE}" ot-helm/redis-sentinel \
+      helm upgrade "${SENTINEL_RELEASE}" ${HELM_REPO}/${REDIS_SENTINEL_CHART_NAME} \
+        --version ${REDIS_SENTINEL_CHART_VERSION} \
         --install \
         --namespace "${NAMESPACE}" \
         -f "${SENTINEL_VALUES_FILE}" \
@@ -130,7 +157,8 @@ set -euo pipefail
       HELM_RELEASE="${RELEASE_NAME}-cluster"
       VALUES_FILE="${SCRIPT_DIR}/values-cluster.yaml"
 
-      helm upgrade "${HELM_RELEASE}" ot-helm/redis-cluster \
+      helm upgrade "${HELM_RELEASE}" ${HELM_REPO}/${REDIS_CLUSTER_CHART_NAME} \
+        --version ${REDIS_CLUSTER_CHART_VERSION} \
         --install \
         --namespace "${NAMESPACE}" \
         -f "${VALUES_FILE}" \
@@ -156,4 +184,4 @@ set -euo pipefail
   echo "Deployment completed!"
   echo "================================================================"
 
-}
+} 2> >(log_errors_with_timestamp) | log_with_timestamp

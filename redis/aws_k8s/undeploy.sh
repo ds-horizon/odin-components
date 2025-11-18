@@ -1,23 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# source ./logging.sh
-# setup_error_handling
+source ./logging.sh
+setup_error_handling
 
 {
   # Environment variables
-  export KUBECONFIG={{ componentMetadata.kubeConfigPath }}
   export RELEASE_NAME={{ componentMetadata.name }}
   export NAMESPACE={{ componentMetadata.envName }}
   export DEPLOYMENT_MODE={{ flavourConfig.deploymentMode | default('standalone') }}
 
-  echo "================================================================"
-  echo "Redis Undeployment - Opstree Operator (Helm-managed)"
-  echo "================================================================"
-  echo "Release Name: ${RELEASE_NAME}"
-  echo "Namespace: ${NAMESPACE}"
-  echo "Deployment Mode: ${DEPLOYMENT_MODE}"
-  echo "================================================================"
-  echo ""
+  if [[ -f state.json ]] && jq -e '.releaseName' state.json > /dev/null; then
+    RELEASE_NAME=$(jq -r '.releaseName' state.json)
+    echo "Using existing RELEASE_NAME from state.json: ${RELEASE_NAME}"
+  else
+    echo "No state file found for component" 1>&2
+    exit 1
+  fi 
 
   # Check if namespace exists
   if ! kubectl get namespace ${NAMESPACE} &>/dev/null; then
@@ -45,18 +43,26 @@ set -euo pipefail
       ;;    
   esac
 
-  # Delete unbound PVCs that belong to this release (leftover from operator defaults)
-  echo ""
-  echo "Checking for unbound PVCs for release ${RELEASE_NAME}..."
-  UNBOUND_PVCS=$(kubectl get pvc -n "${NAMESPACE}" --no-headers 2>/dev/null | grep "${RELEASE_NAME}-${DEPLOYMENT_MODE}" | awk '$2!="Bound"{print $1}' || true)
-  if [[ -n "${UNBOUND_PVCS}" ]]; then
-    echo "Found unbound PVC(s) to delete:"
-    echo "${UNBOUND_PVCS}"
-    kubectl delete pvc -n "${NAMESPACE}" ${UNBOUND_PVCS} || true
-  else
-    echo "No unbound PVCs found for release ${RELEASE_NAME}"
+
+
+  if [[ "${DEPLOYMENT_MODE}" == "sentinel" ]]; then
+    # Replication chart creates the PVCs; sentinel chart typically does not.
+    INSTANCE_NAME="${RELEASE_NAME}-replication"
+  else 
+    INSTANCE_NAME="${RELEASE_NAME}-${DEPLOYMENT_MODE}"
+  fi
+  echo "Checking for PVCs"
+  PVC_NAMES=$(kubectl get pvc -n ${NAMESPACE} -l app.kubernetes.io/instance=${INSTANCE_NAME} | awk '(NR>1){print $1}')
+
+
+  if [[ -z "${PVC_NAMES}" ]]; then
+    echo "No PVCs found for release ${RELEASE_NAME}"
+    exit 0
   fi
 
+  echo "Deleting PVCs: ${PVC_NAMES}"
+  echo "${PVC_NAMES}" | xargs kubectl delete pvc -n "${NAMESPACE}"
+  echo "PVCs deleted successfully"
 
 
   echo ""
@@ -71,5 +77,5 @@ set -euo pipefail
   echo "================================================================"
   echo ""
 
-}
+} 2> >(log_errors_with_timestamp) | log_with_timestamp
 
