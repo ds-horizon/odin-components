@@ -220,11 +220,11 @@ public class RedisService {
       return;
     }
     if (updateReplicaCountConfig.getReplicasPerNodeGroup() > current) {
-      log.info("Calling increaseReplicaCount with replicationGroupId: {}, newReplicaCount: {}",
+      log.info("Increasing replica count to {} for replication group id: {}",
           replicationGroupId, updateReplicaCountConfig.getReplicasPerNodeGroup());
       redisClient.increaseReplicaCount(replicationGroupId, updateReplicaCountConfig.getReplicasPerNodeGroup());
     } else {
-      log.info("Calling decreaseReplicaCount with replicationGroupId: {}, newReplicaCount: {}",
+      log.info("Decreasing replica count to {} for replication group id: {}",
           replicationGroupId, updateReplicaCountConfig.getReplicasPerNodeGroup());
       redisClient.decreaseReplicaCount(replicationGroupId, updateReplicaCountConfig.getReplicasPerNodeGroup());
     }
@@ -263,7 +263,7 @@ public class RedisService {
         updateNodeGroupCountConfig.getNumNodeGroups());
     log.info("Node group count updated successfully for replication group: {}", replicationGroupId);
     log.info("Waiting for Replication group to become available: {}", replicationGroupId);
-    this.waitUntilReplicationGroupAvailable(
+    waitUntilReplicationGroupAvailable(
         replicationGroupId,
         Constants.REPLICATION_GROUP_WAIT_RETRY_TIMEOUT,
         Constants.REPLICATION_GROUP_WAIT_RETRY_INTERVAL);
