@@ -22,7 +22,7 @@ public class Constants {
   public final int AWS_CLIENT_RETRY_DELAY_SECONDS = 3;
   public final int AWS_CLIENT_RETRY_MAX_BACKOFF_SECONDS = 3;
   public final int AWS_CLIENT_MAX_ATTEMPTS_SECONDS = 3;
-  public final Duration REPLICATION_GROUP_WAIT_RETRY_TIMEOUT = Duration.ofMinutes(20);
+  public final Duration REPLICATION_GROUP_WAIT_RETRY_TIMEOUT = Duration.ofMinutes(60);
   public final Duration REPLICATION_GROUP_WAIT_RETRY_INTERVAL = Duration.ofMillis(5000);
   public final Duration AWS_CLIENT_API_CALL_TIMEOUT = Duration.ofMinutes(2);
   public final Duration AWS_CLIENT_API_CALL_ATTEMPT_TIMEOUT = Duration.ofSeconds(30);

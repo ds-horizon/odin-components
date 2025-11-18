@@ -1,0 +1,13 @@
+{
+    "type": "object",
+    "title": "add node group to elasticache",
+    "properties": {
+      "numNodeGroups": {
+        "description": "No of shards to be added",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "numNodeGroups"
+    ]
+  }
