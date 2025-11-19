@@ -209,9 +209,11 @@ The `local_k8s/schema.json` file mirrors the `aws_k8s` schema but with **smaller
 | `deploymentMode`      | string  | **Yes**  | `standalone` \| `sentinel` \| `cluster`.                                                                    |
 | `cluster`             | object  | When `deploymentMode = "cluster"` | `clusterSize` (masters), `replicasPerMaster` (replicas per master).          |
 | `sentinel`            | object  | When `deploymentMode = "sentinel"` | `replicationSize`, `sentinelSize`, `quorum`, and failover timers.        |
+| `image`               | string  | No       | Docker image (including registry/repository) for **Redis data pods**. Defaults to `quay.io/opstree/redis`.  |
+| `sentinelImage`       | string  | No       | Docker image for **Redis Sentinel pods**. Defaults to `quay.io/opstree/redis-sentinel`.                      |
 | `resources`           | object  | **Yes**  | Global CPU/memory `requests` and `limits` for all Redis pods (tuned low for local usage).                   |
 | `storage`             | object  | **Yes**  | `storageClassName` (default `""`), `storageSize` (default `1Gi`), `nodeConfStorageSize` (default `256Mi`).  |
-| `metrics`             | object  | No       | `enabled` (default `true`), `exporterResources` for the `redis-exporter` sidecar.                           |
+| `metrics`             | object  | No       | `enabled` (default `true`), `redisExporterImage`, `redisExporterTag`, and `exporterResources` for the `redis-exporter` sidecar. |
 | `securityContext`     | object  | No       | `runAsNonRoot`, `runAsUser`, `fsGroup` (defaults 1000).                                                     |
 | `nodeSelector`        | object  | No       | Optional node selector for constraining pods.                                                               |
 | `tolerations`         | array   | No       | Optional tolerations for tainted nodes.                                                                     |
@@ -222,9 +224,13 @@ The `local_k8s/schema.json` file mirrors the `aws_k8s` schema but with **smaller
 
 Redis version is still taken from the **root** `redis/schema.json` (`baseConfig.version`), and is mapped to concrete image tags in the local values files:
 
-- `6.2` → `quay.io/opstree/redis:v6.2.14`
-- `7.0` → `quay.io/opstree/redis:v7.0.15`
-- `7.2` → `quay.io/opstree/redis:v7.2.11`
+| `baseConfig.version` | Tag used for Redis / Sentinel images |
+|----------------------|---------------------------------------|
+| `6.2`                | `v6.2.14`                             |
+| `7.0`                | `v7.0.15`                             |
+| `7.2`                | `v7.2.11`                             |
+
+The **repository** comes from `image` (for Redis data pods) and `sentinelImage` (for Sentinel pods); by default these point at the public Opstree images, but you can override them to use a local registry mirror (e.g. kind/minikube registry).
 
 Cluster mode with `version: "6.2"` is rejected for the same reasons as in `aws_k8s` (image does not support `cluster-announce-hostname`).
 

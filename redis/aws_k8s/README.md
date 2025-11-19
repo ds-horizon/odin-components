@@ -91,11 +91,20 @@ Logical Redis versions from the root schema are mapped to concrete Opstree image
 
 | `baseConfig.version` | Redis image tag                      |
 |----------------------|--------------------------------------|
-| `6.2`                | `quay.io/opstree/redis:v6.2.14`      |
-| `7.0`                | `quay.io/opstree/redis:v7.0.15`      |
-| `7.2`                | `quay.io/opstree/redis:v7.2.11`      |
+| `6.2`                | `v6.2.14`                            |
+| `7.0`                | `v7.0.15`                            |
+| `7.2`                | `v7.2.11`                            |
 
-Sentinel uses matching tags from `quay.io/opstree/redis-sentinel:<tag>`.
+These tags are applied to:
+
+- Data pods (standalone / cluster / replication):  
+  `flavourConfig.image` (schema: `image`) → defaults to `quay.io/opstree/redis:<tag>`.
+- Sentinel pods:  
+  `flavourConfig.sentinelImage` (schema: `sentinelImage`) → defaults to `quay.io/opstree/redis-sentinel:<tag>`.
+
+If you override `image` / `sentinelImage`, the tag is still chosen from `baseConfig.version` using the table above, but the **registry/repository** can be your own (for example an internal ECR mirror).
+
+The Prometheus exporter image is controlled independently via `metrics.redisExporterImage` and `metrics.redisExporterTag` (defaulting to `quay.io/opstree/redis-exporter:v1.44.0`).
 
 ### Schema fields actually used (aws_k8s/schema.json)
 
@@ -239,9 +248,11 @@ The current Helm/operator implementation uses the schema defined in `aws_k8s/sch
 | `deploymentMode`        | string    | **Yes**  | Redis mode: `standalone`, `sentinel`, or `cluster`.                                                          |
 | `cluster`               | object    | When `deploymentMode = "cluster"` | Cluster topology: `clusterSize` (masters), `replicasPerMaster`.                                |
 | `sentinel`              | object    | When `deploymentMode = "sentinel"` | Sentinel topology and timings: `replicationSize`, `sentinelSize`, `quorum`, etc.              |
+| `image`                 | string    | No       | Docker image (including registry/repository) for **Redis data pods**. Defaults to `quay.io/opstree/redis`.  |
+| `sentinelImage`         | string    | No       | Docker image for **Redis Sentinel pods**. Defaults to `quay.io/opstree/redis-sentinel`.                      |
 | `resources`             | object    | **Yes**  | CPU/memory `requests` and `limits` applied to all Redis pods (masters, replicas, sentinels, cluster nodes).  |
 | `storage`               | object    | **Yes**  | PVC configuration: `storageClassName`, `storageSize`, `nodeConfStorageSize` (for cluster mode).             |
-| `metrics`               | object    | No       | Controls `redis-exporter` sidecar (`enabled`, `exporterResources`).                                          |
+| `metrics`               | object    | No       | Controls `redis-exporter` sidecar (`enabled`, `redisExporterImage`, `redisExporterTag`, `exporterResources`).|
 | `securityContext`       | object    | No       | `runAsNonRoot`, `runAsUser`, `fsGroup` for pod security context.                                             |
 | `nodeSelector`          | object    | No       | Optional node selection constraints.                                                                         |
 | `tolerations`           | array     | No       | Optional taint tolerations for scheduling.                                                                   |
