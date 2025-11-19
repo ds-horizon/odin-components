@@ -21,15 +21,10 @@ import java.util.stream.Stream;
 import lombok.SneakyThrows;
 import lombok.experimental.UtilityClass;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.RandomStringUtils;
 
 @UtilityClass
 @Slf4j
 public class ApplicationUtil {
-
-  public String generateRandomId(int length) {
-    return RandomStringUtils.randomAlphanumeric(length);
-  }
 
   public <T> List<T> getServicesWithCategory(
       ComponentMetadata componentMetadata, String category, Class<T> clazz) {
