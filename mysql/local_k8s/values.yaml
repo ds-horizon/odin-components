@@ -1,0 +1,127 @@
+image:
+  registry: {{ flavourConfig.image.registry }}
+  repository: {{ flavourConfig.image.repository }}
+
+auth:
+  username: {{ baseConfig.username }}
+  password: {{ baseConfig.password }}
+
+global:
+  imagePullSecrets:
+  {%- for secret in componentMetadata.cloudProviderDetails.account.services | selectattr('category', 'eq', 'KUBERNETES') | map(attribute='data') | map(attribute='pullSecrets') %}
+  {%- if secret %}
+      - "{{ secret }}"
+  {%- endif %}
+  {%- endfor %}
+  
+{% if flavourConfig.reader.replicaCount == 0 %}
+architecture: standalone
+{% else %}
+architecture: replication
+{% endif %}
+
+{% set accountServiceAnnotations = componentMetadata.cloudProviderDetails.account.services | selectattr('category', 'eq', 'KUBERNETES') | map(attribute='data') | map(attribute='serviceAnnotations') | list | first | default({}) %}
+{% set writerFlavourAnnotations = flavourConfig.writer.serviceAnnotations | default({}) %}
+{% set readerFlavourAnnotations = flavourConfig.reader.serviceAnnotations | default({}) %}
+{%- set ns = namespace(writerServiceAnnotations={}, readerServiceAnnotations={}) %}
+{%- set _ = ns.writerServiceAnnotations.update(accountServiceAnnotations) %}
+{%- set _ = ns.readerServiceAnnotations.update(accountServiceAnnotations) %}
+{%- set _ = ns.writerServiceAnnotations.update(writerFlavourAnnotations) %}
+{%- set _ = ns.readerServiceAnnotations.update(readerFlavourAnnotations) %}
+{%- set writerServiceAnnotations = ns.writerServiceAnnotations %}
+{%- set readerServiceAnnotations = ns.readerServiceAnnotations %}
+
+primary:
+  resources:
+    requests:
+      memory: {{ flavourConfig.writer.resources.requests.memory }}
+      cpu: {{ flavourConfig.writer.resources.requests.cpu }}
+      ephemeral-storage: {{ flavourConfig.writer.resources.requests.ephemeralStorage }}
+    limits:
+      memory: {{ flavourConfig.writer.resources.limits.memory }}
+      cpu: {{ flavourConfig.writer.resources.limits.cpu }}
+      ephemeral-storage: {{ flavourConfig.writer.resources.limits.ephemeralStorage }}
+
+  {%- if writerServiceAnnotations %}
+  service:
+    annotations:
+  {%- for key,value in writerServiceAnnotations.items() %}
+      {{ key }}: "{{ value }}"
+  {%- endfor %}
+  {%- endif %}
+
+
+  configuration: |-
+    [mysqld]
+    server-id=1
+    default_authentication_plugin=mysql_native_password
+    skip-name-resolve
+    explicit_defaults_for_timestamp
+    basedir=/opt/bitnami/mysql
+    plugin_dir=/opt/bitnami/mysql/lib/plugin
+    port=3306
+    socket=/opt/bitnami/mysql/tmp/mysql.sock
+    datadir=/bitnami/mysql/data
+    tmpdir=/opt/bitnami/mysql/tmp
+    max_allowed_packet=16M
+    bind-address=0.0.0.0
+    pid-file=/opt/bitnami/mysql/tmp/mysqld.pid
+    log-error=/opt/bitnami/mysql/logs/mysqld.log
+    character-set-server=UTF8
+    collation-server=utf8_general_ci
+    {% if flavourConfig.binlog.enabled %}
+    {% for key,value in flavourConfig.binlog.configuration.items() %}
+    {{ key }}={{ value }}
+    {% endfor %}
+    {% endif %}
+    [client]
+    port=3306
+    socket=/opt/bitnami/mysql/tmp/mysql.sock
+    default-character-set=UTF8
+    plugin_dir=/opt/bitnami/mysql/lib/plugin
+    [manager]
+    port=3306
+    socket=/opt/bitnami/mysql/tmp/mysql.sock
+    pid-file=/opt/bitnami/mysql/tmp/mysqld.pid
+
+secondary: 
+  resources:
+    requests:
+      memory: {{ flavourConfig.reader.resources.requests.memory }}
+      cpu: {{ flavourConfig.reader.resources.requests.cpu }}
+      ephemeral-storage: {{ flavourConfig.reader.resources.requests.ephemeralStorage }}
+    limits:
+      memory: {{ flavourConfig.reader.resources.limits.memory }}
+      cpu: {{ flavourConfig.reader.resources.limits.cpu }}
+      ephemeral-storage: {{ flavourConfig.reader.resources.limits.ephemeralStorage }}
+
+  {%- if readerServiceAnnotations %}
+  service:
+    annotations:
+  {%- for key,value in readerServiceAnnotations.items() %}
+      {{ key }}: "{{ value }}"
+  {%- endfor %}
+  {%- endif %}
+
+  replicaCount: {{ flavourConfig.reader.replicaCount }}
+  {% if flavourConfig.reader.persistence.size %}
+  persistence:
+    enabled: true
+    size: {{ flavourConfig.reader.persistence.size }}
+  {% endif %}
+
+initdbScripts:
+  init.sh: |
+    #!/bin/bash
+    if [[ "${MYSQL_REPLICATION_MODE}" == "master" ]]; then
+    mysql -u root -p${MYSQL_ROOT_PASSWORD} << EOF
+    GRANT ALL PRIVILEGES ON * . * TO '$MYSQL_USER'@'%';
+    FLUSH PRIVILEGES;
+    EOF
+    fi
+
+metrics:
+  enabled: {{ flavourConfig.metrics.enabled }}
+  image:
+    registry: {{ flavourConfig.metrics.image.registry }}
+    repository: {{ flavourConfig.metrics.image.repository }}

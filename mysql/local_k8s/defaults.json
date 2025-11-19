@@ -1,0 +1,50 @@
+{
+  
+  "image": {
+    "registry": "docker.io",
+    "repository": "bitnamilegacy/mysql",
+    "tagSuffix": ".23"
+  },
+  "reader": {
+    "resources": {
+      "limits": {
+        "cpu": "200m",
+        "ephemeralStorage": "500Mi",
+        "memory": "512Mi"
+      },
+      "requests": {
+        "cpu": "100m",
+        "ephemeralStorage": "500Mi",
+        "memory": "256Mi"
+      }
+    },
+    "persistence": {
+      "size": "2Gi"
+    },
+    "replicaCount": 1
+  },
+  "writer": {
+    "resources": {
+      "limits": {
+        "cpu": "200m",
+        "ephemeralStorage": "500Mi",
+        "memory": "512Mi"
+      },
+      "requests": {
+        "cpu": "100m",
+        "ephemeralStorage": "500Mi",
+        "memory": "256Mi"
+      }
+    },
+    "persistence": {
+      "size": "2Gi"
+    }
+  },
+  "metrics": {
+    "enabled": true,
+    "image": {
+      "registry": "docker.io",
+      "repository": "bitnamilegacy/mysqld-exporter"
+    }
+  }
+}

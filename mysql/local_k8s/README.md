@@ -1,19 +1,18 @@
-## aws_k8s Flavor
+## local_k8s Flavor
 
-Deploy your MySQL in container
+Deploy your MySQL in local container
 
 ### Container provisioning configuration
 
 #### Properties
 
-| Property       | Type               | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                           |
-|----------------|--------------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `image`        | [object](#image)   | **Yes**  | MySQL Docker image configuration                                                                                                                                                                                                                                                                                                                                                                                      |
-| `reader`       | [object](#reader)  | **Yes**  |                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `storageClass` | string             | **Yes**  | Kubernetes storage class for MySQL persistent volumes. Determines storage performance, availability, and backup characteristics (e.g., gp3, io1, ssd). Affects database I/O performance and data durability. Choose based on IOPS requirements and backup policies. **Required:** Must exist in cluster. **Production:** Use high-performance storage (SSD/NVMe) with snapshot capabilities for production workloads. |
-| `writer`       | [object](#writer)  | **Yes**  |                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `binlog`       | [object](#binlog)  | No       | MySQL binary logging configuration                                                                                                                                                                                                                                                                                                                                                                                    |
-| `metrics`      | [object](#metrics) | No       | MySQL metrics exporter configuration                                                                                                                                                                                                                                                                                                                                                                                  |
+| Property  | Type               | Required | Description                          |
+|-----------|--------------------|----------|--------------------------------------|
+| `image`   | [object](#image)   | **Yes**  | MySQL Docker image configuration     |
+| `reader`  | [object](#reader)  | **Yes**  |                                      |
+| `writer`  | [object](#writer)  | **Yes**  |                                      |
+| `binlog`  | [object](#binlog)  | No       | MySQL binary logging configuration   |
+| `metrics` | [object](#metrics) | No       | MySQL metrics exporter configuration |
 
 #### binlog
 
@@ -72,18 +71,9 @@ MySQL metrics exporter configuration
 | Property             | Type                          | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 |----------------------|-------------------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `resources`          | [object](#resources)          | **Yes**  |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `nodeSelector`       | [object](#nodeselector)       | No       | Node label selectors for MySQL writer pod placement. Constrains writer pods to nodes with matching labels (e.g., disktype=ssd, tier=database). Use to ensure pods run on nodes with appropriate hardware, zones, or compliance requirements. Empty object allows scheduling on any node. **Default: `{}`** (no constraints). **Production:** Use node selectors for dedicated DB nodes with high-performance disks and network.                                                     |
 | `persistence`        | [object](#persistence)        | No       |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `replicaCount`       | integer                       | No       | Number of MySQL reader replicas for read scaling and high availability. Increase for production workloads requiring read scalability or HA. Each replica adds storage and compute costs. **Default: `0`** (standalone setup for dev/testing). **Production:** 2+ replicas recommended for HA across availability zones.                                                                                                                                                             |
 | `serviceAnnotations` | [object](#serviceannotations) | No       | Kubernetes annotations to apply to the MySQL writer service. Adds custom metadata for service discovery, load balancers, or cloud provider integrations (e.g., AWS NLB annotations, service mesh configs). Annotations enable features like internal load balancers, connection draining, or custom DNS entries. **Default: `{}`** (no annotations). **Production:** Use for cloud-specific LB configurations, monitoring integrations, or service mesh sidecar injection policies. |
-| `tolerations`        | [object](#tolerations)[]      | No       | Pod tolerations for MySQL writer to schedule on tainted nodes. Allows writer pods to run on nodes with specific taints (e.g., dedicated database nodes). Use to isolate database workloads on specialized hardware or availability zones. Empty array schedules on any available node. **Default: `[]`** (no tolerations). **Production:** Use dedicated node pools with taints for database isolation and predictable performance.                                                 |
-
-##### nodeSelector
-
-Node label selectors for MySQL writer pod placement. Constrains writer pods to nodes with matching labels (e.g., disktype=ssd, tier=database). Use to ensure pods run on nodes with appropriate hardware, zones, or compliance requirements. Empty object allows scheduling on any node. **Default: `{}`** (no constraints). **Production:** Use node selectors for dedicated DB nodes with high-performance disks and network.
-
-| Property | Type | Required | Description |
-|----------|------|----------|-------------|
 
 ##### persistence
 
@@ -132,18 +122,6 @@ Kubernetes annotations to apply to the MySQL writer service. Adds custom metadat
 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
-
-##### tolerations
-
-###### Properties
-
-| Property            | Type    | Required | Description                                                         |
-|---------------------|---------|----------|---------------------------------------------------------------------|
-| `key`               | string  | **Yes**  |                                                                     |
-| `operator`          | string  | **Yes**  | Possible values are: `Equal`, `Exists`.                             |
-| `effect`            | string  | No       | Possible values are: `NoSchedule`, `PreferNoSchedule`, `NoExecute`. |
-| `tolerationSeconds` | integer | No       |                                                                     |
-| `value`             | string  | No       |                                                                     |
 
 #### writer
 
@@ -152,17 +130,8 @@ Kubernetes annotations to apply to the MySQL writer service. Adds custom metadat
 | Property             | Type                          | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 |----------------------|-------------------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `resources`          | [object](#resources)          | **Yes**  |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `nodeSelector`       | [object](#nodeselector)       | No       | Node label selectors for MySQL writer pod placement. Constrains writer pods to nodes with matching labels (e.g., disktype=ssd, tier=database). Use to ensure pods run on nodes with appropriate hardware, zones, or compliance requirements. Empty object allows scheduling on any node. **Default: `{}`** (no constraints). **Production:** Use node selectors for dedicated DB nodes with high-performance disks and network.                                                     |
 | `persistence`        | [object](#persistence)        | No       |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `serviceAnnotations` | [object](#serviceannotations) | No       | Kubernetes annotations to apply to the MySQL writer service. Adds custom metadata for service discovery, load balancers, or cloud provider integrations (e.g., AWS NLB annotations, service mesh configs). Annotations enable features like internal load balancers, connection draining, or custom DNS entries. **Default: `{}`** (no annotations). **Production:** Use for cloud-specific LB configurations, monitoring integrations, or service mesh sidecar injection policies. |
-| `tolerations`        | [object](#tolerations)[]      | No       | Pod tolerations for MySQL writer to schedule on tainted nodes. Allows writer pods to run on nodes with specific taints (e.g., dedicated database nodes). Use to isolate database workloads on specialized hardware or availability zones. Empty array schedules on any available node. **Default: `[]`** (no tolerations). **Production:** Use dedicated node pools with taints for database isolation and predictable performance.                                                 |
-
-##### nodeSelector
-
-Node label selectors for MySQL writer pod placement. Constrains writer pods to nodes with matching labels (e.g., disktype=ssd, tier=database). Use to ensure pods run on nodes with appropriate hardware, zones, or compliance requirements. Empty object allows scheduling on any node. **Default: `{}`** (no constraints). **Production:** Use node selectors for dedicated DB nodes with high-performance disks and network.
-
-| Property | Type | Required | Description |
-|----------|------|----------|-------------|
 
 ##### persistence
 
@@ -211,17 +180,5 @@ Kubernetes annotations to apply to the MySQL writer service. Adds custom metadat
 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
-
-##### tolerations
-
-###### Properties
-
-| Property            | Type    | Required | Description                                                         |
-|---------------------|---------|----------|---------------------------------------------------------------------|
-| `key`               | string  | **Yes**  |                                                                     |
-| `operator`          | string  | **Yes**  | Possible values are: `Equal`, `Exists`.                             |
-| `effect`            | string  | No       | Possible values are: `NoSchedule`, `PreferNoSchedule`, `NoExecute`. |
-| `tolerationSeconds` | integer | No       |                                                                     |
-| `value`             | string  | No       |                                                                     |
 
 
