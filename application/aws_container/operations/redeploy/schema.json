@@ -1,0 +1,360 @@
+{
+  "title": "AWS container redeploy operation schema",
+  "type": "object",
+  "properties": {
+    "artifact": {
+      "type": "object",
+      "description": "Application artifact properties",
+      "properties": {
+        "version": {
+          "type": "string",
+          "description": "Version of the artifact"
+        },
+        "hooks": {
+          "type": "object",
+          "description": "Hooks present in the artifact",
+          "properties": {
+            "start": {
+              "type": "object",
+              "description": "Start up hook",
+              "properties": {
+                "script": {
+                  "type": "string",
+                  "description": "Script path relative to the artifact"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Whether to enable this hook?"
+                }
+              },
+              "additionalProperties": false,
+              "required": []
+            },
+            "stop": {
+              "type": "object",
+              "description": "Stop application hook",
+              "properties": {
+                "script": {
+                  "type": "string",
+                  "description": "Script path relative to the artifact"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Whether to enable this hook?"
+                }
+              },
+              "additionalProperties": false,
+              "required": []
+            },
+            "preDeploy": {
+              "type": "object",
+              "description": "Pre deployment hook",
+              "properties": {
+                "script": {
+                  "type": "string",
+                  "description": "Script path relative to the artifact"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Whether to enable this hook?"
+                },
+                "dockerImage": {
+                  "type": "string",
+                  "description": "Docker image in which the script will run"
+                }
+              },
+              "additionalProperties": false,
+              "required": []
+            },
+            "postDeploy": {
+              "type": "object",
+              "description": "Post deployment hook",
+              "properties": {
+                "script": {
+                  "type": "string",
+                  "description": "Script path relative to the artifact"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Whether to enable this hook?"
+                },
+                "dockerImage": {
+                  "type": "string",
+                  "description": "Docker image in which the script will run"
+                }
+              },
+              "additionalProperties": false,
+              "required": []
+            },
+            "imageSetup": {
+              "type": "object",
+              "description": "Image setup hook. Execute a custom script before creating the image",
+              "properties": {
+                "script": {
+                  "type": "string",
+                  "description": "Script path relative to the artifact"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Whether to enable this hook?"
+                }
+              },
+              "additionalProperties": false,
+              "required": []
+            }
+          },
+          "additionalProperties": false,
+          "required": []
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "version"
+      ]
+    },
+    "baseImage": {
+      "type": "object",
+      "description": "The base image to use for the container",
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "The repository of the base image"
+        },
+        "tag": {
+          "type": "string",
+          "description": "The tag of the base image"
+        }
+      },
+      "additionalProperties": false,
+      "required": []
+    },
+    "tolerations": {
+      "type": "array",
+      "description": "Tolerations for the application pods",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "The key of the toleration"
+          },
+          "operator": {
+            "type": "string",
+            "description": "The operator of the toleration. Defaults to Equal",
+            "enum": [
+              "Equal",
+              "Exists"
+            ]
+          },
+          "value": {
+            "type": "string",
+            "description": "The value of the toleration"
+          },
+          "effect": {
+            "type": "string",
+            "description": "The effect of the toleration. Defaults to NoSchedule",
+            "enum": [
+              "NoSchedule",
+              "PreferNoSchedule",
+              "NoExecute"
+            ]
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "operator": {
+                  "const": "Exists"
+                }
+              },
+              "required": ["operator"]
+            },
+            "then": {
+              "required": ["key"]
+            },
+            "else": {
+              "required": ["key", "value"]
+            }
+          }
+        ]
+      }
+    },
+    "nodeSelector": {
+      "type": "object",
+      "description": "Node selector for the application pods",
+      "properties": {
+      }
+    },
+    "extraEnvVars": {
+      "type": "object",
+      "description": "Extra environment variables to pass to application",
+      "properties": {
+      }
+    },
+    "resources": {
+      "type": "object",
+      "description": "The resources to allocate for the container",
+      "additionalProperties": false,
+      "properties": {
+        "requests": {
+          "type": "object",
+          "description": "The resource requests for the container",
+          "additionalProperties": false,
+          "properties": {
+            "cpu": {
+              "type": "string",
+              "description": "The amount of CPU to request for the container, e.g. 0.5"
+            },
+            "memory": {
+              "type": "string",
+              "description": "The amount of memory to request for the container, e.g. 512Mi"
+            }
+          },
+          "required": []
+        },
+        "limits": {
+          "type": "object",
+          "description": "The resource limits for the container",
+          "additionalProperties": false,
+          "properties": {
+            "cpu": {
+              "type": "string",
+              "description": "The amount of CPU to limit for the container, e.g. 0.5"
+            },
+            "memory": {
+              "type": "string",
+              "description": "The amount of memory to limit for the container, e.g. 512Mi"
+            }
+          },
+          "required": []
+        }
+      },
+      "required": []
+    },
+    "replicas": {
+      "type": "integer",
+      "description": "Number of replicas to deploy"
+    },
+    "strategy": {
+      "type": "object",
+      "description": "Deployment strategy configuration",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of deployment strategy",
+          "enum": [
+            "blue-green"
+          ]
+        },
+        "config": {
+          "type": "object",
+          "description": "Deployment strategy configuration"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "name": {
+                "const": "blue-green"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "config": {
+                "properties": {
+                  "autoRouting": {
+                    "type": "boolean",
+                    "description": "Whether to route traffic after successful deployment?"
+                  },
+                  "canary": {
+                    "type": "object",
+                    "description": "Canary configuration",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "description": "Enable canary analysis?"
+                      },
+                      "errorThreshold": {
+                        "type": "object",
+                        "description": "Error tolerance during canary analysis",
+                        "properties": {
+                          "metric": {
+                            "type": "string",
+                            "description": "Error metric",
+                            "enum": [
+                              "absolute",
+                              "percentage"
+                            ]
+                          },
+                          "value": {
+                            "type": "number",
+                            "description": "Value of error metric"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "steps": {
+                        "type": "object",
+                        "description": "Canary step configuration",
+                        "properties": {
+                          "weight": {
+                            "type": "number",
+                            "description": "Increase weight by amount in each step"
+                          },
+                          "count": {
+                            "type": "number",
+                            "description": "Number of steps",
+                            "minimum": 1
+                          },
+                          "duration": {
+                            "type": "number",
+                            "description": "Time to wait for each step in seconds"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "passiveDownscale": {
+                    "type": "object",
+                    "description": "Whether to downscale passive ASG/LCU after successful traffic routing?",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "description": "Enable passive ASG/LCU downscaling?"
+                      },
+                      "delay": {
+                        "type": "number",
+                        "description": "Time to wait before downscaling passive ASG/LCU"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      ],
+      "required": [
+        "name",
+        "config"
+      ]
+    },
+    "tags": {
+      "type": "object",
+      "description": "Custom labels to add to created resources",
+      "properties": {
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "artifact"
+  ]
+}

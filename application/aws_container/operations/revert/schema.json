@@ -1,0 +1,6 @@
+{
+  "title": "Revert operation schema",
+  "type": "object",
+  "properties": {},
+  "additionalProperties": false
+}

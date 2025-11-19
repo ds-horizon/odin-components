@@ -1,0 +1,14 @@
+{
+    "title": "Scale operation schema",
+    "type": "object",
+    "properties": {
+        "replicas": {
+            "type": "integer",
+            "description": "Number of replicas to deploy"
+        }
+    },
+    "additionalProperties": false,
+    "required": [
+        "replicas"
+    ]
+}

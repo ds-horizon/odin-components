@@ -1,0 +1,368 @@
+{
+    "title": "Chart Values",
+    "type": "object",
+    "properties": {
+        "replicaCount": {
+            "type": "number",
+            "description": "Number of replicas when HPA is disabled",
+            "default": 1
+        },
+        "name": {
+            "type": "string",
+            "description": "Short name used in resource names/labels",
+            "default": "reckon"
+        },
+        "namespace": {
+            "type": "string",
+            "description": "Target namespace used by HPA resource",
+            "default": ""
+        },
+        "org": {
+            "type": "string",
+            "description": "Organization label root",
+            "default": "d11"
+        },
+        "enableServiceLinks": {
+            "type": "boolean",
+            "description": "Enable service links (service env vars) in pods",
+            "default": false
+        },
+        "pdb": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Enable PodDisruptionBudget",
+                    "default": false
+                },
+                "minAvailable": {
+                    "type": "number",
+                    "description": "Minimum available pods during voluntary disruptions",
+                    "default": 1
+                }
+            }
+        },
+        "image": {
+            "type": "object",
+            "properties": {
+                "registry": {
+                    "type": "string",
+                    "description": "Container registry hosting the image",
+                    "default": "ghcr.io"
+                },
+                "repository": {
+                    "type": "string",
+                    "description": "Container image repository",
+                    "default": "stefanprodan/podinfo"
+                },
+                "tag": {
+                    "type": "string",
+                    "description": "Container image tag",
+                    "default": "5.1.4"
+                },
+                "pullPolicy": {
+                    "type": "string",
+                    "description": "Image pull policy",
+                    "default": "IfNotPresent"
+                },
+                "pullSecrets": {
+                    "type": "array",
+                    "description": "Image pull secrets (list of secret names)",
+                    "default": [
+                        "regcred"
+                    ],
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "service": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Enable Service resource",
+                    "default": true
+                },
+                "type": {
+                    "type": "string",
+                    "description": "Service type",
+                    "default": "ClusterIP"
+                },
+                "httpPort": {
+                    "type": "number",
+                    "description": "Container HTTP port exposed by the pod",
+                    "default": 8080
+                },
+                "externalPort": {
+                    "type": "number",
+                    "description": "Service port exposed for HTTP",
+                    "default": 80
+                },
+                "grpcPort": {
+                    "type": ["integer", "null"],
+                    "description": "Optional gRPC port on the Service",
+                    "default": null
+                },
+                "nodePort": {
+                    "type": "number",
+                    "description": "NodePort value when type is NodePort",
+                    "default": 31198
+                }
+            }
+        },
+        "tls": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Enable TLS service port",
+                    "default": false
+                },
+                "secretName": {
+                    "type": "string",
+                    "description": "Name of existing TLS secret",
+                    "default": ""
+                },
+                "port": {
+                    "type": "number",
+                    "description": "TLS service port number",
+                    "default": 9899
+                }
+            }
+        },
+        "hpa": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Enable HorizontalPodAutoscaler",
+                    "default": false
+                },
+                "maxReplicas": {
+                    "type": "number",
+                    "description": "Maximum number of replicas for HPA",
+                    "default": 10
+                },
+                "cpu": {
+                    "type": "number",
+                    "description": "Target average CPU utilization percentage",
+                    "default": 80
+                },
+                "memory": {
+                    "type": "object",
+                    "properties": {
+                        "target": {
+                            "type": "string",
+                            "description": "Memory target type (Utilization/AverageValue)",
+                            "default": "Utilization"
+                        },
+                        "value": {
+                            "type": "number",
+                            "description": "Target memory value (percentage or amount)",
+                            "default": 80
+                        },
+                        "unit": {
+                            "type": "string",
+                            "description": "Unit for AverageValue target (e.g., Mi)",
+                            "default": "Mi"
+                        }
+                    }
+                },
+                "requests": {
+                    "type": ["integer", "null"],
+                    "description": "Average HTTP requests per second per pod",
+                    "default": null
+                }
+            }
+        },
+        "serviceAccount": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Create and use a dedicated ServiceAccount",
+                    "default": false
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Custom ServiceAccount name",
+                    "default": ""
+                }
+            }
+        },
+        "hosts": {
+            "type": "array",
+            "description": "Hostnames for HTTPRoute",
+            "default": [],
+            "items": {
+                "type": "string"
+            }
+        },
+        "resources": {
+            "type": "object",
+            "properties": {
+                "requests": {
+                    "type": "object",
+                    "properties": {
+                        "cpu": {
+                            "type": "string",
+                            "description": "CPU requested",
+                            "default": ""
+                        },
+                        "memory": {
+                            "type": "string",
+                            "description": "Memory requested",
+                            "default": ""
+                        }
+                    }
+                }
+            }
+        },
+        "tolerations": {
+            "type": "array",
+            "description": "Tolerations for scheduling",
+            "default": "[]",
+            "items": {
+                "type": "string"
+            }
+        },
+        "lifecycle": {
+            "type": "object",
+            "properties": {
+                "preStop": {
+                    "type": "object",
+                    "properties": {
+                        "exec": {
+                            "type": "object",
+                            "properties": {
+                                "command": {
+                                    "type": "array",
+                                    "description": "preStop hook command",
+                                    "default": "[]",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "flagger": {
+            "type": "object",
+            "properties": {
+                "maxSurge": {
+                    "type": "string",
+                    "description": "Rolling update maxSurge",
+                    "default": "10%"
+                },
+                "maxUnavailable": {
+                    "type": "number",
+                    "description": "Rolling update maxUnavailable",
+                    "default": 1
+                }
+            }
+        },
+        "rbac": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Create Role/RoleBinding (requires serviceAccount.enabled)",
+                    "default": false
+                },
+                "rules": {
+                    "type": "array",
+                    "description": "Additional RBAC rules",
+                    "default": [],
+                    "items": {
+                        "type": "object"
+                    }
+                }
+            }
+        },
+        "livenessProbe": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Enable livenessProbe",
+                    "default": true
+                },
+                "config": {
+                    "type": "object",
+                    "description": "Probe config",
+                    "default": {}
+                },
+                "initialDelaySeconds": {
+                    "type": "number",
+                    "description": "Initial delay seconds for livenessProbe",
+                    "default": 30
+                },
+                "periodSeconds": {
+                    "type": "number",
+                    "description": "Period seconds for livenessProbe",
+                    "default": 30
+                },
+                "timeoutSeconds": {
+                    "type": "number",
+                    "description": "Timeout seconds for livenessProbe",
+                    "default": 5
+                },
+                "failureThreshold": {
+                    "type": "number",
+                    "description": "Failure threshold for livenessProbe",
+                    "default": 5
+                },
+                "successThreshold": {
+                    "type": "number",
+                    "description": "Success threshold for livenessProbe",
+                    "default": 1
+                }
+            }
+        },
+        "readinessProbe": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Enable readinessProbe",
+                    "default": true
+                },
+                "config": {
+                    "type": "object",
+                    "description": "Probe config",
+                    "default": {}
+                },
+                "initialDelaySeconds": {
+                    "type": "number",
+                    "description": "Initial delay seconds for readinessProbe",
+                    "default": 30
+                },
+                "periodSeconds": {
+                    "type": "number",
+                    "description": "Period seconds for readinessProbe",
+                    "default": 10
+                },
+                "timeoutSeconds": {
+                    "type": "number",
+                    "description": "Timeout seconds for readinessProbe",
+                    "default": 5
+                },
+                "failureThreshold": {
+                    "type": "number",
+                    "description": "Failure threshold for readinessProbe",
+                    "default": 5
+                },
+                "successThreshold": {
+                    "type": "number",
+                    "description": "Success threshold for readinessProbe",
+                    "default": 1
+                }
+            }
+        }
+    }
+}

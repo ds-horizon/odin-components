@@ -1,0 +1,18 @@
+# Configuration for the istio-gateway subchart
+istio-gateway:
+  _internal_defaults_do_not_set:
+    service:
+      # Override service type to LoadBalancer instead of ClusterIP
+      type: ClusterIP
+
+# Custom ingress configuration for AWS ALB
+ingress:
+  external:
+    enabled: false
+    annotations: {}
+  internal:
+    enabled: false
+    annotations: {}
+
+# Labels to apply to custom resources (Gateway, Ingress)
+labels: {}

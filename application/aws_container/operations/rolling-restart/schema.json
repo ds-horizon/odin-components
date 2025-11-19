@@ -1,0 +1,16 @@
+{
+  "title": "Rolling restart operation schema",
+  "type": "object",
+  "properties": {
+    "batchSizePercentage": {
+      "type": "integer",
+      "description": "Percentage of pods where this operation will run in parallel",
+      "minimum": 1,
+      "maximum": 100
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "batchSizePercentage"
+  ]
+}
