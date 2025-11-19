@@ -15,7 +15,6 @@ public enum ApplicationError {
   CORRUPTED_STATE_FILE(ErrorCategory.ODIN_ERROR, "Corrupted state file"),
   ODIN_ERROR(ErrorCategory.ODIN_ERROR, "%s"),
   DB_WAIT_TIMEOUT(ErrorCategory.AWS_ERROR, "Timeout waiting for DB %s [%s] to be %s"),
-  INVALID_CREDENTIALS(ErrorCategory.AWS_ERROR, "Invalid credentials"),
   CANNOT_MODIFY_PARAMETER_GROUP_CONFIG(
       ErrorCategory.USER_ERROR,
       "Once used the parameter group name you cannot change the parameter group config. You can only provide another parameter group name");
