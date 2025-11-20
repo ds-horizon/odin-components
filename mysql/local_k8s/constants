@@ -1,0 +1,4 @@
+export HELM_REPO="https://charts.bitnami.com/bitnami"
+export HELM_CHART_NAME="mysql"
+export HELM_CHART_VERSION="9.4.6"
+export REGION="us-east-1"

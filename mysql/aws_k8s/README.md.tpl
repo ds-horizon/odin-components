@@ -1,4 +1,4 @@
-## Container Flavor
+## aws_k8s Flavor
 
 Deploy your MySQL in container
 

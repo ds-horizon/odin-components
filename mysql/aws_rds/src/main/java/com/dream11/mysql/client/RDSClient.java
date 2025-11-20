@@ -136,18 +136,16 @@ public class RDSClient {
         deployConfig,
         rdsData);
 
+    createBuilder.masterUsername(deployConfig.getUsername());
     if (deployConfig.getCredentials() != null) {
-      createBuilder.masterUsername(deployConfig.getCredentials().getMasterUsername());
-      if (deployConfig.getCredentials().getMasterUserPassword() != null) {
-        createBuilder.masterUserPassword(deployConfig.getCredentials().getMasterUserPassword());
-      } else if (deployConfig.getCredentials().getMasterUserSecretKmsKeyId() != null) {
+      if (deployConfig.getCredentials().getMasterUserSecretKmsKeyId() != null) {
         createBuilder.masterUserSecretKmsKeyId(
             deployConfig.getCredentials().getMasterUserSecretKmsKeyId());
-      } else if (deployConfig.getCredentials().getManageMasterUserPassword()) {
-        createBuilder.manageMasterUserPassword(true);
       } else {
-        throw new GenericApplicationException(ApplicationError.INVALID_CREDENTIALS);
+        createBuilder.manageMasterUserPassword(true);
       }
+    } else {
+      createBuilder.masterUserPassword(deployConfig.getPassword());
     }
 
     ApplicationUtil.setIfNotNull(createBuilder::databaseName, deployConfig.getDbName());
@@ -326,18 +324,6 @@ public class RDSClient {
               .minCapacity(deployConfig.getServerlessV2ScalingConfiguration().getMinCapacity())
               .maxCapacity(deployConfig.getServerlessV2ScalingConfiguration().getMaxCapacity())
               .build());
-    }
-
-    if (deployConfig.getCredentials() != null) {
-      ApplicationUtil.setIfNotNull(
-          requestBuilder::masterUserPassword,
-          deployConfig.getCredentials().getMasterUserPassword());
-      ApplicationUtil.setIfNotNull(
-          requestBuilder::masterUserSecretKmsKeyId,
-          deployConfig.getCredentials().getMasterUserSecretKmsKeyId());
-      ApplicationUtil.setIfNotNull(
-          requestBuilder::manageMasterUserPassword,
-          deployConfig.getCredentials().getManageMasterUserPassword());
     }
 
     ApplicationUtil.setIfNotNull(requestBuilder::applyImmediately, applyImmediately);

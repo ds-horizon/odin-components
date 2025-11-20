@@ -138,4 +138,42 @@ Odin.component {
             out "cat state.json"
         }
     }
+
+    flavour {
+        name "local_k8s"
+        deploy {
+            String lastState = getLastState()
+            if (lastState != null && !lastState.isEmpty()) {
+                run "echo '${lastState}' > state.json"
+            }                       
+            run "bash deploy.sh"
+            out "cat state.json"
+
+            discovery {
+                run "bash discovery.sh"
+            }
+        }
+
+        healthcheck {
+            linearRetryPolicy {
+                count 2
+                intervalSeconds 3
+            }
+
+            tcp {
+                port "3306"
+            }
+        }
+
+        undeploy {
+            String lastState = getLastState()    
+            if (lastState != null && !lastState.isEmpty()) {
+                run "echo '${lastState}' > state.json"
+            }else{
+                run "echo '{}' > state.json"
+            }           
+            run "bash undeploy.sh"
+            out "cat state.json"
+        }
+    }
 }

@@ -21,10 +21,6 @@
       },
       "required": ["registry", "repository", "tagSuffix"]
     },
-    "storageClass": {
-      "description": "Kubernetes storage class for MySQL persistent volumes. Determines storage performance, availability, and backup characteristics (e.g., gp3, io1, ssd). Affects database I/O performance and data durability. Choose based on IOPS requirements and backup policies. **Required:** Must exist in cluster. **Production:** Use high-performance storage (SSD/NVMe) with snapshot capabilities for production workloads.",
-      "type": "string"
-    },
     "writer": {
       "type": "object",
       "properties": {
@@ -83,40 +79,6 @@
             "requests"
           ]
         },
-        "tolerations": {
-          "description": "Pod tolerations for MySQL writer to schedule on tainted nodes. Allows writer pods to run on nodes with specific taints (e.g., dedicated database nodes). Use to isolate database workloads on specialized hardware or availability zones. Empty array schedules on any available node. **Default: `[]`** (no tolerations). **Production:** Use dedicated node pools with taints for database isolation and predictable performance.",
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "key": {
-                "type": "string"
-              },
-              "operator": {
-                "type": "string",
-                "enum": ["Equal", "Exists"]
-              },
-              "value": {
-                "type": "string"
-              },
-              "effect": {
-                "type": "string",
-                "enum": ["NoSchedule", "PreferNoSchedule", "NoExecute"]
-              },
-              "tolerationSeconds": {
-                "type": "integer"
-              }
-            },
-            "required": ["key", "operator"]
-          }
-        },
-        "nodeSelector": {
-          "description": "Node label selectors for MySQL writer pod placement. Constrains writer pods to nodes with matching labels (e.g., disktype=ssd, tier=database). Use to ensure pods run on nodes with appropriate hardware, zones, or compliance requirements. Empty object allows scheduling on any node. **Default: `{}`** (no constraints). **Production:** Use node selectors for dedicated DB nodes with high-performance disks and network.",
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
         "persistence": {
           "type": "object",
           "properties": {
@@ -144,12 +106,6 @@
       "properties": {
         "resources": {
           "$ref": "#/properties/writer/properties/resources"
-        },
-        "tolerations": {
-          "$ref": "#/properties/writer/properties/tolerations"
-        },
-        "nodeSelector": {
-          "$ref": "#/properties/writer/properties/nodeSelector"
         },
         "persistence": {
           "$ref": "#/properties/writer/properties/persistence"
@@ -216,7 +172,6 @@
   },
   "required": [
     "image",
-    "storageClass",
     "writer",
     "reader"
   ],
