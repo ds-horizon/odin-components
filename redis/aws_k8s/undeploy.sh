@@ -15,7 +15,7 @@ setup_error_handling
   else
     echo "No state file found for component" 1>&2
     exit 1
-  fi 
+  fi
 
   # Check if namespace exists
   if ! kubectl get namespace ${NAMESPACE} &>/dev/null; then
@@ -40,7 +40,7 @@ setup_error_handling
       ;;
     *)
       echo "WARNING: Unknown deployment mode: ${DEPLOYMENT_MODE}" 1>&2
-      ;;    
+      ;;
   esac
 
 
@@ -48,7 +48,7 @@ setup_error_handling
   if [[ "${DEPLOYMENT_MODE}" == "sentinel" ]]; then
     # Replication chart creates the PVCs; sentinel chart typically does not.
     INSTANCE_NAME="${RELEASE_NAME}-replication"
-  else 
+  else
     INSTANCE_NAME="${RELEASE_NAME}-${DEPLOYMENT_MODE}"
   fi
   echo "Checking for PVCs"
@@ -81,4 +81,3 @@ setup_error_handling
   fi
 
 } 2> >(log_errors_with_timestamp) | log_with_timestamp
-

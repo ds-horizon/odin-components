@@ -52,5 +52,3 @@ setup_error_handling
   echo "{\"primary\":\"${ENDPOINT}\", \"reader\":\"${ENDPOINT}\"}"
 
 } 2> >(log_errors_with_timestamp)
-
-

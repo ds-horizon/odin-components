@@ -67,7 +67,7 @@ fi
       sleep 5
       waited=$((waited + 5))
     done
-    
+
     echo "ERROR: Timed out waiting for ${display_name} pods to become Ready (expected ${expected_pods})." 1>&2
     return 1
   }
@@ -197,5 +197,3 @@ fi
   echo "================================================================"
 
 } 2> >(log_errors_with_timestamp) | log_with_timestamp
-
-

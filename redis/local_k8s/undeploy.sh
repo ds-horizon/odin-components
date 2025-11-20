@@ -46,7 +46,7 @@ set -euo pipefail
   if [[ "${DEPLOYMENT_MODE}" == "sentinel" ]]; then
     # Replication chart creates the PVCs; sentinel chart typically does not.
     INSTANCE_NAME="${RELEASE_NAME}-replication"
-  else 
+  else
     INSTANCE_NAME="${RELEASE_NAME}-${DEPLOYMENT_MODE}"
   fi
   echo "Checking for PVCs"
@@ -79,5 +79,3 @@ set -euo pipefail
   fi
 
 }
-
-
