@@ -10,7 +10,7 @@ import lombok.experimental.UtilityClass;
 public class Constants {
   public final String COMPONENT_STATE_FILE = "state.json";
   public final String CONFIG = "CONFIG";
-  public final String COMPONENT_METADATA = "COMPONENT_METADATA";
+  public final String COMPONENT_METADATA = "ODIN_COMPONENT_METADATA";
   public final String ARTIFACTORY_CATEGORY = "ARTIFACTORY";
   public final String DOCKER_REGISTRY_SERVICE = "DOCKER_REGISTRY";
   public final String CLOUD_CATEGORY = "CLOUD";
