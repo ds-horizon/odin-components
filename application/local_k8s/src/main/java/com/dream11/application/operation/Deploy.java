@@ -2,9 +2,7 @@ package com.dream11.application.operation;
 
 import com.dream11.application.Application;
 import com.dream11.application.config.metadata.ComponentMetadata;
-import com.dream11.application.constant.Constants;
 import com.dream11.application.service.HelmService;
-import com.dream11.application.util.ApplicationUtil;
 import com.google.inject.Inject;
 import java.util.Objects;
 import lombok.NonNull;
@@ -21,11 +19,7 @@ public class Deploy implements Operation {
 
   public boolean execute() {
     if (Objects.isNull(Application.getState().getReleaseName())) {
-      Application.getState()
-          .setReleaseName(
-              this.componentMetadata.getComponentName()
-                  + "-"
-                  + ApplicationUtil.generateRandomId(Constants.UUID_LENGTH).toLowerCase());
+      Application.getState().setReleaseName(this.componentMetadata.getComponentName());
     }
     if (Objects.isNull(Application.getState().getDeploymentNamespace())) {
       Application.getState()
