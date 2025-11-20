@@ -9,6 +9,7 @@ import com.dream11.application.config.user.DeployConfig;
 import com.dream11.application.constant.Constants;
 import com.dream11.application.error.ApplicationError;
 import com.dream11.application.exception.GenericApplicationException;
+import com.dream11.application.exception.HelmReleaseNotFoundException;
 import com.dream11.application.util.ApplicationUtil;
 import com.google.inject.Inject;
 import java.io.File;
@@ -98,7 +99,12 @@ public class HelmService {
 
   public void uninstall(String releaseName, String namespace) {
     log.debug("Uninstalling helm release:[{}]", releaseName);
-    this.helmClient.uninstall(releaseName, namespace);
+    try {
+      this.helmClient.uninstall(releaseName, namespace);
+    } catch (HelmReleaseNotFoundException ex) {
+      log.warn("Helm release:[{}] not found", releaseName);
+      return;
+    }
     log.info("Helm release:[{}] uninstalled successfully", releaseName);
   }
 

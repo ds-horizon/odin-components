@@ -2,8 +2,8 @@ package com.dream11.application.config.metadata;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import java.util.ArrayList;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -17,7 +17,6 @@ public class CloudProviderConfig {
   @Valid @NotNull Account account;
 
   @JsonProperty("linked_accounts")
-  @Valid
-  @NotEmpty
-  List<Account> linkedAccounts;
+  @NotNull
+  List<@Valid Account> linkedAccounts = new ArrayList<>();
 }

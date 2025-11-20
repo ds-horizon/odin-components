@@ -42,9 +42,6 @@ public class Constants {
 
   public final String DISCOVERY_CATEGORY = "DISCOVERY";
   public final String EC2_CATEGORY = "VM";
-  public final String ARTIFACTORY_ACCOUNT_CATEGORY = "ARTIFACTORY";
-
-  public final String ARTIFACTORY_STORAGE_CATEGORY = "STORAGE";
   public final String PUBLIC = "public";
   public final String PRIVATE = "private";
 
@@ -58,8 +55,6 @@ public class Constants {
   public final String PACKER_TEMPLATE_FILE = "ami/ami.pkr.hcl";
   public final String USERDATA_TEMPLATE_FILE = "userdata/userdata.sh.tpl";
 
-  public final UnaryOperator<String> DOWNLOAD_ARTIFACT_TEMPLATE_FILE =
-      provider -> String.format("artifactory/%s_download.sh", provider);
   public final String PACKER_FILE = "ami.pkr.hcl";
   public final String TARGET_GROUP_ARN_ENV_VARIABLE = "TARGET_GROUP_ARN";
   public final String LOAD_BALANCER_NAME_ENV_VARIABLE = "LOADBALANCER_NAME";

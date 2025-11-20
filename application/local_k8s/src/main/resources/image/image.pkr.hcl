@@ -2,7 +2,7 @@ packer {
   required_plugins {
     docker = {
       source  = "github.com/hashicorp/docker"
-      version = "1.0.11"
+      version = "1.1.2"
     }
   }
 }
@@ -55,7 +55,7 @@ build {
   }
   provisioner "file" {
     source      = "${r"${var.artifact_name}"}"
-    destination = "${r"${var.base_dir}"}"
+    destination = "${r"${var.base_dir}"}/"
   }
 
   provisioner "shell" {
