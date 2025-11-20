@@ -92,16 +92,21 @@ fi
   fi
 
   # Validate Redis version against Opstree operator support and deployment mode
-  # Opstree supports Redis >= 6.2; we explicitly allow 6.2, 7.0, 7.1 from the root schema.
-  if [[ "${REDIS_VERSION}" != "7.1" && "${REDIS_VERSION}" != "7.0" && "${REDIS_VERSION}" != "6.2" ]]; then
-    echo "ERROR: Redis version ${REDIS_VERSION} is not supported by the Opstree Redis Operator for local_k8s." 1>&2
-    echo "Supported versions for local_k8s flavour are: 6.2, 7.0, 7.1." 1>&2
+  # Opstree supports Redis >= 6.2; we explicitly allow 6.2, 7.0, 7.2 from the root schema.
+  SUPPORTED_VERSIONS=("6.2" "7.0" "7.2")
+  
+  # Check if version is supported
+  if [[ ! " ${SUPPORTED_VERSIONS[@]} " =~ " ${REDIS_VERSION} " ]]; then
+    echo "ERROR: Redis version ${REDIS_VERSION} is not supported by the Opstree Redis Operator." 1>&2
+    echo "Supported versions for local_k8s flavour are: ${SUPPORTED_VERSIONS[*]}." 1>&2
     echo "Please update the root 'version' in redis/schema.json or choose a different flavour." 1>&2
     exit 1
-  elif [[ "${DEPLOYMENT_MODE}" == "cluster" && "${REDIS_VERSION}" == "6.2" ]]; then
+  fi
+  
+  # Check cluster mode compatibility
+  if [[ "${DEPLOYMENT_MODE}" == "cluster" && "${REDIS_VERSION}" == "6.2" ]]; then
     echo "ERROR: Redis cluster mode is not supported with Redis version 6.2 in this flavour." 1>&2
-    echo "Reason: the Opstree Redis cluster chart config uses 'cluster-announce-hostname'," 1>&2
-    echo "which is not understood by Redis 6.2.x. Please use version 7.0 or 7.1 for cluster mode." 1>&2
+    echo "Please use Redis version 7.0 or 7.2 for cluster deployments." 1>&2
     exit 1
   fi
 
