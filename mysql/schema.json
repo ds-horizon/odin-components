@@ -8,7 +8,7 @@
     "password": {
       "description": "MySQL database password for authentication and access control. Secures database access and prevents unauthorized connections. Store securely in secrets management systems (e.g., Vault, AWS Secrets Manager). **Required:** Strong passwords recommended (16+ chars, mixed case, special chars). **Production:** Rotate regularly and use secrets management.",
       "type": "string"
-    },    
+    },
     "version": {
       "description": "MySQL version to be created",
       "type": "string",

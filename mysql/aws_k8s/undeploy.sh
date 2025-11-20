@@ -1,10 +1,13 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=/dev/null
 source ./logging.sh
 setup_error_handling
 
 {
+    # shellcheck disable=SC1083
     export KUBECONFIG={{ componentMetadata.kubeConfigPath }}
+    # shellcheck disable=SC1083
     export NAMESPACE={{ componentMetadata.envName }}
 
     if [[ -f state.json ]] && jq -e '.releaseName' state.json > /dev/null; then
@@ -13,17 +16,17 @@ setup_error_handling
     else
         echo "No state file found for component" 1>&2
         exit 1
-    fi    
+    fi
 
     echo "Uninstalling mysql helm chart..."
 
     # Check if Helm release exists
-    if helm list -n ${NAMESPACE} | grep -q "^$RELEASE_NAME[[:space:]]"; then
+    if helm list -n ${NAMESPACE} | grep -q "^${RELEASE_NAME}[[:space:]]"; then
         echo "Found Helm release ${RELEASE_NAME} in namespace ${NAMESPACE}"
 
         echo "Uninstalling Helm chart..."
-        if helm uninstall ${RELEASE_NAME} -n ${NAMESPACE} --wait; then
-            echo "Helm release '$RELEASE_NAME' uninstalled successfully"
+        if helm uninstall "${RELEASE_NAME}" -n ${NAMESPACE} --wait; then
+            echo "Helm release '${RELEASE_NAME}' uninstalled successfully"
         else
             echo "Failed to uninstall Helm release ${RELEASE_NAME}" 1>&2
             exit 1
@@ -33,7 +36,7 @@ setup_error_handling
     fi
 
     echo "Checking for persistent volume claims"
-    PVC_LIST=$(kubectl get pvc -n ${NAMESPACE} -l app.kubernetes.io/instance=${RELEASE_NAME} | awk '(NR>1){print $1}')
+    PVC_LIST=$(kubectl get pvc -n ${NAMESPACE} -l app.kubernetes.io/instance="${RELEASE_NAME}" | awk '(NR>1){print $1}')
 
     if [[ -z "${PVC_LIST}" ]]; then
         echo "No PVCs found for release ${RELEASE_NAME} in namespace ${NAMESPACE}"
