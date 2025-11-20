@@ -66,9 +66,9 @@ build {
     ]
     inline_shebang = "/bin/bash -e"
     inline = [
-      "SETUP_FILE=$BASE_DIR/$ARTIFACT_NAME/${r"${var.setup_script}"}",
+      "SETUP_FILE=${r"${var.base_dir}"}/${r"${var.artifact_name}"}/${r"${var.setup_script}"}",
       "if [[ -f $SETUP_FILE && ${r"${var.setup_script_enabled}"} == true ]]; then",
-      "bash $SETUP_FILE",
+        "bash $SETUP_FILE",
       "fi"
     ]
   }
