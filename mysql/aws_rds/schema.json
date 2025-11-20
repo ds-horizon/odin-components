@@ -616,7 +616,8 @@
               ]
             }
           }
-        }
+        },
+        "required": ["readers"]
       },
       "then": {
         "required": [
