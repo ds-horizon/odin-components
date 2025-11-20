@@ -6,29 +6,6 @@ redisReplication:
   image: {{ flavourConfig.image | default('quay.io/opstree/redis') }}
   tag: {% if baseConfig.version == "7.2" %}v7.2.11{% elif baseConfig.version == "7.0" %}v7.0.15{% elif baseConfig.version == "6.2" %}v6.2.14{% else %}v7.0.15{% endif %}
 
-  # Image pull policy and resources for data nodes (reduced for local)
-  imagePullPolicy: {{ flavourConfig.imagePullPolicy | default('IfNotPresent') }}
-  resources:
-    requests:
-      cpu: {{ flavourConfig.resources.requests.cpu }}
-      memory: {{ flavourConfig.resources.requests.memory }}
-    limits:
-      cpu: {{ flavourConfig.resources.limits.cpu }}
-      memory: {{ flavourConfig.resources.limits.memory }}
-
-redisExporter:
-  enabled: {{ flavourConfig.metrics.enabled | default(true) }}
-  image: {{ flavourConfig.metrics.redisExporterImage | default('quay.io/opstree/redis-exporter') }}
-  tag: {{ flavourConfig.metrics.redisExporterTag | default('v1.44.0') }}
-  imagePullPolicy: {{ flavourConfig.imagePullPolicy | default('IfNotPresent') }}
-  resources:
-    requests:
-      cpu: {{ flavourConfig.metrics.exporterResources.requests.cpu | default('25m') }}
-      memory: {{ flavourConfig.metrics.exporterResources.requests.memory | default('32Mi') }}
-    limits:
-      cpu: {{ flavourConfig.metrics.exporterResources.limits.cpu | default('100m') }}
-      memory: {{ flavourConfig.metrics.exporterResources.limits.memory | default('128Mi') }}
-
 storageSpec:
   volumeClaimTemplate:
     spec:
@@ -39,33 +16,7 @@ storageSpec:
         requests:
           storage: {{ flavourConfig.storage.storageSize }}
 
-podSecurityContext:
-  runAsNonRoot: {{ flavourConfig.securityContext.runAsNonRoot | default(true) }}
-  runAsUser: {{ flavourConfig.securityContext.runAsUser | default(1000) }}
-  fsGroup: {{ flavourConfig.securityContext.fsGroup | default(1000) }}
-
-priorityClassName: {{ flavourConfig.priorityClassName | default('') }}
-serviceAccountName: {{ flavourConfig.serviceAccount | default('default') }}
-
-nodeSelector:
-  {% if flavourConfig.nodeSelector %}
-  {% for key, value in flavourConfig.nodeSelector.items() %}
-  {{ key }}: {{ value }}
-  {% endfor %}
-  {% endif %}
-
-tolerations:
-  {% if flavourConfig.tolerations and flavourConfig.tolerations|length > 0 %}
-  {% for tol in flavourConfig.tolerations %}
-  - key: {{ tol.key }}
-    operator: {{ tol.operator }}
-    value: {{ tol.value }}
-    effect: {{ tol.effect }}
-  {% endfor %}
-  {% endif %}
-
 pdb:
   enabled: {{ flavourConfig.podDisruptionBudget.enabled | default(false) }}
   minAvailable: {{ flavourConfig.podDisruptionBudget.minAvailable | default(1) }}
-
 

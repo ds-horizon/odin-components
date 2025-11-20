@@ -5,6 +5,11 @@ source ./constants
 setup_error_handling
 
 export CURRENT_SHA=""
+# Environment variables
+export NAMESPACE={{ componentMetadata.envName }}
+export DEPLOYMENT_MODE={{ flavourConfig.deploymentMode }}
+export REDIS_VERSION={{ baseConfig.version }}
+export RELEASE_NAME={{ componentMetadata.name }}
 
 update_state() {
   status=$?
@@ -29,10 +34,7 @@ fi
 
 {
 
-  # Environment variables
-  export NAMESPACE={{ componentMetadata.envName }}
-  export DEPLOYMENT_MODE={{ flavourConfig.deploymentMode }}
-  export REDIS_VERSION={{ baseConfig.version }}
+
   # Helper: wait for pods with a given name prefix to be Running & Ready
   wait_for_pods() {
     local pod_prefix=$1
@@ -81,6 +83,12 @@ fi
   echo "Deployment Mode: ${DEPLOYMENT_MODE}"
   echo "================================================================"
 
+  # Ensure Helm + ot-helm repo + Redis operator are available before deploying any CRs
+  if ! command -v helm >/dev/null 2>&1; then
+    echo "ERROR: 'helm' binary not found in PATH. Please install Helm v3 and retry." 1>&2
+    exit 1
+  fi
+
   # Validate Redis version against Opstree operator support and deployment mode
   # Opstree supports Redis >= 6.2; we explicitly allow 6.2, 7.0, 7.1 from the root schema.
   if [[ "${REDIS_VERSION}" != "7.1" && "${REDIS_VERSION}" != "7.0" && "${REDIS_VERSION}" != "6.2" ]]; then
@@ -110,6 +118,7 @@ fi
         --version ${REDIS_CHART_VERSION} \
         --install \
         --namespace "${NAMESPACE}" \
+        -f "${SCRIPT_DIR}/values-common.yaml" \
         -f "${VALUES_FILE}" \
         --wait \
         --timeout 15m
@@ -129,6 +138,7 @@ fi
         --version ${REDIS_REPLICATION_CHART_VERSION} \
         --install \
         --namespace "${NAMESPACE}" \
+        -f "${SCRIPT_DIR}/values-common.yaml" \
         -f "${REPL_VALUES_FILE}" \
         --wait \
         --timeout 15m
@@ -144,6 +154,7 @@ fi
         --version ${REDIS_SENTINEL_CHART_VERSION} \
         --install \
         --namespace "${NAMESPACE}" \
+        -f "${SCRIPT_DIR}/values-common.yaml" \
         -f "${SENTINEL_VALUES_FILE}" \
         --wait \
         --timeout 15m
@@ -161,6 +172,7 @@ fi
         --version ${REDIS_CLUSTER_CHART_VERSION} \
         --install \
         --namespace "${NAMESPACE}" \
+        -f "${SCRIPT_DIR}/values-common.yaml" \
         -f "${VALUES_FILE}" \
         --wait \
         --timeout 20m

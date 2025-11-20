@@ -55,12 +55,11 @@ set -euo pipefail
 
   if [[ -z "${PVC_NAMES}" ]]; then
     echo "No PVCs found for release ${RELEASE_NAME}"
-    exit 0
+  else
+    echo "Deleting PVCs: ${PVC_NAMES}"
+    echo "${PVC_NAMES}" | xargs kubectl delete pvc -n "${NAMESPACE}"
+    echo "PVCs deleted successfully"
   fi
-
-  echo "Deleting PVCs: ${PVC_NAMES}"
-  echo "${PVC_NAMES}" | xargs kubectl delete pvc -n "${NAMESPACE}"
-  echo "PVCs deleted successfully"
 
   echo ""
   echo "================================================================"
@@ -73,6 +72,11 @@ set -euo pipefail
   echo "Undeployment completed (local_k8s)!"
   echo "================================================================"
   echo ""
+
+  if [[ -f state.json ]]; then
+    echo "Resetting state.json for component..."
+    echo '{}' > state.json || true
+  fi
 
 }
 

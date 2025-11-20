@@ -36,7 +36,7 @@ setup_error_handling
       ;;
     cluster)
       echo "Uninstalling Redis Cluster Helm release..."
-      helm uninstall "${RELEASE_NAME}-cluster" -n "${NAMESPACE}" --wait|| echo "Helm release ${RELEASE_NAME}-cluster not found"
+      helm uninstall "${RELEASE_NAME}-cluster" -n "${NAMESPACE}" --wait || echo "Helm release ${RELEASE_NAME}-cluster not found"
       ;;
     *)
       echo "WARNING: Unknown deployment mode: ${DEPLOYMENT_MODE}" 1>&2
@@ -54,15 +54,13 @@ setup_error_handling
   echo "Checking for PVCs"
   PVC_NAMES=$(kubectl get pvc -n ${NAMESPACE} -l app.kubernetes.io/instance=${INSTANCE_NAME} | awk '(NR>1){print $1}')
 
-
   if [[ -z "${PVC_NAMES}" ]]; then
     echo "No PVCs found for release ${RELEASE_NAME}"
-    exit 0
+  else
+    echo "Deleting PVCs: ${PVC_NAMES}"
+    echo "${PVC_NAMES}" | xargs kubectl delete pvc -n "${NAMESPACE}"
+    echo "PVCs deleted successfully"
   fi
-
-  echo "Deleting PVCs: ${PVC_NAMES}"
-  echo "${PVC_NAMES}" | xargs kubectl delete pvc -n "${NAMESPACE}"
-  echo "PVCs deleted successfully"
 
 
   echo ""
@@ -76,6 +74,11 @@ setup_error_handling
   echo "Undeployment completed!"
   echo "================================================================"
   echo ""
+
+  if [[ -f state.json ]]; then
+    echo "Resetting state.json for component..."
+    echo '{}' > state.json || true
+  fi
 
 } 2> >(log_errors_with_timestamp) | log_with_timestamp
 

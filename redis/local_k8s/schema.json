@@ -4,24 +4,33 @@
   "description": "Configuration schema for Redis deployment on a local Kubernetes cluster (kind/minikube/Docker Desktop) using the Opstree Redis Operator. Mirrors the aws_k8s schema shape but with smaller defaults suited for laptops.",
   "allOf": [
     {
-      "if": {
-        "properties": {
-          "deploymentMode": { "const": "cluster" }
+      "oneOf": [
+        {
+          "properties": {
+            "deploymentMode": { "const": "standalone" }
+          },
+          "not": {
+            "anyOf": [
+              { "required": ["cluster"] },
+              { "required": ["sentinel"] }
+            ]
+          }
+        },
+        {
+          "properties": {
+            "deploymentMode": { "const": "cluster" }
+          },
+          "required": ["cluster"],
+          "not": { "required": ["sentinel"] }
+        },
+        {
+          "properties": {
+            "deploymentMode": { "const": "sentinel" }
+          },
+          "required": ["sentinel"],
+          "not": { "required": ["cluster"] }
         }
-      },
-      "then": {
-        "required": ["cluster"]
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "deploymentMode": { "const": "sentinel" }
-        }
-      },
-      "then": {
-        "required": ["sentinel"]
-      }
+      ]
     }
   ],
   "properties": {

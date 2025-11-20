@@ -4,33 +4,33 @@
   "description": "Configuration schema for Redis deployment on AWS EKS using Opstree Redis Operator. Supports standalone, sentinel, and cluster modes with comprehensive K8s-native features.",
   "allOf": [
     {
-      "if": {
-        "properties": {
-          "deploymentMode": { "const": "cluster" }
+      "oneOf": [
+        {
+          "properties": {
+            "deploymentMode": { "const": "standalone" }
+          },
+          "not": {
+            "anyOf": [
+              { "required": ["cluster"] },
+              { "required": ["sentinel"] }
+            ]
+          }
+        },
+        {
+          "properties": {
+            "deploymentMode": { "const": "cluster" }
+          },
+          "required": ["cluster"],
+          "not": { "required": ["sentinel"] }
+        },
+        {
+          "properties": {
+            "deploymentMode": { "const": "sentinel" }
+          },
+          "required": ["sentinel"],
+          "not": { "required": ["cluster"] }
         }
-      },
-      "then": {
-        "required": ["cluster"]
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "deploymentMode": { "const": "sentinel" }
-        }
-      },
-      "then": {
-        "required": ["sentinel"]
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "deploymentMode": { "const": "standalone" }
-        }
-      },
-      "then": {
-      }
+      ]
     }
   ],
   "properties": {

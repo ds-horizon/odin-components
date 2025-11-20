@@ -102,7 +102,7 @@ Odin.component {
             String lastState = getLastState()    
             if (lastState != null && !lastState.isEmpty()) {
                 run "echo '${lastState}' > state.json"
-            }else{
+            } else {
                 run "echo '{}' > state.json"
             }           
             run "bash undeploy.sh"
@@ -137,14 +137,13 @@ Odin.component {
         }
 
         undeploy {
-            String lastState = getLastState()    
+            String lastState = getLastState()
             if (lastState != null && !lastState.isEmpty()) {
                 run "echo '${lastState}' > state.json"
-            }else{
+            } else {
                 run "echo '{}' > state.json"
-            }           
+            }
             run "bash undeploy.sh"
-            out "cat state.json"
         }
     }
 }
