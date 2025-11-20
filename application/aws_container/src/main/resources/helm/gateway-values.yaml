@@ -10,13 +10,13 @@ ingress:
   external:
     enabled: true
     annotations:
-      alb.ingress.kubernetes.io/tags: "service_name=shared,environment_name=${environment_name},component_name=shared,component_type=aws_container_v2,resource_type=alb,org_name=dream11,provisioned-by-user=vivekanand@dream11.com"
+      alb.ingress.kubernetes.io/tags: "service_name=shared,environment_name=${environment_name},component_name=shared,component_type=aws_container,resource_type=alb,org_name=dream11,provisioned-by-user=vivekanand@dream11.com"
       alb.ingress.kubernetes.io/security-groups: ${vpc_data.lbSecurityGroups.external?join(',')}
 </#if>
 <#if vpc_data.lbSecurityGroups?? && vpc_data.lbSecurityGroups.internal?? && (vpc_data.lbSecurityGroups.internal?size > 0)>
   internal:
     enabled: true
     annotations:
-      alb.ingress.kubernetes.io/tags: "service_name=shared,environment_name=${environment_name},component_name=shared,component_type=aws_container_v2,resource_type=alb,org_name=dream11,provisioned-by-user=vivekanand@dream11.com"
+      alb.ingress.kubernetes.io/tags: "service_name=shared,environment_name=${environment_name},component_name=shared,component_type=aws_container,resource_type=alb,org_name=dream11,provisioned-by-user=vivekanand@dream11.com"
       alb.ingress.kubernetes.io/security-groups: ${vpc_data.lbSecurityGroups.internal?join(',')}
 </#if>

@@ -27,7 +27,7 @@ log_errors_with_timestamp() {
     }'
 }
 
-JAR_FILE_PATH=application-aws-container-v2-jar-with-dependencies.jar
+JAR_FILE_PATH=application-aws-container.jar
 PACKER_FILE_NAME=image.pkr.hcl
 
 # Create namespace

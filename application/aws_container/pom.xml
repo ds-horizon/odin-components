@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>com.dream11</groupId>
-  <artifactId>odin-application-component-aws-container-v2</artifactId>
+  <artifactId>odin-application-component-aws-container</artifactId>
   <version>0.1.0-alpha.17-SNAPSHOT</version>
   <packaging>jar</packaging>
 
@@ -12,7 +12,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <main.class>com.dream11.application.Application</main.class>
     <version>${project.version}</version>
-    <fat-jar.name>application-aws-container-v2</fat-jar.name>
+    <fat-jar.name>application-aws-container</fat-jar.name>
     <lombok.version>1.18.30</lombok.version>
     <slf4j.version>2.0.13</slf4j.version>
     <logback.version>1.5.5</logback.version>
@@ -185,7 +185,7 @@
           <finalName>${fat-jar.name}</finalName>
           <archive>
             <manifest>
-              <addClasspath>true</addClasspath>
+              <addClasspath>false</addClasspath>
               <mainClass>${main.class}</mainClass>
             </manifest>
           </archive>

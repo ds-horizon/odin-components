@@ -4,7 +4,7 @@
   "properties": {
     "batchSizePercentage": {
       "type": "integer",
-      "description": "Percentage of pods where this operation will run in parallel",
+      "description": "Percentage of total pod replicas to restart simultaneously in each batch. Controls restart speed vs availability trade-off during rolling restart operation. Higher percentage = faster restart but more capacity reduction; lower percentage = slower restart but better availability. For example, with 10 pods and 25% batch size, restarts 2-3 pods at a time, then waits for them to become healthy before proceeding to next batch. Use lower percentages (10-25%) for critical services requiring high availability, higher percentages (50-100%) for faster restarts when brief capacity reduction is acceptable. Batch size must balance restart duration with service availability. During restart, capacity is reduced by this percentage until new pods are ready. **Production:** Use 20-33% for critical services (maintains 67-80% capacity). Use 50% for standard services (maintains 50% capacity). Use 100% only for non-critical single-replica services. Never use 100% for multi-replica services requiring availability. Calculate impact: with N replicas and B% batch size, minimum available capacity = N × (100 - B)%. Monitor pod readiness time - slow startups require smaller batches. Example: 25% with 8 replicas = restart 2 pods at a time = maintain 75% capacity (6 pods running).",
       "minimum": 1,
       "maximum": 100
     }

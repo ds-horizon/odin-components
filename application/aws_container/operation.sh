@@ -3,7 +3,7 @@ set -euo pipefail
 
 trap 'wait; exit 1' SIGTERM SIGINT
 
-JAR_FILE_PATH=application-aws-container-v2-jar-with-dependencies.jar
+JAR_FILE_PATH=application-aws-container.jar
 
 if [[ -z $1 ]]; then
   echo "::error:: Please specify which operation to run" >&2

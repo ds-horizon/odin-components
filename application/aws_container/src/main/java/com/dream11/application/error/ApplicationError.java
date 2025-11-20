@@ -13,7 +13,7 @@ public enum ApplicationError {
       ErrorCategory.ODIN_ERROR, "Deploy config not found in state. Cannot perform %s operation"),
   INVALID_CLOUD_PROVIDER(
       ErrorCategory.ODIN_ERROR,
-      "AWS container v2 flavour cannot be invoked with %s cloud provider. Requires 'aws' cloud provider"),
+      "AWS container flavour cannot be invoked with %s cloud provider. Requires 'aws' cloud provider"),
   DOCKER_IMAGE_FETCH_FAILED(
       ErrorCategory.DOCKER_ERROR, "Fetching docker image failed with status code: [%s]"),
   SERVICE_NOT_FOUND(ErrorCategory.ODIN_ERROR, "No service with category:[%s] found"),
