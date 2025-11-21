@@ -1,0 +1,17 @@
+<configuration scan="true" scanPeriod="1 seconds">
+  <property scope="context" name="HOSTNAME" value="${HOSTNAME}"/>
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>
+        %replace(%replace(%replace(%replace(%replace(%level){"INFO", "::info::"}){"DEBUG", "::debug::"}){"WARN", "::warn::"}){"ERROR", "::error::"}){"TRACE", "::trace::"}%date %green(%msg) %n
+      </pattern>
+    </encoder>
+  </appender>
+  <logger name="org.hibernate.validator" level="error"/>
+  <logger name="io.grpc.netty" level="info"/>
+  <logger name="io.fabric8.kubernetes" level="info"/>
+  <root level="${LOG_LEVEL:-info}">
+    <appender-ref ref="STDOUT"/>
+  </root>
+
+</configuration>

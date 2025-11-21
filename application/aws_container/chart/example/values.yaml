@@ -1,0 +1,91 @@
+replicaCount: 1
+name: app-logger-api
+namespace: ""
+envs:
+  - name: ENV
+    value: prod
+  - name: NAMESPACE
+    value: "145"
+  - name: SERVICE_NAME
+    value: app-logger-api
+image:
+  registry: 954754807219.dkr.ecr.us-east-1.amazonaws.com
+  repository: app-logger-api
+  tag: c765e778ef28437b61269e32ab2c08ce992f9cc1
+  pullPolicy: IfNotPresent
+service:
+  enabled: true
+  type: ClusterIP
+  httpPort: 8080
+  externalPort: 80
+hpa:
+  enabled: true
+  maxReplicas: 2
+  cpu: 60
+livenessProbe:
+  enabled: true
+  config:
+    initialDelaySeconds: 50
+    periodSeconds: 5
+    timeoutSeconds: 1
+    failureThreshold: 10
+    httpGet:
+      path: health_check
+      port: 8080
+readinessProbe:
+  enabled: true
+  config:
+    initialDelaySeconds: 50
+    periodSeconds: 5
+    timeoutSeconds: 1
+    successThreshold: 2
+    failureThreshold: 10
+    httpGet:
+      path: health_check
+      port: 8080
+resources:
+  requests:
+    cpu: 0.5
+    memory: 512Mi
+  limits:
+    cpu: 1
+    memory: 1Gi
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}
+lifecycle:
+  preStop:
+    exec:
+      command: [sleep, '90']
+flagger:
+  maxSurge: 10%
+  maxUnavailable: 1
+serviceAccount:
+  enabled: true
+  annotations:
+    eks.amazonaws.com/role-arn: k8s-s3-read-only-access
+enableServiceLinks: false
+hosts:
+  - app-logger-api.investro.app
+labels:
+  capacity-type: base
+  cluster: app-logger-api-java-prod-asg
+  component: microservice
+  is_utilized: green
+  monitoring: 'true'
+  owner: vikas_gite
+  squad: datateam
+  environment: investro
+  service: app-logger-api
+  master_service: d11_datahighway
+  dt: data-acquisition
+rbac:
+  enabled: false
+  rules:
+    - apiGroups: [""]
+      resources: ["pods"]
+      verbs: ["get", "watch", "list"]
+pdb:
+  enabled: false
+  minAvailable: 1

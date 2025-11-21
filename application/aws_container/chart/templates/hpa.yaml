@@ -1,0 +1,53 @@
+{{- if .Values.hpa.enabled -}}
+{{- if eq .Values.hpa.memory.target "Utilization" -}}
+apiVersion: autoscaling/v2
+{{ else }}
+apiVersion: autoscaling/v2beta2
+{{ end -}}
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Values.namespace }}
+  annotations:
+    {{- include "service-deployment.resourceAnnotations" . | nindent 4 }}
+  labels:
+    {{- include "service-deployment.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Release.Name }}
+  minReplicas: {{ .Values.replicaCount }}
+  maxReplicas: {{ .Values.hpa.maxReplicas }}
+  metrics:
+  {{- if .Values.hpa.cpu }}
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.hpa.cpu }}
+  {{- end }}
+  {{- if .Values.hpa.memory }}
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        {{- if eq .Values.hpa.memory.target "Utilization" }}
+        type: Utilization
+        averageUtilization: {{ .Values.hpa.memory.value }}
+        {{ else }}
+        type: AverageValue
+        averageValue: {{ .Values.hpa.memory.value }}{{- .Values.hpa.memory.unit }}
+        {{ end }}
+  {{- end }}
+  {{- if .Values.hpa.requests }}
+  - type: Pods
+    pods:
+      metric:
+        name: http_requests
+      target:
+        type: AverageValue
+        averageValue: {{ .Values.hpa.requests }}
+  {{- end }}
+{{- end }}

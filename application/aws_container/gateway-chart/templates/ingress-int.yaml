@@ -1,0 +1,38 @@
+{{- if .Values.ingress.internal.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    alb.ingress.kubernetes.io/healthcheck-path: /healthz/ready
+    alb.ingress.kubernetes.io/healthcheck-port: "15021"
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/target-group-attributes: deregistration_delay.timeout_seconds=120
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthy-threshold-count: "5"
+    {{- if .Values.ingress.internal.annotations }}
+    {{- range $key, $value := .Values.ingress.internal.annotations }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
+    {{- end }}
+  {{- if .Values.labels }}
+  labels:
+    {{- range $key, $value := .Values.labels }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
+  {{- end }}
+  name: {{ include "gateway.name" . }}-int
+  namespace: {{ .Release.Namespace }}
+spec:
+  ingressClassName: alb
+  rules:
+  - http:
+      paths:
+      - backend:
+          service:
+            name: {{ include "gateway.name" . }}
+            port:
+              number: 80
+        path: /*
+        pathType: ImplementationSpecific
+{{- end }}

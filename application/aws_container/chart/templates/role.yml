@@ -1,0 +1,16 @@
+{{- if and .Values.serviceAccount.enabled .Values.rbac.enabled -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+    name: {{ .Release.Name }}
+    labels:
+      {{- include "service-deployment.labels" . | nindent 6 }}
+    annotations:
+      {{- include "service-deployment.resourceAnnotations" . | nindent 6 }}
+rules:
+{{- range $_, $v := .Values.rbac.rules }}
+ - apiGroups: {{ $v.apiGroups | toJson }}
+   resources: {{ $v.resources | toJson }}
+   verbs: {{ $v.verbs | toJson }}
+{{- end }}
+{{- end -}}
