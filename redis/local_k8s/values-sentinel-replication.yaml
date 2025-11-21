@@ -1,0 +1,22 @@
+redisReplication:
+  # Replication cluster size (1 master + N replicas). Keep small for local.
+  clusterSize: {{ flavourConfig.sentinel.replicationSize | default(2) }}
+
+  # Redis image and version mapping from root schema 'version'
+  image: {{ flavourConfig.image | default('quay.io/opstree/redis') }}
+  tag: {% if baseConfig.version == "7.2" %}v7.2.11{% elif baseConfig.version == "7.0" %}v7.0.15{% elif baseConfig.version == "6.2" %}v6.2.14{% else %}v7.0.15{% endif %}
+
+storageSpec:
+  volumeClaimTemplate:
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: {{ flavourConfig.storage.storageClassName }}
+      resources:
+        requests:
+          storage: {{ flavourConfig.storage.storageSize }}
+
+pdb:
+  enabled: {{ flavourConfig.podDisruptionBudget.enabled | default(false) }}
+  minAvailable: {{ flavourConfig.podDisruptionBudget.minAvailable | default(1) }}
+
