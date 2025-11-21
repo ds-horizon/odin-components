@@ -21,7 +21,7 @@ log_with_timestamp() {
       }'
 }
 
-# Function to log info messages with timestamp skipping already proccessed error logs
+# Function to log info messages with timestamp skipping already processed error logs
 log_with_timestamp_skip_error() {
     awk '{
           cmd = "date +\"%Y-%m-%d %H:%M:%S,%3N\""

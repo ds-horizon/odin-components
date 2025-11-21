@@ -13,7 +13,7 @@ global:
       - "{{ secret }}"
   {%- endif %}
   {%- endfor %}
-  
+
 {% if flavourConfig.reader.replicaCount == 0 %}
 architecture: standalone
 {% else %}
@@ -84,7 +84,7 @@ primary:
     socket=/opt/bitnami/mysql/tmp/mysql.sock
     pid-file=/opt/bitnami/mysql/tmp/mysqld.pid
 
-secondary: 
+secondary:
   resources:
     requests:
       memory: {{ flavourConfig.reader.resources.requests.memory }}

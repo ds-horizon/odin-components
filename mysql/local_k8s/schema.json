@@ -1,7 +1,7 @@
 {
   "type": "object",
   "title": "Container provisioning configuration",
-  "properties": {    
+  "properties": {
     "image": {
       "type": "object",
       "description": "MySQL Docker image configuration",
@@ -175,5 +175,5 @@
     "writer",
     "reader"
   ],
-  "additionalProperties": false  
+  "additionalProperties": false
 }
