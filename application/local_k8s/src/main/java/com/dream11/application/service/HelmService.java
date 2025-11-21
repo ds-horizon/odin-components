@@ -2,13 +2,13 @@ package com.dream11.application.service;
 
 import com.dream11.application.Application;
 import com.dream11.application.client.HelmClient;
-import com.dream11.application.config.metadata.ComponentMetadata;
 import com.dream11.application.config.metadata.local.DockerRegistryData;
 import com.dream11.application.config.metadata.local.KubernetesData;
 import com.dream11.application.config.user.DeployConfig;
 import com.dream11.application.constant.Constants;
 import com.dream11.application.error.ApplicationError;
 import com.dream11.application.exception.GenericApplicationException;
+import com.dream11.application.exception.HelmReleaseNotFoundException;
 import com.dream11.application.util.ApplicationUtil;
 import com.google.inject.Inject;
 import java.io.File;
@@ -34,8 +34,6 @@ public class HelmService {
 
   @NonNull final DockerRegistryData dockerRegistryData;
 
-  @NonNull final ComponentMetadata componentMetadata;
-
   @NonNull final KubernetesData kubernetesData;
 
   @SneakyThrows
@@ -56,16 +54,10 @@ public class HelmService {
         ApplicationUtil.merge(
             List.of(
                 Map.of(
-                    "COMPONENT_NAME",
-                    this.componentMetadata.getComponentName(),
-                    "ARTIFACT_NAME",
-                    this.deployConfig.getArtifactConfig().getName(),
-                    "ARTIFACT_VERSION",
-                    this.deployConfig.getArtifactConfig().getVersion(),
-                    "APP_DIR",
+                    "ODIN_APP_DIR",
                     Constants.APPLICATION_DIRECTORY.apply(
                         this.deployConfig.getArtifactConfig().getName()),
-                    "DEPLOYMENT_TYPE",
+                    "ODIN_DEPLOYMENT_TYPE",
                     Constants.DEPLOYMENT_TYPE),
                 this.kubernetesData.getEnvironmentVariables(),
                 this.deployConfig.getExtraEnvVars()));
@@ -98,7 +90,12 @@ public class HelmService {
 
   public void uninstall(String releaseName, String namespace) {
     log.debug("Uninstalling helm release:[{}]", releaseName);
-    this.helmClient.uninstall(releaseName, namespace);
+    try {
+      this.helmClient.uninstall(releaseName, namespace);
+    } catch (HelmReleaseNotFoundException ex) {
+      log.warn("Helm release:[{}] not found", releaseName);
+      return;
+    }
     log.info("Helm release:[{}] uninstalled successfully", releaseName);
   }
 

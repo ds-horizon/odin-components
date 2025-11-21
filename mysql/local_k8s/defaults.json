@@ -5,25 +5,21 @@
     "repository": "bitnamilegacy/mysql",
     "tagSuffix": ".23"
   },
-  "storageClass": "ebs-gp3",
   "reader": {
     "resources": {
       "limits": {
         "cpu": "200m",
-        "ephemeralStorage": "2Gi",
+        "ephemeralStorage": "500Mi",
         "memory": "512Mi"
       },
       "requests": {
         "cpu": "100m",
-        "ephemeralStorage": "1Gi",
+        "ephemeralStorage": "500Mi",
         "memory": "256Mi"
       }
     },
-    "nodeSelector": {
-      "node_name": "ON_DEMAND"
-    },
     "persistence": {
-      "size": "10Gi"
+      "size": "2Gi"
     },
     "replicaCount": 1
   },
@@ -31,20 +27,17 @@
     "resources": {
       "limits": {
         "cpu": "200m",
-        "ephemeralStorage": "2Gi",
+        "ephemeralStorage": "500Mi",
         "memory": "512Mi"
       },
       "requests": {
         "cpu": "100m",
-        "ephemeralStorage": "1Gi",
+        "ephemeralStorage": "500Mi",
         "memory": "256Mi"
       }
     },
-    "nodeSelector": {
-      "node_name": "ON_DEMAND"
-    },
     "persistence": {
-      "size": "10Gi"
+      "size": "2Gi"
     }
   },
   "metrics": {

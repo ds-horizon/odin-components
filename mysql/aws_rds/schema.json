@@ -125,20 +125,8 @@
     },
     "credentials": {
       "type": "object",
-      "description": "Master user credentials for initial database authentication and administration. Choose exactly one of three methods: (1) masterUserPassword - plain text password (not recommended for production), (2) masterUserSecretKmsKeyId - AWS auto-generates password stored in Secrets Manager encrypted with your KMS key, (3) manageMasterUserPassword=true - AWS auto-generates and stores password in Secrets Manager with default encryption. Not required when restoring from snapshot or creating read replica. **Production:** Use manageMasterUserPassword or masterUserSecretKmsKeyId for automatic secret management and rotation.",
+      "description": "Configure AWS-managed master user password credentials. When provided, this overrides any password specified in the definition file, allowing AWS Secrets Manager to handle password generation and storage.",
       "properties": {
-        "masterUsername": {
-          "type": "string",
-          "description": "The master (root) username for the database with full administrative privileges. Used for initial setup, user management, and emergency access. Cannot be AWS reserved words: 'admin', 'root', 'rdsadmin', or other MySQL reserved words. Must start with a letter and contain only alphanumeric characters and underscores. Length: 1-16 characters. Create application-specific users with limited privileges after cluster creation. **Production:** Use a non-obvious name (not 'admin' or 'root') for additional security through obscurity.",
-          "minLength": 1,
-          "maxLength": 16
-        },
-        "masterUserPassword": {
-          "type": "string",
-          "description": "The password for the master user in plain text. Must be 8-128 characters long. Can include printable ASCII characters except '/', '@', '\"', and space. Password is stored encrypted at rest but appears in API calls and CloudFormation templates. Not recommended for production due to exposure risk in code repositories and logs. Mutually exclusive with manageMasterUserPassword and masterUserSecretKmsKeyId. **Production:** Do not use; prefer AWS Secrets Manager managed passwords for security.",
-          "minLength": 8,
-          "maxLength": 128
-        },
         "masterUserSecretKmsKeyId": {
           "type": "string",
           "description": "The ARN of a customer-managed KMS key to encrypt the auto-generated master password in AWS Secrets Manager. AWS generates a strong random password, stores it in Secrets Manager, and encrypts it with this key. Provides audit trail via CloudTrail KMS key usage logs. Password rotation can be managed via Secrets Manager. Retrieve password programmatically via Secrets Manager API. Mutually exclusive with masterUserPassword and manageMasterUserPassword. Format: arn:aws:kms:region:account-id:key/key-id. **Production:** Use when you need customer-managed key controls for compliance or cross-account secret access.",
@@ -150,15 +138,7 @@
         }
       },
       "additionalProperties": false,
-      "required": [
-        "masterUsername"
-      ],
       "oneOf": [
-        {
-          "required": [
-            "masterUserPassword"
-          ]
-        },
         {
           "required": [
             "masterUserSecretKmsKeyId"
@@ -179,42 +159,12 @@
         {
           "if": {
             "required": [
-              "masterUserPassword"
-            ]
-          },
-          "then": {
-            "not": {
-              "anyOf": [
-                {
-                  "required": [
-                    "masterUserSecretKmsKeyId"
-                  ]
-                },
-                {
-                  "properties": {
-                    "manageMasterUserPassword": {
-                      "const": true
-                    }
-                  }
-                }
-              ]
-            }
-          }
-        },
-        {
-          "if": {
-            "required": [
               "masterUserSecretKmsKeyId"
             ]
           },
           "then": {
             "not": {
               "anyOf": [
-                {
-                  "required": [
-                    "masterUserPassword"
-                  ]
-                },
                 {
                   "properties": {
                     "manageMasterUserPassword": {
@@ -237,11 +187,6 @@
           "then": {
             "not": {
               "anyOf": [
-                {
-                  "required": [
-                    "masterUserPassword"
-                  ]
-                },
                 {
                   "required": [
                     "masterUserSecretKmsKeyId"
@@ -601,29 +546,6 @@
     },
     {
       "if": {
-        "not": {
-          "anyOf": [
-            {
-              "required": [
-                "snapshotIdentifier"
-              ]
-            },
-            {
-              "required": [
-                "replicationSourceIdentifier"
-              ]
-            }
-          ]
-        }
-      },
-      "then": {
-        "required": [
-          "credentials"
-        ]
-      }
-    },
-    {
-      "if": {
         "anyOf": [
           {
             "required": [
@@ -694,7 +616,8 @@
               ]
             }
           }
-        }
+        },
+        "required": ["readers"]
       },
       "then": {
         "required": [

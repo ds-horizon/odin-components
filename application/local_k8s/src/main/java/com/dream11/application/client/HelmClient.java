@@ -40,7 +40,7 @@ public class HelmClient {
         CommandLineUtil.execute("helm", "uninstall", releaseName, "--namespace", namespace);
     if (result.getExitCode() != 0) {
       if (result.getStdErr().contains("release: not found")) {
-        throw new HelmReleaseNotFoundException(result.getStdErr(), releaseName);
+        throw new HelmReleaseNotFoundException(result.getStdErr());
       }
       throw new GenericApplicationException(
           ApplicationError.HELM_CHART_UNINSTALL_FAILED, result.getStdErr());

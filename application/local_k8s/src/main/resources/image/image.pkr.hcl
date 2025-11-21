@@ -2,7 +2,7 @@ packer {
   required_plugins {
     docker = {
       source  = "github.com/hashicorp/docker"
-      version = "1.0.11"
+      version = "1.1.2"
     }
   }
 }
@@ -55,7 +55,7 @@ build {
   }
   provisioner "file" {
     source      = "${r"${var.artifact_name}"}"
-    destination = "${r"${var.base_dir}"}"
+    destination = "${r"${var.base_dir}"}/"
   }
 
   provisioner "shell" {
@@ -66,9 +66,9 @@ build {
     ]
     inline_shebang = "/bin/bash -e"
     inline = [
-      "SETUP_FILE=$BASE_DIR/$ARTIFACT_NAME/${r"${var.setup_script}"}",
+      "SETUP_FILE=${r"${var.base_dir}"}/${r"${var.artifact_name}"}/${r"${var.setup_script}"}",
       "if [[ -f $SETUP_FILE && ${r"${var.setup_script_enabled}"} == true ]]; then",
-      "bash $SETUP_FILE",
+        "bash $SETUP_FILE",
       "fi"
     ]
   }

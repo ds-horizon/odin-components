@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -18,9 +19,11 @@ import lombok.SneakyThrows;
 
 @Data
 public class DeployConfig implements Config {
-  @NotNull private String version;
+  @NotBlank private String username;
+  @NotBlank private String password;
+  @NotBlank private String version;
 
-  @NotNull private String engineVersion;
+  @NotBlank private String engineVersion;
 
   @Valid @NotNull private WriterConfig writer;
 
