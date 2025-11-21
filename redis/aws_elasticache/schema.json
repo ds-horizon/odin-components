@@ -5,25 +5,6 @@
     {
       "if": {
         "properties": {
-          "replicasPerNodeGroup": { "minimum": 1 }
-          }
-      },
-      "then": {
-        "properties": {
-          "automaticFailoverEnabled": { "const": true }
-        },
-        "errorMessage": "automaticFailoverEnabled should be enabled when replicas are required(i.e. when replicasPerNodeGroup > 0)"
-      },
-      "else": {
-        "properties": {
-          "automaticFailoverEnabled": { "const": false }
-        },
-        "errorMessage": "automaticFailoverEnabled should be enabled when replicas are required(i.e. when replicasPerNodeGroup > 0)"
-      }
-    },
-    {
-      "if": {
-        "properties": {
           "multiAzEnabled": { "const": true }
         }
       },
@@ -56,6 +37,36 @@
           "clusterModeEnabled": { "const": true }
         },
         "errorMessage": "numNodeGroups can only be greater than 1 when clusterModeEnabled is true"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "authentication": {
+            "properties": {
+              "enabled": { "const": true }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "transitEncryptionEnabled": { "const": true }
+        },
+        "errorMessage": "transitEncryptionEnabled must be true when authentication is enabled. AUTH tokens are only supported when encryption-in-transit is enabled."
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "clusterModeEnabled": { "const": true }
+        }
+      },
+      "then": {
+        "properties": {
+          "automaticFailoverEnabled": { "const": true }
+        },
+        "errorMessage": "automaticFailoverEnabled must be true when clusterModeEnabled is true"
       }
     }
   ],
@@ -199,6 +210,33 @@
     "kmsKeyId": {
       "type": "string",
       "description": "ARN of customer-managed KMS key for at-rest encryption. Only applies when `atRestEncryptionEnabled: true`. **Production:** Use customer-managed keys for compliance (HIPAA, PCI-DSS). Ensure proper key rotation policies."
+    },
+    "clusterModeEnabled": {
+      "type": "boolean",
+      "description": "Specifies whether to run in Redis Cluster mode for sharding and horizontal scaling. For large datasets, enabling this is recommended. **Default: `false`** (single-shard setup).",
+      "default": false
+    },
+    "authentication": {
+      "type": "object",
+      "description": "Controls whether to enable the Redis AUTH command for password protection. It is highly recommended to enable this for production.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enables Redis AUTH command for password-based access control. When true, clients must authenticate before executing commands. Adds minimal performance overhead but critical for security. **Default: `false`** (disabled for development simplicity). **Production:** Always enable for any environment with sensitive data or external access.",
+          "default": false
+        },
+        "authToken": {
+          "type": "string",
+          "description": "Secret password required for Redis AUTH when authentication is enabled. Use strong passwords (minimum 16 characters with mixed case, numbers, special characters). Store securely using secrets management systems, never hardcode. Rotate regularly per security policies. **Production:** Use secrets manager integration (AWS Secrets Manager, HashCorp Vault) for automated rotation."
+        }
+      },
+      "required": ["enabled"],
+      "if": {
+        "properties": { "enabled": { "const": true } }
+      },
+      "then": {
+        "required": ["authToken"]
+      }
     }
   },
   "required": []
