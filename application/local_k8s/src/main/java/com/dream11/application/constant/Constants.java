@@ -11,7 +11,6 @@ public class Constants {
   public final String CONFIG = "CONFIG";
   public final String COMPONENT_METADATA = "ODIN_COMPONENT_METADATA";
   public final String LOCAL = "LOCAL";
-  public final Integer UUID_LENGTH = 4;
   public final String DOCKER_REGISTRY_SERVICE = "DOCKER_REGISTRY";
   public final String BASE_DIR = "/app";
   public final String DEPLOYMENT_TYPE = "local_k8s";

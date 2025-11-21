@@ -2,7 +2,6 @@ package com.dream11.application.service;
 
 import com.dream11.application.Application;
 import com.dream11.application.client.HelmClient;
-import com.dream11.application.config.metadata.ComponentMetadata;
 import com.dream11.application.config.metadata.local.DockerRegistryData;
 import com.dream11.application.config.metadata.local.KubernetesData;
 import com.dream11.application.config.user.DeployConfig;
@@ -35,8 +34,6 @@ public class HelmService {
 
   @NonNull final DockerRegistryData dockerRegistryData;
 
-  @NonNull final ComponentMetadata componentMetadata;
-
   @NonNull final KubernetesData kubernetesData;
 
   @SneakyThrows
@@ -57,16 +54,10 @@ public class HelmService {
         ApplicationUtil.merge(
             List.of(
                 Map.of(
-                    "COMPONENT_NAME",
-                    this.componentMetadata.getComponentName(),
-                    "ARTIFACT_NAME",
-                    this.deployConfig.getArtifactConfig().getName(),
-                    "ARTIFACT_VERSION",
-                    this.deployConfig.getArtifactConfig().getVersion(),
-                    "APP_DIR",
+                    "ODIN_APP_DIR",
                     Constants.APPLICATION_DIRECTORY.apply(
                         this.deployConfig.getArtifactConfig().getName()),
-                    "DEPLOYMENT_TYPE",
+                    "ODIN_DEPLOYMENT_TYPE",
                     Constants.DEPLOYMENT_TYPE),
                 this.kubernetesData.getEnvironmentVariables(),
                 this.deployConfig.getExtraEnvVars()));

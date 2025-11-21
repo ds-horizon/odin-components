@@ -133,19 +133,9 @@ public class LaunchTemplateService {
                 this.ec2Data.getUserData().getEnvironmentVariables(),
                 this.deployConfig.getExtraEnvVars(),
                 Map.of(
-                    "COMPONENT_NAME",
-                    this.componentMetadata.getComponentName(),
-                    "ARTIFACT_NAME",
-                    this.deployConfig.getArtifactConfig().getName(),
-                    "ARTIFACT_VERSION",
-                    this.deployConfig.getArtifactConfig().getVersion(),
-                    "APP_DIR",
+                    "ODIN_APP_DIR",
                     appDirectory,
-                    "START_SCRIPT_PATH",
-                    this.deployConfig.getArtifactConfig().getHooks().getStart().getScript(),
-                    "STOP_SCRIPT_PATH",
-                    this.deployConfig.getArtifactConfig().getHooks().getStop().getScript(),
-                    "DEPLOYMENT_TYPE",
+                    "ODIN_DEPLOYMENT_TYPE",
                     Constants.DEPLOYMENT_TYPE),
                 envVars));
     Map<String, Object> tagData =

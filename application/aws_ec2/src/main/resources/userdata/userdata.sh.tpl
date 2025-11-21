@@ -48,7 +48,7 @@ cat << EOM > $ENV_FILE
 <#list environment_variables as key, value>
 ${key}=${value}
 </#list>
-PID_PATH=/run/${component_name}.pid
+ODIN_PID_PATH=/run/${component_name}.pid
 EOM
 
 # Create a systemd service
