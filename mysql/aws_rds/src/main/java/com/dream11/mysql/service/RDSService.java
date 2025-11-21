@@ -21,9 +21,11 @@ import com.dream11.mysql.exception.GenericApplicationException;
 import com.dream11.mysql.util.ApplicationUtil;
 import com.google.inject.Inject;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -374,6 +376,20 @@ public class RDSService {
   }
 
   public void reboot() {
+    Set<String> validInstances = new HashSet<>();
+    validInstances.add(Application.getState().getWriterInstanceIdentifier());
+    Application.getState().getReaderInstanceIdentifiers().values().forEach(validInstances::addAll);
+
+    for (String instanceId : this.rebootConfig.getInstanceIdentifiers()) {
+      if (!validInstances.contains(instanceId)) {
+        throw new GenericApplicationException(
+            ApplicationError.CONSTRAINT_VIOLATION,
+            String.format(
+                "Instance %s is neither a reader nor a writer instance of the cluster %s",
+                instanceId, Application.getState().getClusterIdentifier()));
+      }
+    }
+
     List<Callable<Void>> tasks = new ArrayList<>();
     for (String instanceIdentifier : this.rebootConfig.getInstanceIdentifiers()) {
       log.info("Rebooting DB instance: {}", instanceIdentifier);

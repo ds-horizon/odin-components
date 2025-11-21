@@ -571,17 +571,7 @@ public class RDSClient {
   }
 
   public void deleteDBInstance(String instanceIdentifier, DeletionConfig deletionConfig) {
-    this.dbClient.deleteDBInstance(
-        request -> {
-          request.dbInstanceIdentifier(instanceIdentifier);
-          if (deletionConfig != null && !deletionConfig.getSkipFinalSnapshot()) {
-            request
-                .skipFinalSnapshot(false)
-                .finalDBSnapshotIdentifier(deletionConfig.getFinalSnapshotIdentifier());
-          } else {
-            request.skipFinalSnapshot(true);
-          }
-        });
+    this.dbClient.deleteDBInstance(request -> request.dbInstanceIdentifier(instanceIdentifier));
   }
 
   public void deleteDBClusterParameterGroup(String clusterParameterGroupName) {

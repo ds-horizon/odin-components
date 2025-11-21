@@ -137,13 +137,12 @@ Kubernetes annotations to apply to the MySQL writer service. Adds custom metadat
 
 ###### Properties
 
-| Property            | Type    | Required | Description                                                         |
-|---------------------|---------|----------|---------------------------------------------------------------------|
-| `key`               | string  | **Yes**  |                                                                     |
-| `operator`          | string  | **Yes**  | Possible values are: `Equal`, `Exists`.                             |
-| `effect`            | string  | No       | Possible values are: `NoSchedule`, `PreferNoSchedule`, `NoExecute`. |
-| `tolerationSeconds` | integer | No       |                                                                     |
-| `value`             | string  | No       |                                                                     |
+| Property   | Type   | Required | Description                                                         |
+|------------|--------|----------|---------------------------------------------------------------------|
+| `key`      | string | **Yes**  |                                                                     |
+| `operator` | string | **Yes**  | Possible values are: `Equal`, `Exists`.                             |
+| `effect`   | string | No       | Possible values are: `NoSchedule`, `PreferNoSchedule`, `NoExecute`. |
+| `value`    | string | No       |                                                                     |
 
 #### writer
 
@@ -216,12 +215,11 @@ Kubernetes annotations to apply to the MySQL writer service. Adds custom metadat
 
 ###### Properties
 
-| Property            | Type    | Required | Description                                                         |
-|---------------------|---------|----------|---------------------------------------------------------------------|
-| `key`               | string  | **Yes**  |                                                                     |
-| `operator`          | string  | **Yes**  | Possible values are: `Equal`, `Exists`.                             |
-| `effect`            | string  | No       | Possible values are: `NoSchedule`, `PreferNoSchedule`, `NoExecute`. |
-| `tolerationSeconds` | integer | No       |                                                                     |
-| `value`             | string  | No       |                                                                     |
+| Property   | Type   | Required | Description                                                         |
+|------------|--------|----------|---------------------------------------------------------------------|
+| `key`      | string | **Yes**  |                                                                     |
+| `operator` | string | **Yes**  | Possible values are: `Equal`, `Exists`.                             |
+| `effect`   | string | No       | Possible values are: `NoSchedule`, `PreferNoSchedule`, `NoExecute`. |
+| `value`    | string | No       |                                                                     |
 
 

@@ -50,6 +50,11 @@ primary:
   {%- endfor %}
   {%- endif %}
 
+  {% if flavourConfig.writer.persistence.size %}
+  persistence:
+    enabled: true
+    size: {{ flavourConfig.writer.persistence.size }}
+  {% endif %}
 
   configuration: |-
     [mysqld]
