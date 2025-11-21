@@ -109,13 +109,9 @@ public class ImageService {
             ApplicationUtil.merge(
                 List.of(
                     Map.of(
-                        "ARTIFACT_NAME",
-                        artifactName,
-                        "BASE_DIR",
-                        Constants.BASE_DIR,
-                        "APP_DIR",
+                        "ODIN_APP_DIR",
                         Constants.APPLICATION_DIRECTORY.apply(artifactName),
-                        "DEPLOYMENT_TYPE",
+                        "ODIN_DEPLOYMENT_TYPE",
                         Constants.DEPLOYMENT_TYPE),
                     this.kubernetesData.getEnvironmentVariables(),
                     this.deployConfig.getExtraEnvVars()))));

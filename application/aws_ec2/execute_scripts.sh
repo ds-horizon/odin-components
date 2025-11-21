@@ -15,7 +15,7 @@ if [[ ! -d ${ARTIFACT_NAME} ]]; then
 fi
 
 if [[ "$1" == "pre-deploy" ]]; then
-    HOOK_ENABLED_VAR=HOOK_PRE_DEPLOY_ENABLED
+    HOOK_ENABLED_VAR=ODIN_HOOK_PRE_DEPLOY_ENABLED
     if [[ -f "state.json" && $(jq -r '.deployConfig' state.json) != null ]]; then
         file_path=$(jq -r '.deployConfig.artifact.hooks.preDeploy.script' state.json)
         enabled=$(jq -r '.deployConfig.artifact.hooks.preDeploy.enabled' state.json)
@@ -31,7 +31,7 @@ if [[ "$1" == "pre-deploy" ]]; then
         docker_image=$(echo "${CONFIG}" | jq -r '.artifact.hooks.preDeploy.dockerImage')
     fi
 elif [[ "$1" == "post-deploy" ]]; then
-    HOOK_ENABLED_VAR=HOOK_POST_DEPLOY_ENABLED
+    HOOK_ENABLED_VAR=ODIN_HOOK_POST_DEPLOY_ENABLED
     if [[ -f "state.json" && $(jq -r '.deployConfig' state.json) != null ]]; then
         file_path=$(jq -r '.deployConfig.artifact.hooks.postDeploy.script' state.json)
         enabled=$(jq -r '.deployConfig.artifact.hooks.postDeploy.enabled' state.json)
@@ -57,7 +57,7 @@ if [[ ${enabled} == true ]]; then
     # shellcheck disable=SC1064,SC1065,SC1073,SC1072,SC1083,SC1054
     {% set env_variables = ec2_data.data.environmentVariables | default({}, true) %}
     env_variables="{{ env_variables | tojson | replace('"', '\\"') }}"
-    env_variables=$(echo "${env_variables}" | jq '. + {"APP_DIR": "/tmp/'"${ARTIFACT_NAME}"'", "DEPLOYMENT_TYPE": "aws_ec2"}')
+    env_variables=$(echo "${env_variables}" | jq '. + {"ODIN_APP_DIR": "/tmp/'"${ARTIFACT_NAME}"'", "ODIN_DEPLOYMENT_TYPE": "aws_ec2"}')
     if [[ -f "state.json" && $(jq -r '.deployConfig' state.json) != null ]]; then
         env_variables=$(echo "${env_variables}" | jq --argjson vars "$(jq -r '.deployConfig.extraEnvVars' state.json)" '. * $vars')
     fi
