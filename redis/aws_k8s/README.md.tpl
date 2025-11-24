@@ -2,6 +2,8 @@
 
 Deploy and manage Redis on AWS EKS using the [Opstree Redis Operator](https://github.com/OT-CONTAINER-KIT/redis-operator). Defaults are optimized for simplicity and cost-effectiveness, perfect for getting started quickly. Easily upgrade to Sentinel or Cluster mode for production workloads requiring high availability or horizontal scaling.
 
+{{ .Markdown 2 }}
+
 ## Default Configuration Philosophy
 
 This flavour uses **standalone defaults** optimized for simplicity and cost:
@@ -75,8 +77,6 @@ Before enabling usage of this flavour of Redis, ensure:
 
 5. **Optional - Prometheus Operator**: For ServiceMonitor-based metrics collection
 6. **Optional - IAM Role for Service Account (IRSA)**: For S3 backup access
-
-{{ .Markdown 2 }}
 
 ## Configuration
 

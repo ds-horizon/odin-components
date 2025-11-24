@@ -1,0 +1,39 @@
+redisExporter:
+  enabled: {{ flavourConfig.metrics.enabled | default(true) }}
+  image: {{ flavourConfig.metrics.redisExporterImage | default('quay.io/opstree/redis-exporter') }}
+  tag: {{ flavourConfig.metrics.redisExporterTag | default('v1.44.0') }}
+  imagePullPolicy: {{ flavourConfig.imagePullPolicy | default('IfNotPresent') }}
+  resources:
+    requests:
+      cpu: {{ flavourConfig.metrics.exporterResources.requests.cpu | default('50m') }}
+      memory: {{ flavourConfig.metrics.exporterResources.requests.memory | default('64Mi') }}
+    limits:
+      cpu: {{ flavourConfig.metrics.exporterResources.limits.cpu | default('200m') }}
+      memory: {{ flavourConfig.metrics.exporterResources.limits.memory | default('256Mi') }}
+
+podSecurityContext:
+  runAsNonRoot: {{ flavourConfig.securityContext.runAsNonRoot | default(true) }}
+  runAsUser: {{ flavourConfig.securityContext.runAsUser | default(1000) }}
+  fsGroup: {{ flavourConfig.securityContext.fsGroup | default(1000) }}
+
+priorityClassName: {{ flavourConfig.priorityClassName | default('') }}
+serviceAccountName: {{ flavourConfig.serviceAccount | default('default') }}
+
+nodeSelector:
+  {% if flavourConfig.nodeSelector %}
+  {% for key, value in flavourConfig.nodeSelector.items() %}
+  {{ key }}: {{ value }}
+  {% endfor %}
+  {% endif %}
+
+tolerations:
+  {% if flavourConfig.tolerations and flavourConfig.tolerations|length > 0 %}
+  {% for tol in flavourConfig.tolerations %}
+  - key: {{ tol.key }}
+    operator: {{ tol.operator }}
+    value: {{ tol.value }}
+    effect: {{ tol.effect }}
+  {% endfor %}
+  {% endif %}
+
+

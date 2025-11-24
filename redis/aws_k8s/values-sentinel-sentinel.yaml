@@ -1,0 +1,21 @@
+redisSentinel:
+  # Number of Sentinel nodes
+  clusterSize: {{ flavourConfig.sentinel.sentinelSize | default(3) }}
+
+  # Sentinel image and version mapping from root schema 'version'
+  image: {{ flavourConfig.sentinelImage | default('quay.io/opstree/redis-sentinel') }}
+  tag: {% if baseConfig.version == "7.2" %}v7.2.11{% elif baseConfig.version == "7.0" %}v7.0.15{% elif baseConfig.version == "6.2" %}v6.2.14{% else %}v7.0.15{% endif %}
+
+redisSentinelConfig:
+  # Name of the RedisReplication resource managed by the replication chart
+  redisReplicationName: {{ componentMetadata.name }}-replication
+  masterGroupName: "mymaster"
+  quorum: "{{ flavourConfig.sentinel.quorum | default(2) }}"
+  downAfterMilliseconds: "{{ flavourConfig.sentinel.downAfterMilliseconds | default(5000) }}"
+  parallelSyncs: "{{ flavourConfig.sentinel.parallelSyncs | default(1) }}"
+  failoverTimeout: "{{ flavourConfig.sentinel.failoverTimeout | default(10000) }}"
+
+pdb:
+  enabled: {{ flavourConfig.podDisruptionBudget.enabled | default(true) }}
+  minAvailable: {{ flavourConfig.podDisruptionBudget.minAvailable | default(1) }}
+

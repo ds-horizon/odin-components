@@ -35,7 +35,7 @@ Odin.component {
                 port "6379"
             }
         }
-
+      
         operate {
             name "update-node-type"
             String lastState = getLastState()
@@ -66,16 +66,84 @@ Odin.component {
             out "cat state.json"
         }
 
+      
+         undeploy {            
+            run "bash undeploy.sh"
+        }
+    }   
 
+    flavour {
+        name "aws_k8s"
+        deploy {
+            String lastState = getLastState()
+            if (lastState != null && !lastState.isEmpty()) {
+                run "echo '${lastState}' > state.json"
+            }                       
+            run "bash deploy.sh"
+            out "cat state.json"
+          
+            discovery {
+                run "bash discovery.sh"
+            }
+        }
+
+        healthcheck {
+            linearRetryPolicy {
+                count 2
+                intervalSeconds 3
+            }
+
+            tcp {
+                port "6379"
+            }
+        }
+
+        undeploy {
+            String lastState = getLastState()    
+            if (lastState != null && !lastState.isEmpty()) {
+                run "echo '${lastState}' > state.json"
+            } else {
+                run "echo '{}' > state.json"
+            }           
+            run "bash undeploy.sh"
+            out "cat state.json"
+        }
+    }
+
+    flavour {
+        name "local_k8s"
+        deploy {
+            String lastState = getLastState()
+            if (lastState != null && !lastState.isEmpty()) {
+                run "echo '${lastState}' > state.json"
+            }                       
+            run "bash deploy.sh"
+            out "cat state.json"
+
+            discovery {
+                run "bash discovery.sh"
+            }
+        }
+
+        healthcheck {
+            linearRetryPolicy {
+                count 2
+                intervalSeconds 3
+            }
+
+            tcp {
+                port "6379"
+            }
+        }
 
         undeploy {
             String lastState = getLastState()
             if (lastState != null && !lastState.isEmpty()) {
                 run "echo '${lastState}' > state.json"
+            } else {
+                run "echo '{}' > state.json"
             }
-            run "bash execute.sh undeploy"
-            out "cat state.json"
+            run "bash undeploy.sh"
         }
     }
-
 }

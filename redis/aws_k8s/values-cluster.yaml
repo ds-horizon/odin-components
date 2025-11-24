@@ -1,0 +1,47 @@
+redisCluster:
+  # Cluster topology from flavour
+  clusterSize: {{ flavourConfig.cluster.clusterSize | default(3) }}
+
+  # Enable master–follower anti-affinity so leaders and followers prefer different nodes
+  enableMasterSlaveAntiAffinity: true
+
+  # Leader and follower replica counts
+  leader:
+    replicas: {{ flavourConfig.cluster.clusterSize | default(3) }}
+    pdb:
+      enabled: {{ flavourConfig.podDisruptionBudget.enabled | default(true) }}
+      minAvailable: {{ flavourConfig.podDisruptionBudget.minAvailable | default(1) }}
+
+  follower:
+    # Total follower replicas = clusterSize * replicasPerMaster
+    replicas: {{ flavourConfig.cluster.clusterSize * flavourConfig.cluster.replicasPerMaster | default(3) }}
+    pdb:
+      enabled: {{ flavourConfig.podDisruptionBudget.enabled | default(true) }}
+      minAvailable: {{ flavourConfig.podDisruptionBudget.minAvailable | default(1) }}
+
+  # Redis image and version mapping from root schema 'version'
+  image: {{ flavourConfig.image | default('quay.io/opstree/redis') }}
+  tag: {% if baseConfig.version == "7.2" %}v7.2.11{% elif baseConfig.version == "7.0" %}v7.0.15{% elif baseConfig.version == "6.2" %}v6.2.14{% else %}v7.0.15{% endif %}
+
+storageSpec:
+  # Data volume for Redis data
+  volumeClaimTemplate:
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: {{ flavourConfig.storage.storageClassName }}
+      resources:
+        requests:
+          storage: {{ flavourConfig.storage.storageSize }}
+
+  # Node configuration volume (nodes.conf)
+  nodeConfVolume: true
+  nodeConfVolumeClaimTemplate:
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: {{ flavourConfig.storage.storageClassName }}
+      resources:
+        requests:
+          storage: {{ flavourConfig.storage.nodeConfStorageSize | default('1Gi') }}
+
