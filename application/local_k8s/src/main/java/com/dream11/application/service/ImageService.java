@@ -57,7 +57,7 @@ public class ImageService {
       }
     } else {
       // Local artifact
-      imageTag = "local";
+      imageTag = "local-dev";
     }
     log.info("Generating packer template for image creation");
     this.createPackerFile(this.generatePackerTemplate(imageTag));
