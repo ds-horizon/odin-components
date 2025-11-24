@@ -4,3 +4,8 @@ components:
       description: Example component
       version: 0.0.1
       downloadUrl: https://github.com/ds-horizon/odin-components/releases/download/example-0.0.1/example-0.0.1.tar.gz
+  application:
+    - name: application
+      description: Deploy application in local_k8s and aws_ec2
+      version: 0.0.1
+      downloadUrl: https://github.com/ds-horizon/odin-components/releases/download/application-0.0.1/application-0.0.1.tar.gz
