@@ -1,6 +1,15 @@
-# OpsTree Operator Implementation Mapping
+# OpsTree Operator Implementation Mapping (aws_k8s Helm Flavour)
 
-This document maps Odin component schema properties to OpsTree Redis Operator CRD fields. It serves as a reference for component developers implementing the provisioning logic.
+This document maps Odin component schema properties to OpsTree Redis Operator **as implemented by the `aws_k8s` flavour**, which uses the official Opstree Helm charts (`ot-helm`) rather than writing CRDs by hand.
+
+> **Note:** Many of the detailed CRD mappings below come from an earlier, direct‑CRD design.  
+> For `aws_k8s` we now:
+> - Drive Redis via Helm charts:
+>   - `ot-helm/redis` (standalone)
+>   - `ot-helm/redis-replication` + `ot-helm/redis-sentinel` (sentinel)
+>   - `ot-helm/redis-cluster` (cluster)
+> - Map Odin schema → Helm values → operator‑managed CRDs.
+> - Intentionally *do not* implement some of the older mappings (e.g. `additionalRedisConfig`, `networkPolicy`, `backups`) due to known operator limitations or scope.
 
 ## Target API
 
@@ -9,32 +18,117 @@ This document maps Odin component schema properties to OpsTree Redis Operator CR
 - Resources: `Redis`, `RedisCluster`, `RedisSentinel`, `RedisReplication`
 - Documentation: https://ot-container-kit.github.io/redis-operator/
 
-## Deployment Mode Mapping
+## Deployment Mode Mapping (aws_k8s)
 
-| Schema Property | Value | OpsTree CRD | Notes |
-|----------------|--------|-------------|-------|
-| `deployment.mode` | `"standalone"` | `kind: Redis` | Single instance, no replication |
-| `deployment.mode` | `"sentinel"` | `kind: RedisReplication` | Master-replica with Sentinel |
-| `deployment.mode` | `"cluster"` | `kind: RedisCluster` | Sharded cluster mode |
+Root schema (`redis/schema.json`):
+- `version` (logical major.minor)
+- `discovery` (client‑side DNS, not used to name K8s Services)
 
-## Property Mappings
+Flavour schema (`aws_k8s/schema.json`):
+- `deploymentMode`: `"standalone"`, `"sentinel"`, `"cluster"`
 
-### Basic Configuration
+Implementation:
 
-| Odin Schema Property | OpsTree CRD Path | Example Value | Notes |
-|---------------------|------------------|---------------|-------|
-| `namespace` | `metadata.namespace` | `"redis"` | From COMPONENT_METADATA, not in flavour schema |
-| `deployment.mode` | Determines `kind` | See table above | Selects CRD type |
-| `deployment.config.replica.count` | `spec.size` (RedisReplication) | `3` | For RedisReplication: size = 1 master + replica.count |
+| Schema Property                        | Value          | Helm Chart(s) Used                           | OpsTree CRD(s) created by operator | Notes |
+|----------------------------------------|----------------|----------------------------------------------|-------------------------------------|-------|
+| `deploymentMode`                       | `"standalone"` | `ot-helm/redis`                              | `Redis`                             | Single instance, no replication |
+| `deploymentMode`                       | `"sentinel"`   | `ot-helm/redis-replication`, `redis-sentinel`| `RedisReplication`, `RedisSentinel` | Master–replica topology with Sentinel |
+| `deploymentMode`                       | `"cluster"`    | `ot-helm/redis-cluster`                      | `RedisCluster`                      | Sharded cluster with leaders + followers |
 
-### Master Resources
+`deploy.sh` selects the chart(s) to install based on `deploymentMode`, then waits for pods to be ready.
 
-| Odin Schema Property | OpsTree CRD Path | Example | Notes |
-|---------------------|------------------|---------|-------|
-| `master.resources.requests.cpu` | `spec.kubernetesConfig.resources.requests.cpu` | `"500m"` | Master CPU request |
-| `master.resources.requests.memory` | `spec.kubernetesConfig.resources.requests.memory` | `"1Gi"` | Master memory request |
-| `master.resources.limits.cpu` | `spec.kubernetesConfig.resources.limits.cpu` | `"1000m"` | Master CPU limit |
-| `master.resources.limits.memory` | `spec.kubernetesConfig.resources.limits.memory` | `"2Gi"` | Master memory limit |
+### Root Version Mapping (implemented)
+
+Root `redis/schema.json`:
+
+```json
+{
+  "version": {
+    "enum": ["7.1", "7.0", "6.2", "6.0", "5.0.6"]
+  }
+}
+```
+
+For `aws_k8s` we **only support**: `6.2`, `7.0`, `7.1` with Opstree:
+
+- `deploy.sh` validates:
+
+  - **Allowed:** `6.2`, `7.0`, `7.1`
+  - **Rejected:** `6.1` and lower (`6.0`, `5.0.6`, etc.) – operator only supports Redis ≥ 6 and is tested on ≥ 6.2.
+
+- Values templates map the logical version to specific image tags:
+
+  - Standalone (`values-standalone.yaml`):
+
+    ```yaml
+    redisStandalone:
+      image: quay.io/opstree/redis
+      tag: {% if baseConfig.version == "7.1" %}v7.1.0{% elif baseConfig.version == "7.0" %}v7.0.15{% elif baseConfig.version == "6.2" %}v6.2.14{% else %}v7.0.15{% endif %}
+    ```
+
+  - Cluster (`values-cluster.yaml`):
+
+    ```yaml
+    redisCluster:
+      image: quay.io/opstree/redis
+      tag: {% if baseConfig.version == "7.1" %}v7.1.0{% elif baseConfig.version == "7.0" %}v7.0.15{% elif baseConfig.version == "6.2" %}v6.2.14{% else %}v7.0.15{% endif %}
+    ```
+
+  - Sentinel (data nodes, `values-sentinel-replication.yaml`):
+
+    ```yaml
+    redisReplication:
+      image: quay.io/opstree/redis
+      tag: {% if baseConfig.version == "7.1" %}v7.1.0{% elif baseConfig.version == "7.0" %}v7.0.15{% elif baseConfig.version == "6.2" %}v6.2.14{% else %}v7.0.15{% endif %}
+    ```
+
+  - Sentinel (sentinel pods, `values-sentinel-sentinel.yaml`):
+
+    ```yaml
+    redisSentinel:
+      image: quay.io/opstree/redis-sentinel
+      tag: {% if baseConfig.version == "7.1" %}v7.1.0{% elif baseConfig.version == "7.0" %}v7.0.15{% elif baseConfig.version == "6.2" %}v6.2.14{% else %}v7.0.15{% endif %}
+    ```
+
+**Why `6.0` / `5.0.6` are not implemented for aws_k8s:** the Opstree operator only supports Redis ≥ 6 and its compatibility table and charts are focused on ≥ 6.2; earlier versions are only valid for other flavours (e.g. ElastiCache).
+
+## Property Mappings (aws_k8s implementation)
+
+### Basic Configuration (implemented)
+
+| Odin Schema Property                        | Helm Values Path (aws_k8s)              | Effective CRD Field (via operator)                 | Notes |
+|---------------------------------------------|-----------------------------------------|----------------------------------------------------|-------|
+| `componentMetadata.envName`                 | `deploy.sh → NAMESPACE`                 | `metadata.namespace`                               | Namespace for all resources |
+| `deploymentMode`                            | `deploy.sh` (switch)                    | Determines CRD kind via chart (Redis/Cluster/…)    | Chooses chart(s) to install |
+| `cluster.clusterSize`                       | `values-cluster.yaml → redisCluster.clusterSize` | `RedisCluster.spec.clusterSize`            | Number of masters/shards |
+| `cluster.replicasPerMaster`                 | `values-cluster.yaml → follower.replicas`        | Implied via follower replica count                | Follower replicas = `clusterSize * replicasPerMaster` |
+| `sentinel.replicationSize`                  | `values-sentinel-replication.yaml → redisReplication.clusterSize` | `RedisReplication.spec.clusterSize`    | 1 master + N replicas |
+| `sentinel.sentinelSize`                     | `values-sentinel-sentinel.yaml → redisSentinel.clusterSize`      | `RedisSentinel.spec.clusterSize`       | Number of sentinel pods |
+
+### Resources, Security, Scheduling (implemented)
+
+These are all driven from `aws_k8s/schema.json` → `flavourConfig.*` into the values files.
+
+| Odin Schema Property                        | Values Path (standalone)                          | Values Path (cluster)                              | Values Path (sentinel data/sentinels)                            |
+|---------------------------------------------|---------------------------------------------------|----------------------------------------------------|------------------------------------------------------------------|
+| `resources.requests.cpu`                    | `values-standalone.yaml → redisStandalone.resources.requests.cpu` | `values-cluster.yaml → redisCluster.resources.requests.cpu` | `values-sentinel-replication.yaml → redisReplication.resources.requests.cpu` / `values-sentinel-sentinel.yaml → redisSentinel.resources.requests.cpu` |
+| `resources.requests.memory`                 | same                                              | same                                               | same                                                             |
+| `resources.limits.cpu`                      | same                                              | same                                               | same                                                             |
+| `resources.limits.memory`                   | same                                              | same                                               | same                                                             |
+| `securityContext.runAsNonRoot/runAsUser/fsGroup` | `podSecurityContext.*` in all values files  | `podSecurityContext.*`                            | `podSecurityContext.*`                                          |
+| `nodeSelector`                              | `nodeSelector` map in all values files            | same                                               | same                                                             |
+| `tolerations`                               | `tolerations` list in all values files            | same                                               | same                                                             |
+| `priorityClassName`                         | `priorityClassName` in all values files           | same                                               | same                                                             |
+| `serviceAccount`                            | `serviceAccountName` in all values files          | same                                               | same                                                             |
+
+For cluster mode we additionally enable master–follower anti‑affinity:
+
+```yaml
+redisCluster:
+  enableMasterSlaveAntiAffinity: true
+```
+
+This allows the operator’s webhook to apply pod anti‑affinity between leader and follower pods.
 
 ### Replica Resources
 
@@ -45,17 +139,30 @@ This document maps Odin component schema properties to OpsTree Redis Operator CR
 | `deployment.config.replica.resources.limits.cpu` | `spec.redisReplication.resources.limits.cpu` | `"1000m"` | Replica CPU limit (RedisReplication) |
 | `deployment.config.replica.resources.limits.memory` | `spec.redisReplication.resources.limits.memory` | `"2Gi"` | Replica memory limit (RedisReplication) |
 
-### Persistence
+### Storage & Persistence (partially implemented)
 
-| Odin Schema Property | OpsTree CRD Path | Example | Notes |
-|---------------------|------------------|---------|-------|
-| `persistence.enabled` | `spec.storage` presence | `{}` or omit | If enabled, include storage spec |
-| `persistence.storageClass` | `spec.storage.volumeClaimTemplate.spec.storageClassName` | `"gp3"` | StorageClass name |
-| `persistence.size` | `spec.storage.volumeClaimTemplate.spec.resources.requests.storage` | `"10Gi"` | Volume size |
-| `persistence.rdb.enabled` | `spec.redisConfig.additionalRedisConfig` | `save 900 1` or `save ""` | Via redis.conf in additionalRedisConfig |
-| `persistence.rdb.saveInterval` | `spec.redisConfig.additionalRedisConfig` | `save 900 1 300 10 60 10000` | Redis save format in additionalRedisConfig |
-| `persistence.aof.enabled` | `spec.redisConfig.additionalRedisConfig` | `appendonly yes` or `appendonly no` | Via redis.conf in additionalRedisConfig |
-| `persistence.aof.fsyncPolicy` | `spec.redisConfig.additionalRedisConfig` | `appendfsync everysec` | Via redis.conf in additionalRedisConfig |
+We treat `storage` from `aws_k8s/schema.json` as **PVC sizing and class**, not as a full on/off toggle:
+
+| Odin Schema Property         | Values Path (standalone/sentinel)             | Values Path (cluster)                                        | Effective CRD Field                                    | Status |
+|-----------------------------|-----------------------------------------------|--------------------------------------------------------------|--------------------------------------------------------|--------|
+| `storage.storageClassName`  | `storageSpec.volumeClaimTemplate.spec.storageClassName` | same                                                     | `spec.storage.volumeClaimTemplate.spec.storageClassName` | Implemented |
+| `storage.storageSize`       | `storageSpec.volumeClaimTemplate.spec.resources.requests.storage` | same                                                     | `spec.storage.volumeClaimTemplate.spec.resources.requests.storage` | Implemented |
+| `storage.nodeConfStorageSize` | n/a (standalone/sentinel don’t use nodes.conf) | `storageSpec.nodeConfVolumeClaimTemplate.spec.resources.requests.storage` | `RedisCluster.spec.storage.nodeConfVolumeClaimTemplate…` | Implemented |
+| `storage.enabled`           | **ignored**                                   | **ignored**                                                 | N/A                                                    | **Not implemented** |
+
+**Reason `storage.enabled` is ignored:**  
+Opstree’s operator infers persistence internally and will still try to create PVCs with `PERSISTENCE_ENABLED=true` for `RedisReplication` even if we omit `storage`. Omitting `storageSpec` leads to unbound PVCs with no `storageClassName`, not to “ephemeral only” Redis. To avoid broken PVCs we always configure `storageSpec` and document `storage.enabled` as not used for `aws_k8s`.
+
+The more advanced `persistence` section from the generic mapping (RDB/AOF via `additionalRedisConfig`) is **not implemented** for `aws_k8s` because:
+
+- The operator has had bugs around `additionalRedisConfig` and ConfigMap references.
+- We rely on Opstree’s built‑in persistence behaviour instead of pushing custom redis.conf fragments.
+
+So this table:
+
+> `persistence.rdb.*`, `persistence.aof.*` → `spec.redisConfig.additionalRedisConfig`
+
+is **intentionally not used** in the current implementation.
 
 **Storage Example:**
 ```yaml
@@ -142,17 +249,48 @@ else:
 additional_config = "\n".join(redis_config)
 ```
 
-### Sentinel Configuration
+### Sentinel Configuration (implemented via Helm charts)
 
-| Odin Schema Property | OpsTree CRD Path | Example | Notes |
-|---------------------|------------------|---------|-------|
-| `deployment.mode: "sentinel"` | Use `RedisReplication` kind | - | Controls CRD type selection |
-| `deployment.config.sentinel.replicas` | `spec.redisSentinel.replicas` (RedisReplication) | `3` | Number of Sentinel pods |
-| `deployment.config.sentinel.quorum` | `spec.redisSentinel.config.quorum` (RedisReplication) | `2` | Quorum for failover |
-| `deployment.config.sentinel.resources.requests.cpu` | `spec.redisSentinel.resources.requests.cpu` | `"100m"` | Sentinel CPU request |
-| `deployment.config.sentinel.resources.requests.memory` | `spec.redisSentinel.resources.requests.memory` | `"128Mi"` | Sentinel memory request |
-| `deployment.config.sentinel.resources.limits.cpu` | `spec.redisSentinel.resources.limits.cpu` | `"200m"` | Sentinel CPU limit |
-| `deployment.config.sentinel.resources.limits.memory` | `spec.redisSentinel.resources.limits.memory` | `"256Mi"` | Sentinel memory limit |
+`aws_k8s/schema.json` exposes a `sentinel` object:
+
+```json
+"sentinel": {
+  "replicationSize": …,
+  "sentinelSize": …,
+  "quorum": …,
+  "downAfterMilliseconds": …,
+  "parallelSyncs": …,
+  "failoverTimeout": …
+}
+```
+
+We map these into the Opstree charts as follows:
+
+- **Replication (`redis-replication` chart → `RedisReplication` CR):**
+
+  ```yaml
+  # values-sentinel-replication.yaml
+  redisReplication:
+    clusterSize: {{ flavourConfig.sentinel.replicationSize }}
+  ```
+
+- **Sentinel (`redis-sentinel` chart → `RedisSentinel` CR):**
+
+  ```yaml
+  # values-sentinel-sentinel.yaml
+  redisSentinel:
+    clusterSize: {{ flavourConfig.sentinel.sentinelSize }}
+
+  redisSentinelConfig:
+    redisReplicationName: {{ componentMetadata.name }}-replication
+    masterGroupName: "mymaster"
+    quorum: "{{ flavourConfig.sentinel.quorum }}"
+    downAfterMilliseconds: "{{ flavourConfig.sentinel.downAfterMilliseconds }}"
+    parallelSyncs: "{{ flavourConfig.sentinel.parallelSyncs }}"
+    failoverTimeout: "{{ flavourConfig.sentinel.failoverTimeout }}"
+  ```
+
+This is different from the older “embedded sentinel in RedisReplication” mapping and reflects the current Helm‑chart‑based implementation.
 
 **Sentinel Example:**
 ```yaml
@@ -175,12 +313,32 @@ spec:
         memory: "256Mi"
 ```
 
-### Cluster Configuration
+### Cluster Configuration (implemented via `redis-cluster` chart)
 
-| Odin Schema Property | OpsTree CRD Path | Example | Notes |
-|---------------------|------------------|---------|-------|
-| `deployment.config.numShards` | `spec.clusterSize` (RedisCluster) | `3` | Number of master nodes |
-| `deployment.config.replicasPerShard` | `spec.clusterReplicas` (RedisCluster) | `1` | Replicas per master |
+`aws_k8s/schema.json`:
+
+```json
+"cluster": {
+  "clusterSize": …,
+  "replicasPerMaster": …
+}
+```
+
+We map this into the Helm values:
+
+```yaml
+redisCluster:
+  clusterSize: {{ flavourConfig.cluster.clusterSize }}
+  leader:
+    replicas: {{ flavourConfig.cluster.clusterSize }}
+  follower:
+    replicas: {{ flavourConfig.cluster.clusterSize * flavourConfig.cluster.replicasPerMaster }}
+```
+
+The operator then creates a `RedisCluster` CR with:
+
+- `spec.clusterSize = clusterSize`
+- Leader/follower StatefulSets sized as configured.
 
 **Cluster Example:**
 ```yaml
@@ -199,14 +357,36 @@ spec:
         memory: "4Gi"
 ```
 
-### Metrics
+### Metrics (implemented: exporter only)
 
-| Odin Schema Property | OpsTree CRD Path | Example | Notes |
-|---------------------|------------------|---------|-------|
-| `metrics.enabled` | `spec.redisExporter.enabled` | `true` | Enable redis-exporter sidecar |
-| `metrics.serviceMonitor.enabled` | Create separate `ServiceMonitor` CR | - | Not part of Redis CRD, separate resource |
-| `metrics.serviceMonitor.interval` | `ServiceMonitor.spec.interval` | `"30s"` | In ServiceMonitor CR |
-| `metrics.serviceMonitor.namespace` | `ServiceMonitor.metadata.namespace` | `"monitoring"` | ServiceMonitor namespace |
+`aws_k8s/schema.json`:
+
+```json
+"metrics": {
+  "enabled": true,
+  "exporterResources": { "requests": {…}, "limits": {…} }
+}
+```
+
+We map this into `redisExporter` in all values files:
+
+```yaml
+redisExporter:
+  enabled: {{ flavourConfig.metrics.enabled | default(true) }}
+  image: quay.io/opstree/redis-exporter
+  tag: "v1.44.0"
+  imagePullPolicy: {{ flavourConfig.imagePullPolicy | default('IfNotPresent') }}
+  resources:
+    requests:
+      cpu: {{ flavourConfig.metrics.exporterResources.requests.cpu | default('50m') }}
+      memory: {{ flavourConfig.metrics.exporterResources.requests.memory | default('64Mi') }}
+    limits:
+      cpu: {{ flavourConfig.metrics.exporterResources.limits.cpu | default('200m') }}
+      memory: {{ flavourConfig.metrics.exporterResources.limits.memory | default('256Mi') }}
+```
+
+**Not implemented:** `metrics.serviceMonitor.*`  
+We currently **do not** create `ServiceMonitor` CRs from this component; that would be done by platform‑level tooling if needed.
 
 **Metrics Example:**
 ```yaml
@@ -239,12 +419,12 @@ spec:
     interval: 30s
 ```
 
-### Pod Configuration
+### Pod Configuration (partially implemented)
 
 | Odin Schema Property | OpsTree CRD Path | Example | Notes |
 |---------------------|------------------|---------|-------|
-| `antiAffinity` | `spec.affinity` | See below | Map to PodAntiAffinity |
-| `topologySpreadConstraints` | `spec.topologySpreadConstraints` | `[]` | Array of constraints |
+| `antiAffinity` | `spec.affinity` | — | **Not implemented** in aws_k8s |
+| `topologySpreadConstraints` | `spec.topologySpreadConstraints` | `[]` | **Not implemented** in aws_k8s |
 | `nodeSelector` | `spec.nodeSelector` | `{"type": "redis"}` | Node label selector |
 | `tolerations` | `spec.tolerations` | `[]` | Array of tolerations |
 | `priorityClassName` | `spec.priorityClassName` | `"high-priority"` | Priority class name |
@@ -252,38 +432,26 @@ spec:
 | `securityContext.runAsUser` | `spec.podSecurityContext.runAsUser` | `1000` | Run as user ID |
 | `securityContext.fsGroup` | `spec.podSecurityContext.fsGroup` | `1000` | Filesystem group ID |
 
-**Anti-Affinity Mapping:**
-- `antiAffinity: "soft"` → `preferredDuringSchedulingIgnoredDuringExecution`
-- `antiAffinity: "required"` → `requiredDuringSchedulingIgnoredDuringExecution`
+**Why `antiAffinity` / `topologySpreadConstraints` are not implemented:**  
+The Opstree charts do not expose direct values for these fields, and the operator already has its own anti‑affinity knob for cluster (`enableMasterSlaveAntiAffinity`). Implementing generic `antiAffinity` / `topologySpreadConstraints` would require forking the upstream charts, which is out of scope for this component flavour.
 
-**Example:**
-```yaml
-spec:
-  affinity:
-    podAntiAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-      - labelSelector:
-          matchExpressions:
-          - key: app
-            operator: In
-            values:
-            - redis
-        topologyKey: kubernetes.io/hostname
-```
-
-### Service Configuration
+### Service Configuration (not implemented in flavour)
 
 | Odin Schema Property | OpsTree CRD Path | Example | Notes |
 |---------------------|------------------|---------|-------|
-| `service.type` | `spec.kubernetesConfig.service.type` | `"ClusterIP"` | Service type |
-| `service.annotations` | `spec.kubernetesConfig.service.annotations` | `{"key": "value"}` | Service annotations |
+The Opstree charts manage their own Service objects (including headless services and additional services).  
+We **do not** currently surface a flavour‑level `service` block for `aws_k8s`; services use the chart defaults.
 
-### Network Policy
+### Network Policy, PDBs, Backups, Authentication (status)
 
 | Odin Schema Property | OpsTree CRD Path | Example | Notes |
 |---------------------|------------------|---------|-------|
-| `networkPolicy.enabled` | Create separate `NetworkPolicy` CR | - | Not in Redis CRD |
-| `networkPolicy.allowedNamespaces` | `NetworkPolicy.spec.ingress[].from` | `["app"]` | In NetworkPolicy CR |
+These sections describe potential Kubernetes resources but are **not created** by the current `aws_k8s` implementation:
+
+- `networkPolicy.*` → no `NetworkPolicy` CRs generated.
+- `podDisruptionBudget.*` → we wire `podDisruptionBudget` into **chart‑level PDB knobs** (cluster/sentinel) but we do **not** create standalone PDB CRs.
+- `backup.*` → no backup `CronJob` is created; backups must be handled externally.
+- Root `authentication.*` / `additionalConfig` → we do **not** create Secrets or `additionalRedisConfig` entries; authentication and extra redis.conf tuning must be done out‑of‑band if required.
 
 **NetworkPolicy Example (separate resource):**
 ```yaml
@@ -587,20 +755,14 @@ elif deployment.mode == "cluster":
     deployment.config must contain numShards and replicasPerShard
 ```
 
-### Version Mapping
-| Root Schema Property | OpsTree CRD Path | Format |
-|---------------------|------------------|--------|
-| Root `redisVersion` | `spec.kubernetesConfig.image` | `redis:{version}` |
-
-Example: `redisVersion: "7.1"` → `image: redis:7.1`
-
-### Discovery Endpoint
+### Discovery Endpoint (documented only)
 The `discovery.endpoint` from root schema should point to:
 - **Standalone**: Redis master service DNS (port 6379)
 - **Sentinel**: Sentinel service DNS (port 26379)
 - **Cluster**: Any cluster node service DNS (port 6379)
 
-The OpsTree operator automatically creates Kubernetes Services. The provisioning code must map these service DNS names to the discovery endpoint configuration.
+The OpsTree operator automatically creates Kubernetes Services (e.g. `<release>-standalone`, `<release>-cluster`, sentinel/replication services).  
+The root `discovery` object (and the `aws_k8s/discovery.sh` script) surface those DNS names back to the caller, but **do not** change how the Services are named in this flavour.
 
 ## References
 

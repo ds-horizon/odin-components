@@ -1,0 +1,19 @@
+export HELM_REPO="ot-helm"
+
+# Data charts
+export REDIS_CHART_NAME="redis"
+export REDIS_CHART_VERSION="0.16.8"
+export REDIS_CLUSTER_CHART_NAME="redis-cluster"
+export REDIS_CLUSTER_CHART_VERSION="0.17.3"
+export REDIS_REPLICATION_CHART_NAME="redis-replication"
+export REDIS_REPLICATION_CHART_VERSION="0.16.11"
+
+# Sentinel chart
+export REDIS_SENTINEL_CHART_NAME="redis-sentinel"
+export REDIS_SENTINEL_CHART_VERSION="0.16.11"
+
+# Operator chart
+export REDIS_OPERATOR_CHART_NAME="redis-operator"
+export REDIS_OPERATOR_CHART_VERSION="0.22.2"
+
+export REGION="us-east-1"

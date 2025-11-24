@@ -1,320 +1,212 @@
 {
-  "title": "Redis AWS K8s (EKS) Flavour Configuration",
+  "title": "Redis AWS K8s (Opstree Operator) Flavour Configuration",
   "type": "object",
+  "description": "Configuration schema for Redis deployment on AWS EKS using Opstree Redis Operator. Supports standalone, sentinel, and cluster modes with comprehensive K8s-native features.",
   "allOf": [
     {
-      "if": {
-        "properties": {
-          "deployment": {
-            "properties": {
-              "mode": {
-                "const": "cluster"
-              }
-            }
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "deployment": {
-            "required": [
-              "config"
-            ],
-            "properties": {
-              "config": {
-                "required": [
-                  "numShards",
-                  "replicasPerShard"
-                ]
-              }
-            }
+      "oneOf": [
+        {
+          "properties": {
+            "deploymentMode": { "const": "standalone" }
+          },
+          "not": {
+            "anyOf": [
+              { "required": ["cluster"] },
+              { "required": ["sentinel"] }
+            ]
           }
         },
-        "errorMessage": "deployment.mode 'cluster' requires config with numShards and replicasPerShard"
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "deployment": {
-            "properties": {
-              "mode": {
-                "const": "sentinel"
-              }
-            }
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "deployment": {
-            "required": [
-              "config"
-            ],
-            "properties": {
-              "config": {
-                "required": [
-                  "replica",
-                  "sentinel"
-                ],
-                "properties": {
-                  "replica": {
-                    "properties": {
-                      "count": {
-                        "minimum": 1
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
+        {
+          "properties": {
+            "deploymentMode": { "const": "cluster" }
+          },
+          "required": ["cluster"],
+          "not": { "required": ["sentinel"] }
         },
-        "errorMessage": "deployment.mode 'sentinel' requires config with sentinel object and replica.count >= 1"
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "deployment": {
-            "properties": {
-              "mode": {
-                "const": "cluster"
-              }
-            }
-          }
+        {
+          "properties": {
+            "deploymentMode": { "const": "sentinel" }
+          },
+          "required": ["sentinel"],
+          "not": { "required": ["cluster"] }
         }
-      },
-      "then": {
-        "properties": {
-          "clusterModeEnabled": {
-            "const": true
-          }
-        },
-        "errorMessage": "deployment.mode 'cluster' requires clusterModeEnabled: true in root schema"
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "clusterModeEnabled": {
-            "const": false
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "deployment": {
-            "properties": {
-              "mode": {
-                "enum": [
-                  "standalone",
-                  "sentinel"
-                ]
-              }
-            }
-          }
-        },
-        "errorMessage": "clusterModeEnabled: false does not support deployment.mode: 'cluster' - use 'standalone' or 'sentinel'"
-      }
+      ]
     }
   ],
   "properties": {
-    "deployment": {
+    "deploymentMode": {
+      "type": "string",
+      "enum": ["standalone", "cluster", "sentinel"],
+      "description": "Redis deployment mode supported by Opstree operator. **standalone:** Single Redis instance (1 pod). **cluster:** Horizontal scaling with data sharding across multiple masters with replicas. **sentinel:** Master-replica topology with Sentinel for automatic failover. **Default: `standalone`**. **Production:** Use cluster for horizontal scaling, sentinel for HA with single dataset.",
+      "default": "standalone"
+    },
+    "cluster": {
       "type": "object",
-      "description": "Deployment mode configuration determining Redis topology and high availability characteristics.",
+      "description": "Redis Cluster mode configuration. Only applicable when deploymentMode is 'cluster'. Enables horizontal scaling with data sharding.",
       "properties": {
-        "mode": {
-          "type": "string",
-          "enum": [
-            "standalone",
-            "sentinel",
-            "cluster"
-          ],
-          "description": "Redis deployment topology. **Standalone:** Single Redis instance with optional read replicas (no automatic failover) - simplest and most cost-effective for development, testing, and non-critical workloads. **Sentinel:** Master-replica topology with Sentinel processes for automatic failover (recommended for production HA). **Cluster:** Horizontal scaling with data sharding across multiple master nodes, each with replicas. Cluster mode requires `clusterModeEnabled: true` in root schema. **Default: `standalone`** (simplest, lowest cost). **Production:** Use sentinel for HA with single dataset, cluster for horizontal scaling needs. **IMPORTANT:** Changing deployment mode requires application code changes.",
-          "default": "standalone"
+        "clusterSize": {
+          "type": "integer",
+          "minimum": 3,
+          "maximum": 15,
+          "description": "Number of master nodes in cluster. Each master handles a portion of the 16,384 hash slots. Minimum 3 required for cluster mode. **Default: `3`**. **Production:** Start with 3-5 masters; scale based on throughput needs.",
+          "default": 3
         },
-        "config": {
-          "type": "object",
-          "description": "Mode-specific configuration. Contents depend on deployment.mode: standalone/sentinel use replica and sentinel objects, cluster uses numShards and replicasPerShard.",
-          "properties": {
-            "replica": {
-              "type": "object",
-              "description": "Replica configuration for standalone or sentinel mode. Replicas serve read operations and provide failover redundancy. In sentinel mode, replicas enable automatic failover when master fails.",
-              "properties": {
-                "count": {
-                  "type": "number",
-                  "minimum": 0,
-                  "maximum": 5,
-                  "description": "Number of read replicas for the Redis master. Replicas provide high availability through automatic failover (when using sentinel mode) and read scaling. Each replica maintains a full copy of the data. Valid range: 0-5. Set to 0 for standalone without HA. **Default: `0`** (no replicas). **Production:** Use 1-2 replicas with sentinel mode for HA.",
-                  "default": 0
-                },
-                "resources": {
-                  "type": "object",
-                  "description": "Kubernetes resource requests and limits for replica pods. Typically same as master since replicas maintain full data copies and may be promoted to master.",
-                  "properties": {
-                    "requests": {
-                      "type": "object",
-                      "properties": {
-                        "cpu": {
-                          "type": "string",
-                          "pattern": "^[0-9]+(m|\\.[0-9]+)?$",
-                          "description": "Minimum CPU guaranteed for replicas. **Default: `500m`**.",
-                          "default": "500m"
-                        },
-                        "memory": {
-                          "type": "string",
-                          "pattern": "^[0-9]+(Mi|Gi)$",
-                          "description": "Minimum memory guaranteed for replicas. Must hold full dataset copy. **Default: `1Gi`**.",
-                          "default": "1Gi"
-                        }
-                      },
-                      "required": [
-                        "cpu",
-                        "memory"
-                      ]
-                    },
-                    "limits": {
-                      "type": "object",
-                      "properties": {
-                        "cpu": {
-                          "type": "string",
-                          "pattern": "^[0-9]+(m|\\.[0-9]+)?$",
-                          "description": "Maximum CPU for replicas. **Default: `1000m`**.",
-                          "default": "1000m"
-                        },
-                        "memory": {
-                          "type": "string",
-                          "pattern": "^[0-9]+(Mi|Gi)$",
-                          "description": "Maximum memory for replicas. **Default: `2Gi`**.",
-                          "default": "2Gi"
-                        }
-                      },
-                      "required": [
-                        "cpu",
-                        "memory"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "requests",
-                    "limits"
-                  ]
-                }
-              },
-              "required": [
-                "count",
-                "resources"
-              ]
-            },
-            "sentinel": {
-              "type": "object",
-              "description": "Redis Sentinel configuration for high availability and automatic failover. Required when deployment.mode is 'sentinel'. Sentinel monitors master and replicas, performing automatic promotion when master fails.",
-              "properties": {
-                "replicas": {
-                  "type": "number",
-                  "enum": [
-                    3,
-                    5,
-                    7
-                  ],
-                  "description": "Number of Sentinel processes. Must be odd number (3, 5, 7) for proper quorum. **Default: `3`**.",
-                  "default": 3
-                },
-                "quorum": {
-                  "type": "number",
-                  "minimum": 2,
-                  "maximum": 7,
-                  "description": "Minimum number of Sentinels that must agree master is down before initiating failover. Should be majority of sentinels (e.g., 2 for 3 sentinels). **Default: `2`**.",
-                  "default": 2
-                },
-                "resources": {
-                  "type": "object",
-                  "description": "Kubernetes resource allocation for Sentinel processes. Sentinels are lightweight, requiring minimal resources.",
-                  "properties": {
-                    "requests": {
-                      "type": "object",
-                      "properties": {
-                        "cpu": {
-                          "type": "string",
-                          "pattern": "^[0-9]+(m|\\.[0-9]+)?$",
-                          "description": "Minimum CPU for Sentinel. **Default: `100m`**.",
-                          "default": "100m"
-                        },
-                        "memory": {
-                          "type": "string",
-                          "pattern": "^[0-9]+(Mi|Gi)$",
-                          "description": "Minimum memory for Sentinel. **Default: `128Mi`**.",
-                          "default": "128Mi"
-                        }
-                      },
-                      "required": [
-                        "cpu",
-                        "memory"
-                      ]
-                    },
-                    "limits": {
-                      "type": "object",
-                      "properties": {
-                        "cpu": {
-                          "type": "string",
-                          "pattern": "^[0-9]+(m|\\.[0-9]+)?$",
-                          "description": "Maximum CPU for Sentinel. **Default: `200m`**.",
-                          "default": "200m"
-                        },
-                        "memory": {
-                          "type": "string",
-                          "pattern": "^[0-9]+(Mi|Gi)$",
-                          "description": "Maximum memory for Sentinel. **Default: `256Mi`**.",
-                          "default": "256Mi"
-                        }
-                      },
-                      "required": [
-                        "cpu",
-                        "memory"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "requests",
-                    "limits"
-                  ]
-                }
-              },
-              "required": [
-                "replicas",
-                "quorum",
-                "resources"
-              ]
-            },
-            "numShards": {
-              "type": "number",
-              "minimum": 3,
-              "maximum": 500,
-              "description": "Number of shards (master nodes) in Redis Cluster. Each shard handles a portion of the 16,384 hash slots. Minimum 3 required. **Default: `3`**. **Only valid when deployment.mode is 'cluster'**.",
-              "default": 3
-            },
-            "replicasPerShard": {
-              "type": "number",
-              "minimum": 1,
-              "maximum": 5,
-              "description": "Number of replicas per shard in cluster mode. Total pods = numShards \u00d7 (1 + replicasPerShard). **Default: `1`**. **Only valid when deployment.mode is 'cluster'**.",
-              "default": 1
-            }
-          }
+        "replicasPerMaster": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5,
+          "description": "Number of replica nodes per master for high availability and read scaling. Total pods = clusterSize × (1 + replicasPerMaster). **Default: `1`**. **Production:** Use 1-2 replicas per master.",
+          "default": 1
         }
       },
-      "required": [
-        "mode"
-      ]
+      "required": ["clusterSize", "replicasPerMaster"]
     },
-    "master": {
+    "sentinel": {
       "type": "object",
-      "description": "Resource allocation and configuration for Redis master node(s). The master handles all write operations.",
+      "description": "Redis Sentinel mode configuration. Only applicable when deploymentMode is 'sentinel'. Provides automatic failover for master-replica topology.",
       "properties": {
-        "resources": {
+        "replicationSize": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 5,
+          "description": "Total size of replication group (1 master + N replicas). **Default: `3`** (1 master + 2 replicas). **Production:** Use 3 for HA.",
+          "default": 3
+        },
+        "sentinelSize": {
+          "type": "integer",
+          "minimum": 3,
+          "maximum": 7,
+          "description": "Number of Sentinel instances for monitoring and failover. Must be odd number >= 3 for proper quorum. **Default: `3`**. **Production:** Use 3 or 5; more than 5 rarely needed.",
+          "default": 3
+        },
+        "quorum": {
+          "type": "integer",
+          "minimum": 2,
+          "description": "Number of Sentinels that must agree master is down before initiating failover. Should be majority (e.g., 2 for 3 sentinels, 3 for 5 sentinels). **Default: `2`**.",
+          "default": 2
+        },
+        "downAfterMilliseconds": {
+          "type": "integer",
+          "minimum": 1000,
+          "description": "Milliseconds before Sentinel marks an instance as down (SDOWN state). Lower values = faster failover but more false positives. **Default: `5000`** (5 seconds). **Production:** 5000-10000ms depending on network stability.",
+          "default": 5000
+        },
+        "parallelSyncs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of replicas that can sync with new master in parallel during failover. Lower values reduce load on new master. **Default: `1`**. **Production:** Keep at 1 to avoid overwhelming new master.",
+          "default": 1
+        },
+        "failoverTimeout": {
+          "type": "integer",
+          "minimum": 1000,
+          "description": "Failover timeout in milliseconds. If failover isn't complete in this time, Sentinel retries. **Default: `10000`** (10 seconds).",
+          "default": 10000
+        }
+      },
+      "required": ["replicationSize", "sentinelSize", "quorum"]
+    },
+    "image": {
+      "type": "string",
+      "description": "Docker image repository (including registry) for Redis data pods (standalone, cluster, replication). If not set, defaults to `quay.io/opstree/redis`. You can point this to your own registry, e.g. `123456789012.dkr.ecr.us-east-1.amazonaws.com/redis`.",
+      "default": "quay.io/opstree/redis"
+    },
+    "sentinelImage": {
+      "type": "string",
+      "description": "Docker image repository (including registry) for Redis Sentinel pods. If not set, defaults to `quay.io/opstree/redis-sentinel`. You can point this to your own registry, e.g. `123456789012.dkr.ecr.us-east-1.amazonaws.com/redis-sentinel`.",
+      "default": "quay.io/opstree/redis-sentinel"
+    },
+    "resources": {
+      "type": "object",
+      "description": "Kubernetes resource requests and limits for Redis pods. Applies to all Redis nodes (master/replicas in all modes).",
+      "properties": {
+        "requests": {
           "type": "object",
-          "description": "Kubernetes resource requests and limits for master pods.",
+          "description": "Minimum guaranteed resources. Used for pod scheduling decisions.",
+          "properties": {
+            "cpu": {
+              "type": "string",
+              "pattern": "^[0-9]+(m|\\.[0-9]+)?$",
+              "description": "Minimum CPU guaranteed. Format: millicores (e.g., '500m') or cores (e.g., '1'). **Default: `500m`**. **Production:** Start with 1-2 cores; monitor CPU usage.",
+              "default": "500m"
+            },
+            "memory": {
+              "type": "string",
+              "pattern": "^[0-9]+(Mi|Gi)$",
+              "description": "Minimum memory guaranteed. Must accommodate dataset + overhead. **Default: `1Gi`**. **Production:** Size based on dataset; use 1.5× dataset size minimum.",
+              "default": "1Gi"
+            }
+          },
+          "required": ["cpu", "memory"]
+        },
+        "limits": {
+          "type": "object",
+          "description": "Maximum allowed resources. Pod will be throttled (CPU) or OOMKilled (memory) if exceeded.",
+          "properties": {
+            "cpu": {
+              "type": "string",
+              "pattern": "^[0-9]+(m|\\.[0-9]+)?$",
+              "description": "Maximum CPU. **Default: `1000m`**. **Production:** Set 1.5-2× requests for burst capacity.",
+              "default": "1000m"
+            },
+            "memory": {
+              "type": "string",
+              "pattern": "^[0-9]+(Mi|Gi)$",
+              "description": "Maximum memory. **Default: `2Gi`**. **Production:** Set 1.25-1.5× requests to prevent OOM.",
+              "default": "2Gi"
+            }
+          },
+          "required": ["cpu", "memory"]
+        }
+      },
+      "required": ["requests", "limits"]
+    },
+    "storage": {
+      "type": "object",
+      "description": "Persistent storage configuration using Kubernetes PVCs. Required for data durability.",
+      "properties": {
+        "storageClassName": {
+          "type": "string",
+          "description": "Kubernetes StorageClass name. For AWS EKS, typically 'gp3', 'gp2', or 'io1'. **Default: `ebs-gp3`**. **Production:** Use gp3 for cost-effectiveness; io1/io2 for high IOPS workloads.",
+          "default": "ebs-gp3"
+        },
+        "storageSize": {
+          "type": "string",
+          "pattern": "^[0-9]+(Mi|Gi|Ti)$",
+          "description": "Size of persistent volume per Redis pod. Must accommodate dataset + AOF/RDB files + growth. **Default: `10Gi`**. **Production:** Size for 2-3× current dataset for AOF growth.",
+          "default": "10Gi"
+        },
+        "nodeConfStorageSize": {
+          "type": "string",
+          "pattern": "^[0-9]+(Mi|Gi|Ti)$",
+          "description": "Size for cluster node configuration volume. Only used in cluster mode. Stores nodes.conf. **Default: `1Gi`**.",
+          "default": "1Gi"
+        }
+      },
+      "required": ["storageClassName", "storageSize"]
+    },
+    "metrics": {
+      "type": "object",
+      "description": "Prometheus metrics configuration via Redis Exporter sidecar.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable Redis Exporter sidecar for Prometheus metrics. Exports 100+ metrics on port 9121. **Default: `true`**. **Production:** Enable for observability.",
+          "default": true
+        },
+        "redisExporterImage": {
+          "type": "string",
+          "description": "Docker image (including registry/repository) for the Redis Exporter sidecar. Defaults to the public Opstree exporter image. Override this to point at your own registry mirror.",
+          "default": "quay.io/opstree/redis-exporter"
+        },
+        "redisExporterTag": {
+          "type": "string",
+          "description": "Docker image tag for the Redis Exporter sidecar. **Default: `v1.44.0`**.",
+          "default": "v1.44.0"
+        },
+        "exporterResources": {
+          "type": "object",
+          "description": "Resource allocation for Redis Exporter sidecar container.",
           "properties": {
             "requests": {
               "type": "object",
@@ -322,20 +214,16 @@
                 "cpu": {
                   "type": "string",
                   "pattern": "^[0-9]+(m|\\.[0-9]+)?$",
-                  "description": "Minimum CPU guaranteed for master. **Default: `500m`**.",
-                  "default": "500m"
+                  "description": "Exporter CPU request. **Default: `50m`** (minimal overhead).",
+                  "default": "50m"
                 },
                 "memory": {
                   "type": "string",
                   "pattern": "^[0-9]+(Mi|Gi)$",
-                  "description": "Minimum memory guaranteed for master. **Default: `1Gi`**.",
-                  "default": "1Gi"
+                  "description": "Exporter memory request. **Default: `64Mi`** (lightweight).",
+                  "default": "64Mi"
                 }
-              },
-              "required": [
-                "cpu",
-                "memory"
-              ]
+              }
             },
             "limits": {
               "type": "object",
@@ -343,257 +231,97 @@
                 "cpu": {
                   "type": "string",
                   "pattern": "^[0-9]+(m|\\.[0-9]+)?$",
-                  "description": "Maximum CPU for master. **Default: `1000m`**.",
-                  "default": "1000m"
+                  "description": "Exporter CPU limit. **Default: `200m`**.",
+                  "default": "200m"
                 },
                 "memory": {
                   "type": "string",
                   "pattern": "^[0-9]+(Mi|Gi)$",
-                  "description": "Maximum memory for master. **Default: `2Gi`**.",
-                  "default": "2Gi"
+                  "description": "Exporter memory limit. **Default: `256Mi`**.",
+                  "default": "256Mi"
                 }
-              },
-              "required": [
-                "cpu",
-                "memory"
-              ]
-            }
-          },
-          "required": [
-            "requests",
-            "limits"
-          ]
-        }
-      },
-      "required": [
-        "resources"
-      ]
-    },
-    "persistence": {
-      "type": "object",
-      "description": "Persistent storage configuration using Kubernetes PersistentVolumeClaims (PVCs). Enables data durability across pod restarts.",
-      "properties": {
-        "enabled": {
-          "type": "boolean",
-          "description": "Enable persistent storage for Redis data. **Default: `true`**.",
-          "default": true
-        },
-        "storageClass": {
-          "type": "string",
-          "description": "Kubernetes StorageClass name. When empty (default), uses cluster's default StorageClass. **Default: `\"\"`**.",
-          "default": ""
-        },
-        "size": {
-          "type": "string",
-          "pattern": "^[0-9]+(Mi|Gi|Ti)$",
-          "description": "Size of persistent volume per Redis pod. **Default: `10Gi`**.",
-          "default": "10Gi"
-        },
-        "rdb": {
-          "type": "object",
-          "description": "Redis Database (RDB) snapshot configuration.",
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "description": "Enable RDB snapshots. **Default: `true`**.",
-              "default": true
-            },
-            "saveInterval": {
-              "type": "string",
-              "pattern": "^(\\d+\\s+\\d+(\\s+\\d+\\s+\\d+)*)$|^\"\"$",
-              "description": "RDB snapshot save intervals in Redis format. **Default: `\"900 1 300 10 60 10000\"`**.",
-              "default": "900 1 300 10 60 10000"
+              }
             }
           }
-        },
-        "aof": {
-          "type": "object",
-          "description": "Append-Only File (AOF) configuration.",
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "description": "Enable AOF persistence. **Default: `false`**.",
-              "default": false
-            },
-            "fsyncPolicy": {
-              "type": "string",
-              "enum": [
-                "always",
-                "everysec",
-                "no"
-              ],
-              "description": "AOF fsync policy. **Default: `everysec`**.",
-              "default": "everysec"
-            }
-          }
-        }
-      },
-      "required": [
-        "enabled"
-      ]
-    },
-    "service": {
-      "type": "object",
-      "description": "Kubernetes Service configuration controlling how Redis is exposed.",
-      "properties": {
-        "type": {
-          "type": "string",
-          "enum": [
-            "ClusterIP",
-            "LoadBalancer",
-            "NodePort"
-          ],
-          "description": "Kubernetes Service type. **Default: `ClusterIP`**.",
-          "default": "ClusterIP"
-        },
-        "annotations": {
-          "type": "object",
-          "description": "Service annotations. **Default: `{}`**.",
-          "additionalProperties": {
-            "type": "string"
-          },
-          "default": {}
         }
       }
     },
-    "updateStrategy": {
+    "securityContext": {
       "type": "object",
-      "description": "Kubernetes StatefulSet update strategy.",
+      "description": "Pod security context for running Redis containers with restricted privileges.",
       "properties": {
-        "type": {
-          "type": "string",
-          "enum": [
-            "RollingUpdate",
-            "OnDelete"
-          ],
-          "description": "Update strategy type. **Default: `RollingUpdate`**.",
-          "default": "RollingUpdate"
+        "runAsNonRoot": {
+          "type": "boolean",
+          "description": "Run Redis as non-root user. **Default: `true`**. **Production:** Always true for security.",
+          "default": true
         },
-        "rollingUpdate": {
-          "type": "object",
-          "properties": {
-            "maxUnavailable": {
-              "type": "number",
-              "minimum": 0,
-              "description": "Maximum pods unavailable during update. **Default: `1`**.",
-              "default": 1
-            }
-          }
+        "runAsUser": {
+          "type": "integer",
+          "description": "UID to run Redis process. **Default: `1000`** (redis user in opstree image).",
+          "default": 1000
+        },
+        "fsGroup": {
+          "type": "integer",
+          "description": "GID for volume ownership. **Default: `1000`** (redis group).",
+          "default": 1000
         }
       }
     },
     "nodeSelector": {
       "type": "object",
-      "description": "Kubernetes node selector for constraining Redis pods to specific nodes.",
+      "description": "Kubernetes node selector for constraining Redis pods to specific nodes. Example: {'disktype': 'ssd', 'nodegroup': 'redis'}. **Default: `{}`**.",
       "additionalProperties": {
         "type": "string"
       },
       "default": {}
     },
-    "additionalConfig": {
-      "type": "object",
-      "description": "Additional Redis configuration parameters to override defaults.",
-      "additionalProperties": {
-        "type": "string"
-      },
-      "default": {}
-    },
-    "antiAffinity": {
-      "type": "string",
-      "enum": [
-        "soft",
-        "required"
-      ],
-      "description": "Pod anti-affinity strategy for spreading Redis pods across nodes. **Default: `soft`**.",
-      "default": "soft"
-    },
-    "metrics": {
-      "type": "object",
-      "description": "Prometheus metrics configuration.",
-      "properties": {
-        "enabled": {
-          "type": "boolean",
-          "description": "Enable Prometheus metrics. **Default: `false`**.",
-          "default": false
-        }
-      }
-    },
-    "backup": {
-      "type": "object",
-      "description": "S3 backup configuration.",
-      "properties": {
-        "enabled": {
-          "type": "boolean",
-          "description": "Enable S3 backups. **Default: `false`**.",
-          "default": false
-        }
-      }
-    },
-    "networkPolicy": {
-      "type": "object",
-      "description": "Kubernetes NetworkPolicy configuration.",
-      "properties": {
-        "enabled": {
-          "type": "boolean",
-          "description": "Enable NetworkPolicy. **Default: `false`**.",
-          "default": false
-        }
-      }
-    },
-    "topologySpreadConstraints": {
+    "tolerations": {
       "type": "array",
-      "description": "Topology spread constraints for multi-AZ distribution. **Default: `[]`**.",
-      "default": []
-    },
-    "securityContext": {
-      "type": "object",
-      "description": "Pod security context.",
-      "properties": {
-        "runAsNonRoot": {
-          "type": "boolean",
-          "default": true
-        },
-        "runAsUser": {
-          "type": "number",
-          "default": 1000
-        },
-        "fsGroup": {
-          "type": "number",
-          "default": 1000
+      "description": "Pod tolerations for scheduling on tainted nodes. Use to dedicate nodes for Redis. **Default: `[]`**.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": { "type": "string" },
+          "operator": { "type": "string", "enum": ["Equal", "Exists"] },
+          "value": { "type": "string" },
+          "effect": { "type": "string", "enum": ["NoSchedule", "PreferNoSchedule", "NoExecute"] }
         }
-      }
+      },
+      "default": []
     },
     "podDisruptionBudget": {
       "type": "object",
-      "description": "PodDisruptionBudget configuration.",
+      "description": "PodDisruptionBudget to limit voluntary disruptions during node maintenance.",
       "properties": {
         "enabled": {
           "type": "boolean",
+          "description": "Enable PodDisruptionBudget. **Default: `true`**. **Production:** Always enable.",
           "default": true
         },
         "minAvailable": {
-          "type": "number",
+          "type": "integer",
+          "minimum": 1,
+          "description": "Minimum pods that must remain available during disruptions. **Default: `1`**. **Production:** Set based on deployment size - for 3 nodes, minAvailable=2.",
           "default": 1
         }
       }
     },
     "serviceAccount": {
       "type": "string",
-      "description": "ServiceAccount name for IRSA. **Default: `default`**.",
+      "description": "Kubernetes ServiceAccount name for IRSA (IAM Roles for Service Accounts) or pod identity. **Default: `default`**. **Production:** Create dedicated service account with minimal permissions.",
       "default": "default"
     },
     "priorityClassName": {
       "type": "string",
-      "description": "PriorityClass name. **Default: `\"\"`**.",
+      "description": "PriorityClass name for pod scheduling priority. Higher priority pods are scheduled first during resource pressure. **Default: `\"\"`** (no priority class).",
       "default": ""
     },
-    "tolerations": {
-      "type": "array",
-      "description": "Pod tolerations. **Default: `[]`**.",
-      "default": []
+    "imagePullPolicy": {
+      "type": "string",
+      "enum": ["Always", "IfNotPresent", "Never"],
+      "description": "Image pull policy. **IfNotPresent:** pull if not cached (recommended). **Always:** always pull latest (slower). **Never:** never pull (only for testing). **Default: `IfNotPresent`**.",
+      "default": "IfNotPresent"
     }
   },
-  "required": [
-    "deployment"
-  ]
+  "required": ["deploymentMode", "resources", "storage"]
 }
