@@ -7,7 +7,7 @@ import lombok.experimental.UtilityClass;
 
 @UtilityClass
 public class Constants {
-  public final String COMPONENT_METADATA = "COMPONENT_METADATA";
+  public final String COMPONENT_METADATA = "ODIN_COMPONENT_METADATA";
   public final String COMPONENT_STATE_FILE = "state.json";
   public final String PROJECT_PROPERTIES = "project.properties";
   public final String ELASTICACHE_CATEGORY = "CACHE";

@@ -23,7 +23,7 @@ import lombok.SneakyThrows;
 @Data
 public class DeployConfig implements Config {
   @NotNull
-  private String redisVersion;
+  private String version;
 
   @Size(max = 255)
   private String replicationGroupDescription = "ElastiCache Redis replication group";
@@ -89,6 +89,22 @@ public class DeployConfig implements Config {
   boolean isTransitEncryptionEnabledWhenAuthenticationEnabled() {
     if (authentication != null && authentication.getEnabled() != null && authentication.getEnabled()) {
       return transitEncryptionEnabled != null && transitEncryptionEnabled;
+    }
+    return true;
+  }
+
+  @AssertTrue(message = "automaticFailoverEnabled must be true when clusterModeEnabled is true")
+  boolean isAutomaticFailoverEnabledWhenClusterModeEnabled() {
+    if (clusterModeEnabled != null && clusterModeEnabled) {
+      return automaticFailoverEnabled != null && automaticFailoverEnabled;
+    }
+    return true;
+  }
+
+  @AssertTrue(message = "automaticFailoverEnabled must be true when multiAzEnabled is true")
+  boolean isAutomaticFailoverEnabledWhenMultiAzEnabled() {
+    if (multiAzEnabled != null && multiAzEnabled) {
+      return automaticFailoverEnabled != null && automaticFailoverEnabled;
     }
     return true;
   }

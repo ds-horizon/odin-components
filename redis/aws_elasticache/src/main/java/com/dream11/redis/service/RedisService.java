@@ -198,21 +198,6 @@ public class RedisService {
         replicationGroup.clusterEnabled(),
         replicationGroup.automaticFailover());
 
-    if (Boolean.TRUE.equals(replicationGroup.clusterEnabled())) {
-      String automaticFailoverStatus = replicationGroup.automaticFailover() != null
-          ? replicationGroup.automaticFailover().toString()
-          : null;
-      if (automaticFailoverStatus == null || !"enabled".equalsIgnoreCase(automaticFailoverStatus)) {
-        throw new GenericApplicationException(
-            ApplicationError.CONSTRAINT_VIOLATION,
-            String.format(
-                "Automatic failover must be enabled to change replica count for replication group %s. "
-                    + "Current automatic failover status: %s. ",
-                replicationGroupId, automaticFailoverStatus));
-      }
-
-    }
-
     List<NodeGroup> nodeGroups = replicationGroup.nodeGroups();
     int current = nodeGroups.get(0).nodeGroupMembers().size() - 1;
     if (current == updateReplicaCountConfig.getReplicasPerNodeGroup()) {

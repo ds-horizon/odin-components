@@ -77,7 +77,7 @@ public class RedisClient {
       cacheParameterGroupName = String.join(
           ".",
           Constants.DEFAULT,
-          Constants.ENGINE_TYPE + deployConfig.getRedisVersion().charAt(0));
+          Constants.ENGINE_TYPE + deployConfig.getVersion().charAt(0));
       if (deployConfig.getNumNodeGroups() > 1 || deployConfig.getClusterModeEnabled()) {
         cacheParameterGroupName += Constants.PARAMETER_GROUP_SUFFIX;
       }
@@ -106,7 +106,7 @@ public class RedisClient {
     builder.replicationGroupDescription(deployConfig.getReplicationGroupDescription());
     builder.engine(Constants.ENGINE_TYPE);
     builder.cacheNodeType(deployConfig.getCacheNodeType());
-    builder.engineVersion(deployConfig.getRedisVersion());
+    builder.engineVersion(deployConfig.getVersion());
     builder.clusterMode(deployConfig.getClusterModeEnabled() ? "enabled" : "disabled");
     builder.transitEncryptionEnabled(deployConfig.getTransitEncryptionEnabled());
 
