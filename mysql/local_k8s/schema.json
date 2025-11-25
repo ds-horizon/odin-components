@@ -116,8 +116,7 @@
         "replicaCount": {
           "description": "Number of MySQL reader replicas for read scaling and high availability. Increase for production workloads requiring read scalability or HA. Each replica adds storage and compute costs. **Default: `0`** (standalone setup for dev/testing). **Production:** 2+ replicas recommended for HA across availability zones.",
           "type": "integer",
-          "minimum": 0,
-          "default": 0
+          "minimum": 0
         }
       },
       "required": [

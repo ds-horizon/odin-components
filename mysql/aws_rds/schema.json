@@ -581,6 +581,54 @@
     },
     {
       "if": {
+        "anyOf": [
+          {
+            "properties": {
+              "writer": {
+                "properties": {
+                  "instanceType": {
+                    "const": "db.serverless"
+                  }
+                },
+                "required": [
+                  "instanceType"
+                ]
+              }
+            }
+          },
+          {
+            "properties": {
+              "readers": {
+                "type": "array",
+                "contains": {
+                  "properties": {
+                    "instanceType": {
+                      "const": "db.serverless"
+                    }
+                  },
+                  "required": [
+                    "instanceType"
+                  ]
+                }
+              }
+            },
+            "required": ["readers"]
+          }
+        ]
+      },
+      "then": {
+        "required": [
+          "serverlessV2ScalingConfiguration"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "serverlessV2ScalingConfiguration"
+        ]
+      },
+      "then": {
         "properties": {
           "writer": {
             "properties": {
@@ -592,36 +640,32 @@
               "instanceType"
             ]
           }
-        }
-      },
-      "then": {
-        "required": [
-          "serverlessV2ScalingConfiguration"
-        ]
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "readers": {
-            "type": "array",
-            "contains": {
-              "properties": {
-                "instanceType": {
-                  "const": "db.serverless"
-                }
-              },
+        },
+        "allOf": [
+          {
+            "if": {
               "required": [
-                "instanceType"
+                "readers"
               ]
+            },
+            "then": {
+              "properties": {
+                "readers": {
+                  "maxItems": 1,
+                  "items": {
+                    "properties": {
+                      "instanceType": {
+                        "const": "db.serverless"
+                      }
+                    },
+                    "required": [
+                      "instanceType"
+                    ]
+                  }
+                }
+              }
             }
           }
-        },
-        "required": ["readers"]
-      },
-      "then": {
-        "required": [
-          "serverlessV2ScalingConfiguration"
         ]
       }
     }

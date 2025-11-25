@@ -52,7 +52,7 @@ primary:
     - key: {{ toleration.key }}
       operator: {{ toleration.operator }}
       {% if toleration.value %}
-      value: {{ toleration.value }}
+      value: "{{ toleration.value }}"
       {% endif %}
       {% if toleration.effect %}
       effect: {{ toleration.effect }}
@@ -63,7 +63,7 @@ primary:
   {% if flavourConfig.writer.nodeSelector %}
   nodeSelector:
     {% for key, value in flavourConfig.writer.nodeSelector.items() %}
-    {{ key }}: {{ value }}
+    {{ key }}: "{{ value }}"
     {% endfor %}
   {% endif %}
   {% if flavourConfig.writer.persistence.size %}
@@ -125,19 +125,19 @@ secondary:
       cpu: {{ flavourConfig.reader.resources.limits.cpu }}
       ephemeral-storage: {{ flavourConfig.reader.resources.limits.ephemeralStorage }}
 
-    {% if flavourConfig.reader.tolerations %}
-    tolerations:
-      {% for toleration in flavourConfig.reader.tolerations %}
-      - key: {{ toleration.key }}
-        operator: {{ toleration.operator }}
-        {% if toleration.value %}
-        value: {{ toleration.value }}
-        {% endif %}
-        {% if toleration.effect %}
-        effect: {{ toleration.effect }}
-        {% endif %}
-      {% endfor %}
-    {% endif %}
+  {% if flavourConfig.reader.tolerations %}
+  tolerations:
+    {% for toleration in flavourConfig.reader.tolerations %}
+    - key: {{ toleration.key }}
+      operator: {{ toleration.operator }}
+      {% if toleration.value %}
+      value: "{{ toleration.value }}"
+      {% endif %}
+      {% if toleration.effect %}
+      effect: {{ toleration.effect }}
+      {% endif %}
+    {% endfor %}
+  {% endif %}
 
   {%- if readerServiceAnnotations %}
   service:
@@ -151,7 +151,7 @@ secondary:
   {% if flavourConfig.reader.nodeSelector %}
   nodeSelector:
     {% for key, value in flavourConfig.reader.nodeSelector.items() %}
-    {{ key }}: {{ value }}
+    {{ key }}: "{{ value }}"
     {% endfor %}
   {% endif %}
   {% if flavourConfig.reader.persistence.size %}
