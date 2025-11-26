@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC1083,SC2086,SC2155,SC1091,SC2035,SC2250
 set -euo pipefail
 source ./logging.sh
 source ./constants
@@ -25,7 +26,7 @@ trap 'update_state' EXIT
 if [[ -f state.json ]] && jq -e '.releaseName' state.json > /dev/null; then
   export PREVIOUS_SHA=$(jq -r '.sha' state.json)
   export RELEASE_NAME=$(jq -r '.releaseName' state.json)
-  if [[ "${RELEASE_NAME}" == {{ componentMetadata.name }} ]]; then
+  if [[ "${RELEASE_NAME}" == "{{ componentMetadata.name }}" ]]; then
     echo "Using existing RELEASE_NAME from state.json: ${RELEASE_NAME}" | log_with_timestamp
   else
     export PREVIOUS_SHA=""
@@ -115,15 +116,23 @@ fi
   # Validate Redis version against Opstree operator support and deployment mode
   # Opstree supports Redis >= 6.2; we explicitly allow 6.2, 7.0, 7.2 from the root schema.
   SUPPORTED_VERSIONS=("6.2" "7.0" "7.2")
-  
+
   # Check if version is supported
-  if [[ ! " ${SUPPORTED_VERSIONS[@]} " =~ " ${REDIS_VERSION} " ]]; then
+  version_supported=false
+  for version in "${SUPPORTED_VERSIONS[@]}"; do
+    if [[ "${version}" == "${REDIS_VERSION}" ]]; then
+      version_supported=true
+      break
+    fi
+  done
+
+  if [[ "${version_supported}" == "false" ]]; then
     echo "ERROR: Redis version ${REDIS_VERSION} is not supported by the Opstree Redis Operator." 1>&2
     echo "Supported versions for local_k8s flavour are: ${SUPPORTED_VERSIONS[*]}." 1>&2
     echo "Please update the root 'version' in redis/schema.json or choose a different flavour." 1>&2
     exit 1
   fi
-  
+
   # Check cluster mode compatibility
   if [[ "${DEPLOYMENT_MODE}" == "cluster" && "${REDIS_VERSION}" == "6.2" ]]; then
     echo "ERROR: Redis cluster mode is not supported with Redis version 6.2 in this flavour." 1>&2
@@ -140,7 +149,8 @@ fi
       HELM_RELEASE="${RELEASE_NAME}-${DEPLOYMENT_MODE}"
       VALUES_FILE="${SCRIPT_DIR}/values-standalone.yaml"
 
-      helm upgrade "${HELM_RELEASE}" ${HELM_REPO}/${REDIS_CHART_NAME} \
+      helm upgrade "${HELM_RELEASE}" ${REDIS_CHART_NAME} \
+        --repo ${HELM_REPO_URL} \
         --version ${REDIS_CHART_VERSION} \
         --install \
         --namespace "${NAMESPACE}" \
@@ -163,7 +173,8 @@ fi
       REPL_RELEASE="${RELEASE_NAME}-replication"
       REPL_VALUES_FILE="${SCRIPT_DIR}/values-sentinel-replication.yaml"
 
-      helm upgrade "${REPL_RELEASE}" ${HELM_REPO}/${REDIS_REPLICATION_CHART_NAME} \
+      helm upgrade "${REPL_RELEASE}" ${REDIS_REPLICATION_CHART_NAME} \
+        --repo ${HELM_REPO_URL} \
         --version ${REDIS_REPLICATION_CHART_VERSION} \
         --install \
         --namespace "${NAMESPACE}" \
@@ -179,7 +190,8 @@ fi
       SENTINEL_RELEASE="${RELEASE_NAME}-${DEPLOYMENT_MODE}"
       SENTINEL_VALUES_FILE="${SCRIPT_DIR}/values-sentinel-sentinel.yaml"
 
-      helm upgrade "${SENTINEL_RELEASE}" ${HELM_REPO}/${REDIS_SENTINEL_CHART_NAME} \
+      helm upgrade "${SENTINEL_RELEASE}" ${REDIS_SENTINEL_CHART_NAME} \
+        --repo ${HELM_REPO_URL} \
         --version ${REDIS_SENTINEL_CHART_VERSION} \
         --install \
         --namespace "${NAMESPACE}" \
@@ -200,7 +212,8 @@ fi
       HELM_RELEASE="${RELEASE_NAME}-${DEPLOYMENT_MODE}"
       VALUES_FILE="${SCRIPT_DIR}/values-cluster.yaml"
 
-      helm upgrade "${HELM_RELEASE}" ${HELM_REPO}/${REDIS_CLUSTER_CHART_NAME} \
+      helm upgrade "${HELM_RELEASE}" ${REDIS_CLUSTER_CHART_NAME} \
+        --repo ${HELM_REPO_URL} \
         --version ${REDIS_CLUSTER_CHART_VERSION} \
         --install \
         --namespace "${NAMESPACE}" \
