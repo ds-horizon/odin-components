@@ -72,6 +72,27 @@ fi
     return 1
   }
 
+  # Helper: Apply primary discovery annotations from componentMetadata
+  # Workaround for Opstree operator v0.22.2 not supporting kubernetesConfig.service.annotations
+  apply_service_annotations() {
+    local helm_release=$1
+    local service_name=$2
+    
+    echo "Applying primary discovery annotations to ${service_name}..." | log_with_timestamp
+    
+    # Extract only primary discovery annotations from componentMetadata
+    PRIMARY_ANNOTATIONS=$(echo "${COMPONENT_METADATA}" | \
+      jq -r '.cloudProviderDetails.linked_accounts[] | select(.provider == "Odin") | .services[] | select(.category == "DISCOVERY") | .data.discoveryAnnotations.primary // {} | to_entries | .[] | "\(.key)=\(.value)"' 2>/dev/null)
+    
+    if [[ -n "${PRIMARY_ANNOTATIONS}" ]]; then
+      echo "${PRIMARY_ANNOTATIONS}" | while IFS= read -r annotation; do
+        if [[ -n "${annotation}" ]]; then
+          kubectl annotate svc "${service_name}" -n "${NAMESPACE}" "${annotation}" --overwrite 2>&1 | log_with_timestamp
+        fi
+      done
+    fi
+  }
+
   # Script directory (for loading per-mode Helm values files)
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -116,7 +137,7 @@ fi
   case "${DEPLOYMENT_MODE}" in
     standalone)
       echo "Deploying Redis in standalone mode via Helm..."
-      HELM_RELEASE="${RELEASE_NAME}-standalone"
+      HELM_RELEASE="${RELEASE_NAME}-${DEPLOYMENT_MODE}"
       VALUES_FILE="${SCRIPT_DIR}/values-standalone.yaml"
 
       helm upgrade "${HELM_RELEASE}" ${HELM_REPO}/${REDIS_CHART_NAME} \
@@ -129,7 +150,10 @@ fi
         --timeout 10m
 
       # Standalone: expect exactly 1 Redis pod
-      wait_for_pods "${RELEASE_NAME}-standalone" 1 "Redis Standalone"
+      wait_for_pods "${RELEASE_NAME}-${DEPLOYMENT_MODE}" 1 "Redis Standalone"
+      
+      # Apply service annotations
+      apply_service_annotations "${HELM_RELEASE}" "${RELEASE_NAME}-${DEPLOYMENT_MODE}"
       ;;
 
     sentinel)
@@ -152,7 +176,7 @@ fi
       wait_for_pods "${RELEASE_NAME}-replication" {{ flavourConfig.sentinel.replicationSize }} "Redis Sentinel Replication"
 
       # Sentinel monitoring the replication (redis-sentinel chart)
-      SENTINEL_RELEASE="${RELEASE_NAME}-sentinel"
+      SENTINEL_RELEASE="${RELEASE_NAME}-${DEPLOYMENT_MODE}"
       SENTINEL_VALUES_FILE="${SCRIPT_DIR}/values-sentinel-sentinel.yaml"
 
       helm upgrade "${SENTINEL_RELEASE}" ${HELM_REPO}/${REDIS_SENTINEL_CHART_NAME} \
@@ -165,12 +189,15 @@ fi
         --timeout 10m
 
       # Sentinel pods themselves
-      wait_for_pods "${RELEASE_NAME}-sentinel" {{ flavourConfig.sentinel.sentinelSize }} "Redis Sentinel"
+      wait_for_pods "${RELEASE_NAME}-${DEPLOYMENT_MODE}-sentinel" {{ flavourConfig.sentinel.sentinelSize }} "Redis Sentinel"
+      
+      # Apply primary discovery annotations to sentinel service only
+      apply_service_annotations "${SENTINEL_RELEASE}" "${RELEASE_NAME}-${DEPLOYMENT_MODE}-sentinel"
       ;;
 
     cluster)
       echo "Deploying Redis in cluster mode via Helm..."
-      HELM_RELEASE="${RELEASE_NAME}-cluster"
+      HELM_RELEASE="${RELEASE_NAME}-${DEPLOYMENT_MODE}"
       VALUES_FILE="${SCRIPT_DIR}/values-cluster.yaml"
 
       helm upgrade "${HELM_RELEASE}" ${HELM_REPO}/${REDIS_CLUSTER_CHART_NAME} \
@@ -185,8 +212,11 @@ fi
       # Cluster leaders and followers:
       # - leaders: clusterSize
       # - followers: clusterSize * replicasPerMaster
-      wait_for_pods "${RELEASE_NAME}-cluster-leader" {{ flavourConfig.cluster.clusterSize }} "Redis Cluster Leaders"
-      wait_for_pods "${RELEASE_NAME}-cluster-follower" {{ flavourConfig.cluster.clusterSize * flavourConfig.cluster.replicasPerMaster }} "Redis Cluster Followers"
+      wait_for_pods "${RELEASE_NAME}-${DEPLOYMENT_MODE}-leader" {{ flavourConfig.cluster.clusterSize }} "Redis Cluster Leaders"
+      wait_for_pods "${RELEASE_NAME}-${DEPLOYMENT_MODE}-follower" {{ flavourConfig.cluster.clusterSize * flavourConfig.cluster.replicasPerMaster }} "Redis Cluster Followers"
+      
+      # Apply primary discovery annotations to cluster master service only
+      apply_service_annotations "${HELM_RELEASE}" "${RELEASE_NAME}-${DEPLOYMENT_MODE}-master"
       ;;
 
     *)

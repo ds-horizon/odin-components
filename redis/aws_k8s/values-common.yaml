@@ -36,4 +36,3 @@ tolerations:
   {% endfor %}
   {% endif %}
 
-

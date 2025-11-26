@@ -8,9 +8,7 @@ storageSpec:
     spec:
       accessModes:
         - ReadWriteOnce
-      # For local clusters this may resolve to the default StorageClass if empty
       storageClassName: {{ flavourConfig.storage.storageClassName }}
       resources:
         requests:
           storage: {{ flavourConfig.storage.storageSize }}
-

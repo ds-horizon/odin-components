@@ -12,4 +12,3 @@ storageSpec:
       resources:
         requests:
           storage: {{ flavourConfig.storage.storageSize }}
-

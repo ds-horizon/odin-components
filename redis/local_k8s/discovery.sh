@@ -32,15 +32,15 @@ setup_error_handling
   # Determine endpoint based on deployment mode
   case "${DEPLOYMENT_MODE}" in
     standalone)
-      ENDPOINT=$(get_redis_endpoint "${RELEASE_NAME}-standalone")
+      ENDPOINT=$(get_redis_endpoint "${RELEASE_NAME}-${DEPLOYMENT_MODE}")
       ;;
     sentinel)
-      # For sentinel mode, return the replication service endpoint
-      ENDPOINT=$(get_redis_endpoint "${RELEASE_NAME}-replication")
+      # For sentinel mode, return the sentinel service endpoint
+      ENDPOINT=$(get_redis_endpoint "${RELEASE_NAME}-${DEPLOYMENT_MODE}-sentinel")
       ;;
     cluster)
-      # For cluster mode, return the leader service for write operations
-      ENDPOINT=$(get_redis_endpoint "${RELEASE_NAME}-cluster-leader")
+      # For cluster mode, return the master service for write operations
+      ENDPOINT=$(get_redis_endpoint "${RELEASE_NAME}-${DEPLOYMENT_MODE}-master")
       ;;
     *)
       echo "ERROR: Unknown deployment mode: ${DEPLOYMENT_MODE}" >&2
