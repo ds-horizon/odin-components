@@ -23,9 +23,10 @@ jobs:
     steps:
       - name: Validate release branch
         run: |
-          if [[ "${{ github.event.release.target_commitish }}" != "${{ github.event.repository.default_branch }}" ]]; then
+          BRANCH=${GITHUB_REF/refs\/heads\//}
+          if [[ "${BRANCH}" != "${{ github.event.repository.default_branch }}" ]]; then
             echo "::error:: Releases must be created from the default branch (${{ github.event.repository.default_branch }})"
-            echo "This release was created from: ${{ github.event.release.target_commitish }}"
+            echo "This release was created from: ${BRANCH}"
             exit 1
           fi
 
