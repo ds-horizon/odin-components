@@ -2,7 +2,7 @@
 
 ## Overview
 
-This repository contains the source code for various Odin components - production-grade infrastructure components designed for cloud-native deployments. Each component follows the [Odin Component Interface (OCI)](https://github.com/ds-horizon/odin-component-interface) specification to ensure consistency, reliability, and ease of use across different cloud platforms.
+This repository contains the source code for various Odin components - production-grade infrastructure components designed for cloud-native deployments. Each component follows the [Odin Component Interface (OCI)](https://github.com/dream-horizon-org/odin-component-interface) specification to ensure consistency, reliability, and ease of use across different cloud platforms.
 
 ## Repository Structure
 
@@ -20,7 +20,7 @@ odin-components/
 - [**Component Schema Guiding Principles**](./component-schema-guiding-principles.md) - Comprehensive guide on schema design, property placement, LSP validation, and lessons learned
 
 ### Executing Component
-* Download DSL jar from [odin-component-interface](https://github.com/ds-horizon/odin-component-interface/releases)
+* Download DSL jar from [odin-component-interface](https://github.com/dream-horizon-org/odin-component-interface/releases)
 * Execute the following commands
   ```shell
   # Environment variables needed for component execution. Update the json accordingly
@@ -56,5 +56,5 @@ odin-components/
 
 ## Learn More
 
-- **OCI Specification**: [github.com/ds-horizon/odin-component-interface](https://github.com/ds-horizon/odin-component-interface)
+- **OCI Specification**: [github.com/dream-horizon-org/odin-component-interface](https://github.com/dream-horizon-org/odin-component-interface)
 - **Schema Design**: See our comprehensive [guiding principles document](./component-schema-guiding-principles.md)
