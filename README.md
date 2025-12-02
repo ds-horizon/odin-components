@@ -5,3 +5,4 @@
 - [mysql](components/mysql.md): Deploy mysql in aws_rds, aws_k8s and local_k8s
 - [redis](components/redis.md): Provision redis
 - [redis](components/redis.md): Provision redis
+- [redis](components/redis.md): Provision redis
