@@ -1,0 +1,6 @@
+{
+    "title": "Undeploy operation schema",
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false
+}

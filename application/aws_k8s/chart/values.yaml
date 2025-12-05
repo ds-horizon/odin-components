@@ -1,0 +1,199 @@
+# Default values for podinfo.
+
+## @section Global parameters
+## @param replicaCount Number of replicas when HPA is disabled
+## @param name Short name used in resource names/labels
+## @param namespace Target namespace used by HPA resource
+## @param org Organization label root for helper templates
+## @param labels [object] Additional labels added under com.dreamsports.<org>/*
+## @param enableServiceLinks Enable service links (service env vars) in pods
+## @param annotations [object] Global annotations applied to all chart resources
+
+replicaCount: 1
+name: "reckon"
+namespace: ""
+annotations: {}
+## @section Pod Disruption Budget
+## @param pdb.enabled Enable PodDisruptionBudget
+## @param pdb.minAvailable Minimum available pods during voluntary disruptions
+pdb:
+  enabled: false
+  minAvailable: 1
+
+## @section Image parameters
+## @param image.registry Container registry hosting the image
+## @param image.repository Container image repository
+## @param image.tag Container image tag
+## @param image.pullPolicy Image pull policy
+## @param image.pullSecrets Image pull secrets (list of secret names)
+image:
+  registry: ghcr.io
+  repository: stefanprodan/podinfo
+  tag: 5.1.4
+  pullPolicy: IfNotPresent
+  pullSecrets:
+    - regcred
+
+## @section Service parameters
+## @param service.httpPort Container HTTP port exposed by the pod
+## @param service.externalPort Service port exposed for HTTP
+enableServiceLinks: false
+
+service:
+  httpPort: 8080
+  externalPort: 80
+
+# enable tls on the podinfo service
+## @section TLS parameters
+## @param tls.enabled Enable TLS service port
+## @param tls.secretName Name of existing TLS secret
+## @param tls.port TLS service port number
+tls:
+  enabled: false
+  # the name of the secret used to mount the certificate key pair
+  secretName: ""
+  # the port used to host the tls endpoint on the service
+  port: 9899
+
+# create a certificate manager certificate
+## @section Labels
+## @param org Organization label root
+## @param labels [object] Additional labels (map)
+labels: {}
+
+# metrics-server add-on required
+## @section Autoscaling parameters
+## @param hpa.enabled Enable HorizontalPodAutoscaler
+## @param hpa.maxReplicas Maximum number of replicas for HPA
+## @param hpa.cpu Target average CPU utilization percentage
+## @param hpa.memory.target Memory target type (Utilization/AverageValue)
+## @param hpa.memory.value Target memory value (percentage or amount)
+## @param hpa.memory.unit Unit for AverageValue target (e.g., Mi)
+## @param hpa.requests [nullable] Average HTTP requests per second per pod
+hpa:
+  enabled: false
+  maxReplicas: 10
+  # average total CPU usage per pod (1-100)
+  cpu: 80
+  # average of memory usage
+  memory:
+    target: Utilization
+    value: 80
+    unit: Mi
+
+  # average http requests per second per pod (k8s-prometheus-adapter)
+  requests:
+
+## @section ServiceAccount parameters
+## @param serviceAccount.enabled Create and use a dedicated ServiceAccount
+## @param serviceAccount.name Custom ServiceAccount name
+## @param serviceAccount.annotations [object] ServiceAccount annotations
+serviceAccount:
+  # Specifies whether a service account should be created
+  annotations: {}
+  enabled: false
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+## @section HTTP routing
+## @param hosts [array] Hostnames for HTTPRoute
+hosts: []
+
+## @section Resources
+## @param resources.limits [object] Resource limits
+## @param resources.requests.cpu [string] CPU requested
+## @param resources.requests.memory [string] Memory requested
+resources:
+  limits:
+  requests:
+    cpu: 1m
+    memory: 16Mi
+
+## @section Scheduling
+## @param nodeSelector [object] Node selector for scheduling
+nodeSelector: {}
+
+## @param tolerations [array] Tolerations for scheduling
+tolerations: []
+
+## @param affinity [object] Pod affinity/anti-affinity
+affinity: {}
+
+## @section Pod annotations
+## @param podAnnotations [object] Extra annotations to add to pods
+podAnnotations: {}
+
+## @section Lifecycle hooks
+## @param lifecycle.preStop.exec.command [array] preStop hook command
+lifecycle:
+  preStop:
+    exec:
+      command:
+        - sleep
+        - "20"
+
+## @section Update strategy
+## @param flagger.maxSurge [string] Rolling update maxSurge
+## @param flagger.maxUnavailable Rolling update maxUnavailable
+## @param flagger.analysis.interval Interval between analysis iterations
+## @param flagger.analysis.iterations Number of analysis iterations
+## @param flagger.analysis.threshold Threshold for analysis
+## @param flagger.analysis.progressDeadlineSeconds Progress deadline seconds for analysis
+flagger:
+  # rolling
+  maxSurge: 10%
+  maxUnavailable: 1
+  analysis:
+    interval: "1s"
+    iterations: 1
+    threshold: 1
+    progressDeadlineSeconds: 600
+
+## @section RBAC
+## @param rbac.enabled Create Role/RoleBinding (requires serviceAccount.enabled)
+## @param rbac.rules [array] Additional RBAC rules
+rbac:
+  enabled: false
+  rules:
+    - apiGroups: [""] # "" indicates the core API group
+      resources: ["pods"]
+      verbs: ["get", "watch", "list"]
+
+## Configure extra options for application containers' liveness and readiness probes
+## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/#configure-probes
+## @param livenessProbe.enabled Enable livenessProbe
+## @param livenessProbe.config Probe config
+## @param livenessProbe.initialDelaySeconds Initial delay seconds for livenessProbe
+## @param livenessProbe.periodSeconds Period seconds for livenessProbe
+## @param livenessProbe.timeoutSeconds Timeout seconds for livenessProbe
+## @param livenessProbe.failureThreshold Failure threshold for livenessProbe
+## @param livenessProbe.successThreshold Success threshold for livenessProbe
+##
+livenessProbe:
+  enabled: true
+  config: { }
+  initialDelaySeconds: 30
+  periodSeconds: 30
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 5
+
+## @param readinessProbe.enabled Enable readinessProbe
+## @param readinessProbe.config Probe config
+## @param readinessProbe.initialDelaySeconds Initial delay seconds for readinessProbe
+## @param readinessProbe.periodSeconds Period seconds for readinessProbe
+## @param readinessProbe.timeoutSeconds Timeout seconds for readinessProbe
+## @param readinessProbe.failureThreshold Failure threshold for readinessProbe
+## @param readinessProbe.successThreshold Success threshold for readinessProbe
+##
+readinessProbe:
+  enabled: true
+  config: { }
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 5
+
+envs: {}

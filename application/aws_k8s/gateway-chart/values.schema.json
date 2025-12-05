@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/schema#",
+  "type": "object",
+  "properties": {
+    "istio-gateway": {
+      "type": "object",
+      "description": "Configuration passed to the istio-gateway subchart"
+    },
+    "ingress": {
+      "type": "object",
+      "properties": {
+        "external": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable external ALB ingress"
+            },
+            "annotations": {
+              "type": "object",
+              "description": "Additional annotations for external ingress"
+            }
+          }
+        },
+        "internal": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable internal ALB ingress"
+            },
+            "annotations": {
+              "type": "object",
+              "description": "Additional annotations for internal ingress"
+            }
+          }
+        }
+      }
+    },
+    "labels": {
+      "type": "object",
+      "description": "Labels to apply to custom resources"
+    }
+  }
+}
