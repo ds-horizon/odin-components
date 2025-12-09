@@ -1,4 +1,4 @@
 {
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Deploy application in local_k8s and aws_ec2"
 }
