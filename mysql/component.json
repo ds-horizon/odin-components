@@ -1,4 +1,4 @@
 {
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Deploy mysql in aws_rds, aws_k8s and local_k8s"
 }

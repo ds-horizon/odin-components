@@ -20,19 +20,14 @@ architecture: standalone
 architecture: replication
 {% endif %}
 
-{% set discoveryService = componentMetadata.cloudProviderDetails.linked_accounts | selectattr('provider', 'eq', 'Odin') | map(attribute='services') | list | first | selectattr('category', 'eq', 'DISCOVERY') | list | first %}
 {% set accountServiceAnnotations = componentMetadata.cloudProviderDetails.account.services | selectattr('category', 'eq', 'KUBERNETES') | map(attribute='data') | map(attribute='serviceAnnotations') | list | first | default({}) %}
 {% set writerFlavourAnnotations = flavourConfig.writer.serviceAnnotations | default({}) %}
 {% set readerFlavourAnnotations = flavourConfig.reader.serviceAnnotations | default({}) %}
-{% set writerDiscoveryAnnotations = discoveryService.data.discoveryAnnotations.writer %}
-{% set readerDiscoveryAnnotations = discoveryService.data.discoveryAnnotations.reader %}
 {%- set ns = namespace(writerServiceAnnotations={}, readerServiceAnnotations={}) %}
 {%- set _ = ns.writerServiceAnnotations.update(accountServiceAnnotations) %}
 {%- set _ = ns.readerServiceAnnotations.update(accountServiceAnnotations) %}
 {%- set _ = ns.writerServiceAnnotations.update(writerFlavourAnnotations) %}
 {%- set _ = ns.readerServiceAnnotations.update(readerFlavourAnnotations) %}
-{%- set _ = ns.writerServiceAnnotations.update(writerDiscoveryAnnotations) %}
-{%- set _ = ns.readerServiceAnnotations.update(readerDiscoveryAnnotations) %}
 {%- set writerServiceAnnotations = ns.writerServiceAnnotations %}
 {%- set readerServiceAnnotations = ns.readerServiceAnnotations %}
 
@@ -79,11 +74,11 @@ primary:
     log-error=/opt/bitnami/mysql/logs/mysqld.log
     character-set-server=UTF8
     collation-server=utf8_general_ci
-    {% if flavourConfig.binlog.enabled %}
-    {% for key,value in flavourConfig.binlog.configuration.items() %}
+    {%- if flavourConfig.binlog is defined and flavourConfig.binlog.enabled | default(false) %}
+    {%- for key,value in (flavourConfig.binlog.configuration | default({})).items() %}
     {{ key }}={{ value }}
-    {% endfor %}
-    {% endif %}
+    {%- endfor %}
+    {%- endif %}
     [client]
     port=3306
     socket=/opt/bitnami/mysql/tmp/mysql.sock
