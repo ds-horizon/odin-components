@@ -1,0 +1,15 @@
+{{- if .Values.pdb.enabled -}}
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}
+  annotations:
+    {{- include "service-deployment.resourceAnnotations" . | nindent 4 }}
+  labels:
+    {{- include "service-deployment.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "service-deployment.selectorLabels" . | nindent 6 }}
+  minAvailable: {{ .Values.pdb.minAvailable }}
+{{- end -}}

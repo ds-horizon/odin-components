@@ -1,0 +1,155 @@
+replicaCount: ${deployConfig.replicas?c}
+envs:
+  - name: HOST_IP
+    valueFrom:
+      fieldRef:
+        fieldPath: status.hostIP
+  <#list environmentVariables as key, value>
+  - name: ${key}
+    value: "${value}"
+  </#list>
+
+image:
+  registry: ${registry}
+  repository: ${deployConfig.artifactConfig.name}
+  tag: ${deployConfig.artifactConfig.version}-${idempotencySha}
+  pullPolicy: Always
+  pullSecrets:
+    <#list pullSecrets as pullSecret>
+    - ${pullSecret}
+    </#list>
+
+tls:
+  enabled: false
+
+certificate:
+  create: false
+
+hpa:
+  enabled: false
+
+serviceAccount:
+  name: ${serviceAccountName}
+  annotations:
+    <#list serviceAccountAnnotations as key, value>
+    ${key}: '${value}'
+    </#list>
+  automountServiceAccountToken: true
+
+serviceMonitor:
+  enabled: false
+  interval: 15s
+
+<#if (deployConfig?? && deployConfig.discoveryConfig??) && (deployConfig.discoveryConfig.publicRoute?? || deployConfig.discoveryConfig.privateRoute??)>
+hosts:
+  <#if deployConfig.discoveryConfig.publicRoute??>
+  - '${deployConfig.discoveryConfig.publicRoute}'
+  </#if>
+  <#if deployConfig.discoveryConfig.privateRoute??>
+  - '${deployConfig.discoveryConfig.privateRoute}'
+  </#if>
+</#if>
+
+resources:
+  limits:
+    cpu: ${deployConfig.resources.limits.cpu}
+    memory: ${deployConfig.resources.limits.memory}
+  requests:
+    cpu: ${deployConfig.resources.requests.cpu}
+    memory: ${deployConfig.resources.requests.memory}
+
+lifecycle:
+  preStop:
+    exec:
+      command:
+        - sleep
+        - "20" # Wait for 20 seconds before sending SIGTERM to the pod so that the pod IP address gets removed from endpoint slice
+
+labels:
+  <#list labels as key, value>
+  ${key}: "${value}"
+  </#list>
+
+istio:
+  enabled: true
+
+rbac:
+  enabled: false
+
+nodeSelector:
+  <#list deployConfig.nodeSelector as key, value>
+  ${key}: "${value}"
+  </#list>
+<#if deployConfig.tolerations?size gt 0>
+
+tolerations:
+  <#list deployConfig.tolerations as toleration>
+  - key: "${toleration.key}"
+    operator: "${toleration.operator}"
+    <#if toleration.value??>
+    value: "${toleration.value}"
+    </#if>
+    effect: "${toleration.effect}"
+  </#list>
+</#if>
+
+livenessProbe:
+  enabled: ${enableProbes?c}
+  config:
+    initialDelaySeconds: ${deployConfig.probes.liveness.initialDelaySeconds}
+    periodSeconds: ${deployConfig.probes.liveness.intervalSeconds}
+    timeoutSeconds: ${deployConfig.probes.liveness.timeoutSeconds}
+    failureThreshold: ${deployConfig.probes.liveness.failureThreshold}
+  <#if deployConfig.probes.liveness.type == "HTTP_GET">
+    httpGet:
+      path: ${deployConfig.probes.liveness.config.path}
+      port: ${deployConfig.probes.liveness.config.port?c}
+      scheme: ${deployConfig.probes.liveness.config.scheme}
+      httpHeaders:
+        <#list deployConfig.probes.liveness.config.headers as key, value>
+        - name: ${key}
+          value: ${value}
+        </#list>
+
+  <#elseif deployConfig.probes.liveness.type == "TCP">
+    tcpSocket:
+      port: ${deployConfig.probes.liveness.config.port?c}
+  <#elseif deployConfig.probes.liveness.type == "GRPC">
+    grpc:
+      service: ${deployConfig.probes.liveness.config.service}
+      port: ${deployConfig.probes.liveness.config.port?c}
+  </#if>
+
+readinessProbe:
+  enabled: ${enableProbes?c}
+  config:
+    initialDelaySeconds: ${deployConfig.probes.readiness.initialDelaySeconds}
+    periodSeconds: ${deployConfig.probes.readiness.intervalSeconds}
+    timeoutSeconds: ${deployConfig.probes.readiness.timeoutSeconds}
+    successThreshold: ${deployConfig.probes.readiness.successThreshold}
+    failureThreshold: ${deployConfig.probes.readiness.failureThreshold}
+  <#if deployConfig.probes.readiness.type == "HTTP_GET">
+    httpGet:
+      path: ${deployConfig.probes.readiness.config.path}
+      port: ${deployConfig.probes.readiness.config.port?c}
+      scheme: ${deployConfig.probes.readiness.config.scheme}
+      httpHeaders:
+          <#list deployConfig.probes.readiness.config.headers as key, value>
+            - name: ${key}
+            value: ${value}
+            </#list>
+
+  <#elseif deployConfig.probes.readiness.type == "TCP">
+    tcpSocket:
+      port: ${deployConfig.probes.readiness.config.port?c}
+  <#elseif deployConfig.probes.readiness.type == "GRPC">
+    grpc:
+      service: ${deployConfig.probes.readiness.config.service}
+      port: ${deployConfig.probes.readiness.config.port?c}
+  </#if>
+
+service:
+  httpPort: ${deployConfig.probes.readiness.config.port?c}
+  externalPort: 80
+
+name: ${componentName}

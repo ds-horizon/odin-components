@@ -1,0 +1,31 @@
+apiVersion: flagger.app/v1beta1
+kind: Canary
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "service-deployment.labels" . | nindent 4 }}
+  annotations:
+    {{- include "service-deployment.resourceAnnotations" . | nindent 4 }}
+spec:
+  analysis:
+    interval: {{ .Values.flagger.analysis.interval | default "1s" }}
+    iterations: {{ .Values.flagger.analysis.iterations | default 1 }}
+    threshold: {{ .Values.flagger.analysis.threshold | default 1 }}
+  progressDeadlineSeconds: {{ .Values.flagger.analysis.progressDeadlineSeconds | default 600 }}
+  service:
+    gatewayRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: gateway
+      namespace: {{ .Release.Namespace }}
+    hosts:
+    {{- range .Values.hosts }}
+    - {{ . | quote }}
+    {{- end }}
+    port: {{ .Values.service.externalPort }}
+    targetPort: {{ .Values.service.httpPort }}
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Release.Name }}

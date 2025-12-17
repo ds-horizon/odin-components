@@ -1,0 +1,7 @@
+apiVersion: v2
+name: eks-component
+description: Service Deployment Helm chart for EKS
+type: application
+version: 1.5.20
+appVersion: 1.2.1
+icon: http://path/to/icon.svg
